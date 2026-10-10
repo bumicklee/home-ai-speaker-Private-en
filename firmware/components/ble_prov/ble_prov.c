@@ -4,9 +4,9 @@
  * What the worker task does: bring NimBLE up and down, Wi-Fi scan, test connection to new Wi-Fi, command handling,
  * 0xFF88 commit, window timing. GATT callbacks put jobs here and return right away.
  *
- * Fixed from led-app:
- * - defect where Wi-Fi was always saved on done (0xFF88): now saved only if status 2 (success) was reached in this connection
- * - defect where status was sent from two places and "auth failed" got overwritten by "timeout": one final status per attempt (net guarantees it)
+ * Rules that prevent common defects:
+ * - Wi-Fi is not always saved on done (0xFF88): saved only if status 2 (success) was reached in this connection
+ * - status is not sent from two places ("auth failed" would get overwritten by "timeout"): one final status per attempt (net guarantees it)
  */
 #include "ble_prov.h"
 
@@ -30,7 +30,7 @@ static const char *TAG = "BLE_PROV";
 
 #define SCAN_MAX       20
 #define SCAN_FETCH     32
-#define SCAN_ENTRY_LEN 34      /* SSID 32 + RSSI 1 + security 1 (same size as led-app) */
+#define SCAN_ENTRY_LEN 34      /* SSID 32 + RSSI 1 + security 1 */
 #define SCAN_FAILED    0xFF
 
 static QueueHandle_t s_jobs;
@@ -233,7 +233,7 @@ static void handle_prov_done(void)
     bool was_provisioned = settings_is_provisioned();
     bool reboot = false;
     if (s_wifi_ok) {
-        /* save only the Wi-Fi that succeeded in this connection (fixes led-app's overwrite defect) */
+        /* save only the Wi-Fi that succeeded in this connection (never overwrite with empty Wi-Fi details) */
         if (settings_set_wifi(g_ble.ssid, g_ble.password) == ESP_OK) {
             net_end_test(true);
             reboot = true;

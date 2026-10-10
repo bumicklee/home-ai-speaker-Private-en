@@ -1,4 +1,4 @@
-/// Error → ARB key. Every Failure must fill errorKey (led-app left it empty, so localization didn't work).
+/// Error → ARB key. Every Failure must fill errorKey (leaving it empty breaks localization).
 /// Key names must match `app_ko.arb` and `app_en.arb`.
 library;
 

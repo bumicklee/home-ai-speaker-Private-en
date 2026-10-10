@@ -23,7 +23,7 @@
 
 ### The Server-Free Design Principle
 
-This project builds no backend server, database, push server, or relay server. Nothing here corresponds to the API server, MQTT broker, Supabase, or FCM that led-app had.
+This project builds no backend server, database, push server, or relay server. There is no API server, MQTT broker, Supabase, or FCM.
 
 | Communication | Method | Server needed? |
 |:--|:--|:--|
@@ -46,20 +46,18 @@ Limits that come from having no server:
 
 ### What Changed in This Design (Compared with the Plan Document)
 
-- **BLE provisioning switches from ESP-IDF `network_provisioning` to a custom NimBLE GATT in the style of led-app.** It is based on led-app's Wi-Fi service (0xFF50) and device information service (0xFF60). However, the led-app app actually used only the SSID, password, status, and completion flow; the Wi-Fi scan (0xFF54) and device information (0xFF60) have to be verified fresh. led-app's completion bug (overwriting the Wi-Fi) and its duplicate status sends are also fixed (Section 2.13).
-- In exchange, **BLE link encryption** (LE Secure Connections), which led-app did not have, is added. Secrets such as API keys travel over BLE (Section 2.13, Security).
+- **BLE provisioning switches from ESP-IDF `network_provisioning` to a custom NimBLE GATT we define ourselves.** It consists of a Wi-Fi service (0xFF50) and a device information service (0xFF60). The SSID, password, status, and completion flow is the core; the Wi-Fi scan (0xFF54) and device information (0xFF60) have to be verified separately. Common defects, such as overwriting the Wi-Fi on completion and sending the status twice, are prevented by the rules (Section 2.13).
+- In addition, **BLE link encryption** (LE Secure Connections) is added. Secrets such as API keys travel over BLE (Section 2.13, Security).
 
 ---
 
 ## 1. What to Reuse
 
-Take the proven parts of three existing codebases.
+Take the proven parts of the existing firmware.
 
 | Source | What to take | What to drop / fix |
 |:--|:--|:--|
 | `waveshare-ai-speaker-assistant/firmware` | Codec and I2S initialization (**only the 16kHz configuration is verified on hardware**), AEC channel mapping, the playback queue (prefill, partial-frame flush), WakeNet lifecycle management, the `gpt-live-1` session, delegation, and tool handling, the hang-up phrase matcher, LED ring effects | The SoftAP setup portal, the USB `HV` protocol, automatic eFuse handling, the compressed one-line code style, logs turned off entirely |
-| `led-app/firmware` (ESP32-C5) | Module structure and coding rules, central configuration in `app_config.h`, NimBLE GATT provisioning (FF50/FF60, callback struct), `wifi_manager` (exponential backoff, DHCP watchdog, disconnect-reason mapping), the shape of the `nvs_storage` API, press-duration detection for buttons (short/long), the status LED pattern task, a timer reboot after provisioning completes | MQTT and the backend server, circular references between modules, the double `nvs_flash_init()`, blocking scans inside GATT callbacks, unencrypted BLE writes, always saving the Wi-Fi on completion, duplicate status sends, button ISRs (on this board the buttons sit on an I2C expander chip, so only polling works) |
-| `led-app/flutter-app` | Per-feature Clean Architecture (data/domain/presentation), `flutter_bloc` + `equatable`, `get_it` (`sl`) DI, `dartz` `Either<Failure, T>`, Exception → Failure conversion, `ErrorKeys` + `ErrorLocalizer` + ARB (ko/en), `SettingsCubit`, the Dio `ApiClient` wrapper, the service stream → BLoC event pattern, how `flutter_blue_plus` is used | Supabase, FCM, login, MQTT, BLE logic written directly inside pages (`ble_scan_page.dart` at 1,100 lines, `wifi_config_page.dart` at 1,218 lines), using the BLE `remoteId` as the MAC (doesn't work on iOS), a `ble_constants.dart` that doesn't match the real firmware, repeated try/catch boilerplate |
 
 ---
 
@@ -121,7 +119,7 @@ Every pin number in the firmware comes from this table only. Sources: the existi
 
 ### 2.1 Directory Structure
 
-Keep led-app's "module = `.c` + `include/*.h`" rule. The project is large, so it is split into ESP-IDF components rather than a single `main/`. `app_config.h` and `board_config.h` are needed by the modules in `components/` too, so they live not in `main/` but in a header-only component, `app_config` (so that no component depends on `main`).
+Follow the "module = `.c` + `include/*.h`" rule. The project is large, so it is split into ESP-IDF components rather than a single `main/`. `app_config.h` and `board_config.h` are needed by the modules in `components/` too, so they live not in `main/` but in a header-only component, `app_config` (so that no component depends on `main`).
 
 ```
 firmware/
@@ -132,7 +130,7 @@ firmware/
     main.c                    boot flow, system state machine
   components/
     app_config/               header-only component
-      include/app_config.h    version, timing, feature flags (led-app style)
+      include/app_config.h    version, timing, feature flags (config kept in one place)
       include/board_config.h  pins, I2C addresses (verified values only)
     app_events/               app event bus on esp_event (removes circular references)
     board/                    codec(ES8311/ES7210), io_expander(TCA9555), led_ring(WS2812×7), buttons, rtc(PCF85063)
@@ -143,7 +141,7 @@ firmware/
     media_radio/              HTTP/ICY stream, playlist parsing, decoding
     media_spotify/            Connect receiver (cspot-family wrapper) + Web API client + token refresh
     messenger_telegram/       getUpdates long polling, sendMessage, /pair registration, receive ring buffer
-    net/                      wifi_manager (ported from led-app), sntp, mdns
+    net/                      wifi_manager, sntp, mdns
     settings/                 nvs_storage (general settings), secret_store (secrets), schema version migration
     ble_prov/                 NimBLE GATT server (FF50/FF60/FF80), link encryption
     local_api/                HTTP REST + WebSocket events, OTA upload
@@ -166,12 +164,12 @@ Managed components (`main/idf_component.yml`). The starting versions follow the 
 
 List every IDF component actually used (`esp_driver_i2c`, `esp_driver_i2s`, `esp_driver_rmt`, `nvs_flash`, `esp_wifi`, `esp_http_server`, and so on) in `main/CMakeLists.txt` and in each component's `REQUIRES`. The official examples list no `REQUIRES` at all and build by leaning on other managed components; drop one dependency and the build suddenly breaks. `CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK` only takes effect when the `esp_websocket_client` component is present.
 
-### 2.2 Coding Rules (Following led-app)
+### 2.2 Coding Rules
 
 - One `static const char *TAG = "MODULE";` per file. Static state variables take the `s_` prefix.
 - Public APIs follow the forms `module_init()` / `module_start()` / `module_stop()` / `module_is_xxx()`.
-- Anything a higher-level module needs to know goes through a **callback struct** (led-app's `ble_gatt_callbacks_t` style) or an **`app_events` event**. A lower-level module never includes a higher-level module's header.
-  - In led-app, `wifi_manager.c` includes `ble_prov.h` and `mqtt_client_app.h`, and `button_handler.c` includes almost every module. This project forbids circular references like these.
+- Anything a higher-level module needs to know goes through a **callback struct** (like `ble_gatt_callbacks_t`) or an **`app_events` event**. A lower-level module never includes a higher-level module's header.
+  - A common mistake is for `wifi_manager.c` to include `ble_prov.h`, or for the button handler to include almost every module. This project forbids circular references like these.
 - Waiting is done with EventGroup bits (`xxx_wait_connected(timeout_ms)`).
 - Logging stays on (`CONFIG_LOG_DEFAULT_LEVEL_INFO`). But `CONFIG_LOG_MAXIMUM_LEVEL_INFO` removes DEBUG and below from the build, so the HTTP and WebSocket clients don't print URLs or headers (the Telegram bot token is inside the URL). For secrets and the Wi-Fi password, log only the length. URLs, message bodies, transcripts, and response bodies from external services are never left in logs or diagnostics.
 - Time constants (60-second no-response timeout, 10-minute maximum conversation, 15-second wait for usage after hang-up, 20-second Wi-Fi connection verdict, 5-minute BLE window / 15 minutes maximum, and so on) go in `app_config.h`.
@@ -202,8 +200,6 @@ The state machine in `main.c`, `led_ring`, and `local_api` (WebSocket push) subs
 
 ### 2.4 Boot Flow
 
-This extends led-app's boot order.
-
 ```mermaid
 flowchart TD
   A[app_main] --> B[settings_init: nvs, secrets partition initialized once]
@@ -219,7 +215,7 @@ flowchart TD
   G -->|Done| R[Reboot after 2 s]
 ```
 
-- As in led-app, **a Wi-Fi failure alone does not enter provisioning mode.** Retries continue in the background, and the user opens the BLE window with Key2 for 3 seconds.
+- **A Wi-Fi failure alone does not enter provisioning mode.** Retries continue in the background, and the user opens the BLE window with Key2 for 3 seconds.
 - `nvs_flash_init()`-family calls happen in exactly one place: `settings_init()`.
 
 ### 2.5 System State (Two Axes)
@@ -335,7 +331,7 @@ const radio_status_t *radio_get_status(void);   // state, title, icy_title, bitr
 - Implementation: use ESP-GMF `esp_audio_simple_player`. The official examples (`factory_01`, `mp3_play_03`) already receive decoded PCM through `esp_asp_cfg_t.out.cb` and write it straight to the codec, so the same callback puts the PCM into the mixer's `MUSIC` channel (Q1 resolved). The output sample rate is matched to the mixer rate (48kHz proposal or 16kHz) with `CONFIG_AUDIO_SIMPLE_PLAYER_RESAMPLE_DEST_RATE` (the official examples use 16000).
 - Don't use the conversion that the official examples' `esp_audio_play()` does, which calls `malloc` on every playback or repeats samples an integer number of times. Allocate the buffer once in PSRAM at startup, and do rate conversion with the player setting or `esp_audio_effects`.
 - When the input is an HTTP stream, pass the URL as `http://…` (the official examples use `file://sdcard/…`). Check the extent of stream support (ICY metadata, `.pls`/`.m3u`) in Phase 0; if it falls short, receive with `esp_http_client` and feed the player's input callback (`in.cb`).
-- To handle: `.pls`/`.m3u` parsing, 302 redirects, ICY metadata, HTTPS, reconnecting after a dropout (1s → 30s exponential backoff, the led-app `wifi_manager` approach).
+- To handle: `.pls`/`.m3u` parsing, 302 redirects, ICY metadata, HTTPS, reconnecting after a dropout (1s → 30s exponential backoff, the same approach as `wifi_manager`).
 - Up to 20 presets, stored in `/presets.json` on the `storage` (littlefs) partition (URLs are long and can exceed the 4,000B NVS string limit). The last station played goes in NVS `media.last_preset`/`last_url`.
 - Up to 5 reconnects. After 5 consecutive failures, stop and play an alert tone (RAD-06).
 
@@ -457,13 +453,13 @@ Behavior:
 
 ### 2.12 Settings and Storage (`settings`)
 
-Like led-app's `nvs_storage`, each item gets typed `save/load/has/clear` functions. Only secrets are split out into `secret_store`.
+Each item gets typed `save/load/has/clear` functions. Only secrets are split out into `secret_store`.
 
 | Partition | Namespace | Key | Type | Default |
 |:--|:--|:--|:--|:--|
 | nvs | `prov` | `provisioned` | u8 | 0 |
 | nvs | `prov` | `schema` | u16 | 1 (for migration) |
-| nvs | `wifi` | `ssid`, `password` | str | — (same keys as led-app) |
+| nvs | `wifi` | `ssid`, `password` | str | — |
 | nvs | `audio` | `volume` 0–80, `mic_gain` 0–36, `auto_gain`, `duck_db` 0–40, `sp_pause_voice` | i32/u8 | 40, 24, 0, 20, 0 |
 | nvs | `led` | `brightness` 0–100 | u8 | 60 |
 | nvs | `sys` | `last_reset` (reboot reason and time), `fail_log` (last 5 failures, fixed codes) | blob | — |
@@ -485,13 +481,13 @@ esp_err_t secret_erase(secret_id_t id);
 ```
 `secret_get` results are never sent out over either BLE or the LAN. The app can only see "whether it is stored."
 
-Factory reset (Key2 for 10 seconds): erase the two partitions `nvs` and `secrets`, restore `/presets.json` in `storage` to the defaults, then reboot. This is the same approach as led-app's `nvs_flash_erase()`.
+Factory reset (Key2 for 10 seconds): erase the two partitions `nvs` and `secrets`, restore `/presets.json` in `storage` to the defaults, then reboot. It uses `nvs_flash_erase()`.
 
 ### 2.13 BLE GATT Specification (`ble_prov`)
 
-This takes the led-app specification as its base and replaces the MQTT service (0xFF70) with a settings service (0xFF80).
+It consists of a Wi-Fi service (0xFF50), a device information service (0xFF60), and a settings service (0xFF80).
 
-**What was actually verified in led-app**: only the SSID (0xFF51) → Password (0xFF52) → Status (0xFF53) → completion (0xFF78) flow was used by the led-app app. The Wi-Fi scan (0xFF54) and device information (0xFF60) were implemented only in the led-app firmware; the app never used them (the app scanned with the phone's `wifi_scan`, Android only). The new app must use 0xFF54 to support iOS, so it is **a new item to verify in Phase 2**.
+**What to verify**: the core is the SSID (0xFF51) → Password (0xFF52) → Status (0xFF53) → completion flow. The app can't scan for Wi-Fi itself on iOS, so it must use the Wi-Fi scan (0xFF54). The scan and device information (0xFF60) are therefore **items to verify in Phase 2**.
 
 #### Advertising and Identifiers
 
@@ -514,7 +510,7 @@ This takes the led-app specification as its base and replaces the MQTT service (
 | | Command TX | `0xFF82` | Notify | Command response chunks |
 | | Provisioning complete | `0xFF88` | Write (encrypted) | `0x01` (commit rules below) |
 
-The app **enables notifications on 0xFF53, 0xFF54, and 0xFF82 before writing anything** (led-app enabled notifications after writing the password and could miss the initial status). UUIDs are found by `Guid` equality, not by checking whether a string contains them.
+The app **enables notifications on 0xFF53, 0xFF54, and 0xFF82 before writing anything** (enabling them after writing the password can miss the initial status). UUIDs are found by `Guid` equality, not by checking whether a string contains them.
 
 #### Wi-Fi Status Codes (0xFF53)
 
@@ -527,7 +523,7 @@ The app **enables notifications on 0xFF53, 0xFF54, and 0xFF82 before writing any
 | 4 | Authentication failed (wrong password) | ✅ |
 | 5 | Timed out | ✅ |
 
-Rules (in led-app, status was sent from two places, so "authentication failed" could be overwritten by "timed out"):
+Rules (if status is sent from two places, "authentication failed" can be overwritten by "timed out"):
 - For each password write, **a terminal status (2–5) is sent exactly once**. The first terminal reason decided wins.
 - A single 20-second time limit is used everywhere.
 - Disconnect reason → status mapping: `NO_AP_FOUND` (201) and the 2xx family in IDF 5.x (`NO_AP_FOUND_W_COMPATIBLE_SECURITY` and so on) → 3. `AUTH_FAIL` (202), `4WAY_HANDSHAKE_TIMEOUT` (15), `HANDSHAKE_TIMEOUT` (204), `MIC_FAILURE`, `CONNECTION_FAIL` → 4. No IP within 20 seconds → 5.
@@ -536,7 +532,7 @@ Rules (in led-app, status was sent from two places, so "authentication failed" c
 #### Wi-Fi Scan (0xFF54)
 
 - When the app writes any value, the device scans in a **work task outside the GATT callback**.
-- Notification order: a 1-byte count (0–20, `0xFF` means the scan failed) → one notification per AP (34 bytes, the same size as led-app).
+- Notification order: a 1-byte count (0–20, `0xFF` means the scan failed) → one notification per AP (34 bytes).
 - AP entry: SSID (UTF-8, 32 bytes, padded with 0) + RSSI (1B, actual value + 128) + security type (1B, table below). For duplicate SSIDs, only the strongest one is sent. Hidden SSIDs are excluded.
 
 | Security value | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 255 |
@@ -589,7 +585,7 @@ Keys for `secret.set` and `secret.erase`: `openai_key`, `tg_bot_token`, (P2) `st
 
 #### When Values Are Saved, and the Completion (0xFF88) Rules
 
-led-app's completion handling saves the temporary SSID and password without checking whether the Wi-Fi was changed in this connection. So if you change only a key and send completion, **the saved Wi-Fi is overwritten with empty values.** This project follows these rules.
+If completion saves the temporary SSID and password without checking whether the Wi-Fi was changed in this connection, then changing only a key and sending completion **overwrites the saved Wi-Fi with empty values.** To prevent this, this project follows these rules.
 
 | Action | When it is saved |
 |:--|:--|
@@ -691,7 +687,7 @@ Factory reset is not done over the LAN. The app only shows the instruction "Key2
 
 #### Button Hardware
 
-This board has three buttons, Key1/Key2/Key3, connected not to GPIOs but to **EXIO 9/10/11 on the TCA9555 expander chip** (active low, 10kΩ pull-up). The TCA9555's interrupt pin isn't connected to the ESP32, so ISRs can't be used; instead, **the input register is read over I2C every 20ms** (led-app's ISR approach doesn't fit this board). Debounce settles a value when it reads the same twice in a row (40ms). Holding BOOT (GPIO0) while powering on enters download mode, so it is not used as a runtime input.
+This board has three buttons, Key1/Key2/Key3, connected not to GPIOs but to **EXIO 9/10/11 on the TCA9555 expander chip** (active low, 10kΩ pull-up). The TCA9555's interrupt pin isn't connected to the ESP32, so ISRs can't be used; instead, **the input register is read over I2C every 20ms** (an ISR approach doesn't fit this board). Debounce settles a value when it reads the same twice in a row (40ms). Holding BOOT (GPIO0) while powering on enters download mode, so it is not used as a runtime input.
 
 | Button | Location | Role |
 |:--|:--|:--|
@@ -773,7 +769,7 @@ CONFIG_SR_WN_WN9_JARVIS_TTS=y
 CONFIG_SR_WN_WN9_COMPUTER_TTS=y
 # Secrets in plaintext NVS: encryption off (if on, an HMAC key is written to eFuse automatically)
 CONFIG_NVS_ENCRYPTION=n
-# BLE (following led-app + security)
+# BLE (Custom GATT + Security)
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
@@ -903,35 +899,35 @@ The app sets the "neighborhood you live in" that the assistant uses for weather 
 - It can also be changed by voice: "내 위치는 ○○동이야" (my location is ○○-dong) → the `set_location` tool.
 - An IANA name not in the firmware's time zone table (`assistant.c` `TIMEZONES`) gets `INVALID_ARG`. If the time zone isn't in the table, the app asks the user to pick the closer of `Asia/Seoul`/`UTC`. In the table: Asia/Seoul, Tokyo, Shanghai, Singapore; UTC; Europe/London, Berlin; America/New_York, Chicago, Denver, Los_Angeles; Australia/Sydney.
 
-### 3.1 Tech Stack (Same Major Versions as led-app)
+### 3.1 Tech Stack (Pinned Major Versions)
 
-Start from the versions in led-app's `pubspec.lock` (Dart ≥3.10.4, Flutter ≥3.38.4). Raising a major version (flutter_bloc 9, get_it 8, and so on) introduces API differences when porting led-app code, so raise them only when upgrading both apps together.
+Use the versions below (Dart ≥3.10.4, Flutter ≥3.38.4) and pin the major versions. Raising a major version (flutter_bloc 9, get_it 8, and so on) changes APIs, so the code would no longer match while you follow along.
 
-| Area | Package | Version | Compared with led-app |
+| Area | Package | Version | Notes |
 |:--|:--|:--|:--|
-| State management | `flutter_bloc`, `equatable` | ^8.1.6, ^2.0.5 | Same |
-| DI | `get_it` (`sl`) | ^7.7.0 | Same |
-| Result type | `dartz` `Either<Failure, T>` | ^0.10.1 | Same (aware that the package is no longer maintained) |
-| HTTP | `dio` | ^5.x | Same. But `ApiClient` is one instance per device (Section 3.2) |
-| WebSocket | `web_socket_channel` (`IOWebSocketChannel`) | Latest | New (replaces MQTT). Sends the token in a header |
-| BLE | `flutter_blue_plus` | ^1.36.8 | Same. 2.x changed the `connect()` API and the license terms, so decide after checking (Q6) |
-| Permissions | `permission_handler` | ^11.x | Same |
-| Storage | `shared_preferences`, `flutter_secure_storage` | Same as led-app | Same |
-| Localization | `flutter_localizations`, `intl`, ARB (ko, en) | | Same. The template is `app_ko.arb` |
-| mDNS | `nsd` | Latest | New. `multicast_dns` needs Apple's multicast entitlement on iOS, so it is not used |
-| OAuth | `flutter_appauth` | Latest | New (Spotify PKCE) |
-| File picking | `file_picker` | Latest | New (OTA `.bin`) |
-| Preview | `just_audio` | Latest | New, P2 (RAD-10) |
-| External links | `url_launcher` | ^6.x | Same (BotFather and t.me guides) |
-| Testing | `bloc_test`, `mocktail` | ^9.1.7, ^1.0.5 | led-app only declares them and has 0 unit tests (`test/widget_test.dart` is an empty test). The new app is the first to really use them |
-| Removed | `supabase_flutter`, `firebase_*`, `flutter_local_notifications`, `google_sign_in`, `kakao_*`, `app_links`, `mqtt_client`, `wifi_scan`, `mobile_scanner`, `provider` (led-app only has the dependency, with no usage) | | No backend, no QR |
+| State management | `flutter_bloc`, `equatable` | ^8.1.6, ^2.0.5 | |
+| DI | `get_it` (`sl`) | ^7.7.0 | |
+| Result type | `dartz` `Either<Failure, T>` | ^0.10.1 | Aware that the package is no longer maintained |
+| HTTP | `dio` | ^5.x | `ApiClient` is one instance per device (Section 3.2) |
+| WebSocket | `web_socket_channel` (`IOWebSocketChannel`) | Latest | Sends the token in a header |
+| BLE | `flutter_blue_plus` | ^1.36.8 | 2.x changed the `connect()` API and the license terms, so decide after checking (Q6) |
+| Permissions | `permission_handler` | ^11.x | |
+| Storage | `shared_preferences`, `flutter_secure_storage` | Latest | |
+| Localization | `flutter_localizations`, `intl`, ARB (ko, en) | | The template is `app_ko.arb` |
+| mDNS | `nsd` | Latest | `multicast_dns` needs Apple's multicast entitlement on iOS, so it is not used |
+| OAuth | `flutter_appauth` | Latest | Spotify PKCE |
+| File picking | `file_picker` | Latest | OTA `.bin` |
+| Preview | `just_audio` | Latest | P2 (RAD-10) |
+| External links | `url_launcher` | ^6.x | BotFather and t.me guides |
+| Testing | `bloc_test`, `mocktail` | ^9.1.7, ^1.0.5 | Unit tests for every BLoC |
+| Not used | `supabase_flutter`, `firebase_*`, `flutter_local_notifications`, `google_sign_in`, `kakao_*`, `app_links`, `mqtt_client`, `wifi_scan`, `mobile_scanner`, `provider` | | No backend, no QR |
 
 ### 3.2 Folder Structure
 
 ```
 lib/
   main.dart
-  app.dart                       MultiBlocProvider + routes (led-app style)
+  app.dart                       MultiBlocProvider + routes
   injection_container.dart       sl registration (Bloc=Factory, Repo/DataSource=LazySingleton.
                                  Exception: app-wide state SettingsCubit and DeviceSelectionCubit are LazySingleton + BlocProvider.value)
   core/
@@ -939,9 +935,9 @@ lib/
       ble_protocol.dart          ★ the only BLE constants file, matching firmware Section 2.13 one to one
       api_paths.dart             LAN API paths
       spotify_constants.dart     redirect URI, scope (client_id is not a constant; the user enters it)
-    errors/                      failures.dart, exceptions.dart, error_localizer.dart (led-app style)
+    errors/                      failures.dart, exceptions.dart, error_localizer.dart
                                  New: DeviceApiException, DeviceTimeoutException, DeviceFailure.
-                                 Every Failure must fill in errorKey (led-app left it empty, so localization didn't work)
+                                 Every Failure must fill in errorKey (leaving it empty breaks localization)
     network/
       device_api_client.dart     Dio instance per device: DeviceApiClientFactory.forDevice(id).
                                  Binds baseUrl and token per device. No refresh interceptor.
@@ -960,7 +956,7 @@ lib/
                                      LazySingleton. Connects only to the one selected device; reconnects when the device changes
     repository/
       guard.dart                 shared Exception → Failure conversion (removes repeated try/catch)
-    settings/settings_cubit.dart theme, language (led-app style. The default language is the system language, or ko if unsupported)
+    settings/settings_cubit.dart theme, language (the default language is the system language, or ko if unsupported)
     theme/, widgets/
   features/
     devices/        device list (stored locally, identifier = 0xFF61 STA MAC), selection, status card, delegates token storage
@@ -975,7 +971,7 @@ lib/
   l10n/             app_ko.arb, app_en.arb
 ```
 
-Each feature has the same layers as in led-app.
+Each feature has the same layers.
 
 ```
 features/<name>/
@@ -988,19 +984,19 @@ features/<name>/
   presentation/pages/, presentation/widgets/
 ```
 
-Create `domain/usecases` only when there is validation logic (like led-app's `Login`). If it would just pass things through, the BLoC calls the repository directly. That is in fact how led-app does it too.
+Create `domain/usecases` only when there is validation logic. If it would just pass things through, the BLoC calls the repository directly.
 
-BLoC lifetime: feature BLoCs are created with a **per-page `BlocProvider`**, not at the app root (led-app creates every BLoC at the root, and `app.dart` grew to 1,172 lines). A BLoC that needs WebSocket events subscribes to the `DeviceEventService` stream in its constructor and cancels in `close()` (the led-app `DeviceBloc` approach). Event owners: `tg_paired` and `tg_status` → TelegramBloc, `ota_progress` → SystemBloc, `wake_test` → AudioBloc, `voice_state`, `media_state`, `volume`, and `tg_message` (unread count) → HomeBloc.
+BLoC lifetime: feature BLoCs are created with a **per-page `BlocProvider`**, not at the app root (creating every BLoC at the root easily pushes `app.dart` past a thousand lines). A BLoC that needs WebSocket events subscribes to the `DeviceEventService` stream in its constructor and cancels in `close()`. Event owners: `tg_paired` and `tg_status` → TelegramBloc, `ota_progress` → SystemBloc, `wake_test` → AudioBloc, `voice_state`, `media_state`, `volume`, and `tg_message` (unread count) → HomeBloc.
 
-### 3.3 Improvement Rules Compared with led-app
+### 3.3 App Structure Rules
 
-| led-app today | Rule in this project |
+| Common problem | Rule in this project |
 |:--|:--|
-| Provisioning pages handle BLE directly (`wifi_config_page.dart` at 1,218 lines, `ble_scan_page.dart` at 1,100 lines) | BLE is split into `core/ble` + `ProvisioningBleDataSource`; pages only draw the `ProvisioningBloc` state. Target: 300 lines or fewer per page |
-| `ble_constants.dart` (128bit UUIDs, `NANU_LED_`) is dead code used nowhere, and the real UUIDs are hard-coded in pages (compared by string containment). The SSID and password are written as UTF-16 `codeUnits`, so Korean SSIDs get garbled | Keep a single `ble_protocol.dart`. Its values must match the firmware's `app_config.h`, and Section 2.13 of the design document is the reference |
+| Screen files handle BLE directly, so a single file grows past 1,000 lines | BLE is split into `core/ble` + `ProvisioningBleDataSource`; pages only draw the `ProvisioningBloc` state. Target: 300 lines or fewer per page |
+| UUIDs are hard-coded in every screen, and the SSID and password are written as UTF-16 `codeUnits`, so Korean SSIDs get garbled | Keep a single `ble_protocol.dart`. Its values must match the firmware's `app_config.h`, and Section 2.13 of the design document is the reference |
 | The same try/catch repeated in every repository method | Unified with a `guard(() => ...)` helper |
-| 0 unit tests (only 4 integration tests) | `bloc_test` unit tests for every BLoC; `mocktail` for data sources |
-| `ErrorKeys` full of server and login keys; Failures don't fill in errorKey, so localization doesn't work | Rebuilt around BLE, LAN, and device error keys (`errorDeviceUnreachable`, `errorDeviceUnauthorized`, `errorBleBondFailed`, `errorWifiAuth`, and so on) |
+| Relying on integration tests only, with no unit tests | `bloc_test` unit tests for every BLoC; `mocktail` for data sources |
+| Failures don't fill in errorKey, so localization doesn't work | Rebuilt around BLE, LAN, and device error keys (`errorDeviceUnreachable`, `errorDeviceUnauthorized`, `errorBleBondFailed`, `errorWifiAuth`, and so on) |
 
 `guard` example:
 ```dart
@@ -1009,7 +1005,7 @@ Future<Either<Failure, T>> guard<T>(Future<T> Function() run) async {
     return Right(await run());
   } on DeviceApiException catch (e) {          // newly defined
     return Left(DeviceFailure.fromStatus(e.code, e.message));
-  } on DeviceTimeoutException {                 // new. led-app's TimeoutException clashed with dart:async, so renamed
+  } on DeviceTimeoutException {                 // new. Named so it doesn't clash with dart:async's TimeoutException
     return const Left(DeviceFailure.timeout());
   } on TimeoutException {                       // dart:async (thrown by .timeout())
     return const Left(DeviceFailure.timeout());
@@ -1091,10 +1087,10 @@ flowchart LR
 | | `NSBonjourServices` | `_aispeaker._tcp` (without it, mDNS discovery fails) |
 | | `NSAppTransportSecurity` → `NSAllowsLocalNetworking` | `true` (allows plaintext HTTP to local IPs) |
 | | `CFBundleURLSchemes` | Spotify redirect scheme (`flutter_appauth`) |
-| | Location permission text | Not needed (BLE scanning on iOS doesn't require location permission). led-app's location text is not carried over |
+| | Location permission text | Not needed (BLE scanning on iOS doesn't require location permission). |
 | Android `AndroidManifest.xml` | Android 12+ | Request only `BLUETOOTH_SCAN` (`neverForLocation`) and `BLUETOOTH_CONNECT` |
 | | Android 11 and below | `BLUETOOTH`, `BLUETOOTH_ADMIN` (`maxSdkVersion=30`), `ACCESS_FINE_LOCATION` (`maxSdkVersion=30`) |
-| | Plaintext HTTP | `network_security_config.xml` base-config `cleartextTrafficPermitted="true"` (as in led-app. Private IP ranges can't be expressed with domain-config) |
+| | Plaintext HTTP | `network_security_config.xml` base-config `cleartextTrafficPermitted="true"` (private IP ranges can't be expressed with domain-config) |
 | | Spotify redirect | `manifestPlaceholders["appAuthRedirectScheme"]` in `build.gradle` |
 | Common | Reinstall handling | The iOS Keychain (`flutter_secure_storage`) survives app deletion. If the first-run marker (SharedPreferences) is missing, clear the secure storage |
 
@@ -1104,7 +1100,7 @@ Since `wifi_scan` is not used, Android's `NEARBY_WIFI_DEVICES` and location perm
 
 ## 4. Specifications Shared by the App and the Firmware
 
-When two repositories move separately, constants drift apart, as happened with led-app. So these rules apply.
+When two repositories move separately, constants easily drift apart. So these rules apply.
 
 - **Sections 2.13 (BLE) and 2.14 (LAN) of this design document are the single reference.** When a specification changes, update the design document first.
 - Change the UUID and name constants in the firmware's `app_config.h` and the app's `ble_protocol.dart` and `api_paths.dart` together in the same PR.

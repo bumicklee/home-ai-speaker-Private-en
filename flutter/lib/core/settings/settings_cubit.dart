@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// App-wide settings: theme and language (the led-app way). The default language is the system language, or ko if it isn't supported.
+/// App-wide settings: theme and language. The default language is the system language, or ko if it isn't supported.
 class SettingsState extends Equatable {
   const SettingsState({this.themeMode = ThemeMode.system, this.locale});
 

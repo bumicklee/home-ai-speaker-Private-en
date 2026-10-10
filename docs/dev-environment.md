@@ -130,7 +130,7 @@ flutter pub get
 flutter run           # connected phone or simulator
 ```
 
-- This meets the same requirements as led-app (Dart ≥3.10.4, Flutter ≥3.38.4).
+- Requirements: Dart ≥3.10.4, Flutter ≥3.38.4.
 - iOS builds need Xcode and CocoaPods; Android builds need the Android SDK. Check with `flutter doctor`.
 - Even if a `flutter upgrade` notice appears, don't upgrade until the team decides, so the app version stays pinned.
 

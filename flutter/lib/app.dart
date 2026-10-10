@@ -10,7 +10,7 @@ import 'injection_container.dart';
 import 'l10n/app_localizations.dart';
 
 /// App root. Only app-wide state (settings, device selection) is provided here; feature BLoCs are created per page
-/// (led-app created everything at the root, and app.dart grew to 1,172 lines).
+/// (creating everything at the root easily pushes app.dart past a thousand lines).
 class AiSpeakerApp extends StatelessWidget {
   const AiSpeakerApp({super.key});
 

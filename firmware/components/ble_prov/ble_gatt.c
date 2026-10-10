@@ -1,6 +1,6 @@
 /*
  * NimBLE GATT server and GAP (design document, Section 2.13).
- * Built on led-app's FF50/FF60 spec, with FF80 (settings commands) added and every write encrypted.
+ * FF50 (Wi-Fi) and FF60 (device info), with FF80 (settings commands) added and every write encrypted.
  * Callbacks are called from the NimBLE host task: they only copy the value and hand it to the worker task.
  */
 #include <string.h>

@@ -1,6 +1,6 @@
 /**
  * @file settings.h
- * @brief General settings store (design document Section 2.12, led-app nvs_storage style)
+ * @brief General settings store (design document Section 2.12, NVS key-value storage)
  *
  * Each item has typed get/set functions. If nothing is stored or the value is out of range,
  * the default is returned. Secrets use secret_store.h.
@@ -40,7 +40,7 @@ esp_err_t settings_init(void);
 bool      settings_is_provisioned(void);
 esp_err_t settings_set_provisioned(bool provisioned);
 
-/* Wi-Fi (same keys as led-app) */
+/* Wi-Fi */
 bool      settings_has_wifi(void);
 esp_err_t settings_get_wifi(char ssid[33], char password[65]);
 esp_err_t settings_set_wifi(const char *ssid, const char *password);

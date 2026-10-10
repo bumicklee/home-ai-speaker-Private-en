@@ -201,14 +201,14 @@ Preparation: in **each home that uses the speaker, one main account creates a Sp
 
 | ID | Feature | Detailed behavior | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|
-| APP-01 | Permission requests | Android 12+: only `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`. Android 11 and below: location. iOS: Bluetooth, local network (system pop-up on the first mDNS/HTTP). Design document Section 3.6 | P0 | 2 | On denial, guide to the settings screen (as in led-app) |
+| APP-01 | Permission requests | Android 12+: only `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`. Android 11 and below: location. iOS: Bluetooth, local network (system pop-up on the first mDNS/HTTP). Design document Section 3.6 | P0 | 2 | On denial, guide to the settings screen |
 | APP-02 | Device list | Store registered devices on the phone (STA MAC read from 0xFF61, name, last IP). BLE `remoteId` isn't used (it's a UUID on iOS). Supports several devices | P0 | 2 | |
 | APP-03 | Finding devices | Search with mDNS and update the IP. On failure, try the last IP | P0 | 2 | Finds it again automatically even if the IP changes |
 | APP-04 | Home screen | Connection state, conversation state, now playing, volume, unread Telegram count, quick actions (start conversation, play/stop) | P0 | 2 | |
 | APP-05 | Real-time updates | Reflect state through WebSocket events. Reconnect automatically when disconnected (1→30 seconds) | P0 | 2 | |
 | APP-06 | Can't-connect guidance | A prompt to check it's the same Wi-Fi, a button to go to BLE re-setup | P0 | 2 | |
 | APP-07 | Localization | Korean (default), English. ARB files | P0 | 2 | Every string is in an ARB |
-| APP-08 | Theme | System/light/dark (led-app `SettingsCubit`) | P1 | 2 | |
+| APP-08 | Theme | System/light/dark (`SettingsCubit`) | P1 | 2 | |
 | APP-09 | Error messages | `ErrorKeys` → localized messages. Next-step guidance for each cause | P0 | 2 | |
 | APP-10 | Secrets screen | Shows the OpenAI key only as "saved/none"; replace (BLE), delete (LAN). Telegram and Spotify status belong to their own feature screens; here, only links | P0 | 2 | The raw key appears nowhere on any app screen |
 | APP-11 | Offline mode | Shows the saved device list and guidance even when not connected to a device | P1 | 2 | |
@@ -277,5 +277,5 @@ Preparation: in **each home that uses the speaker, one main account creates a Sp
 | Stability | 0 reboots in 24 hours of continuous operation. Recovers automatically after a router reboot |
 | Memory | 40KB or more of internal RAM free: conversation + music (Telegram polling stopped), music + Telegram, BLE window + music |
 | Cost | One conversation at most 10 minutes, 60-second no-response timeout, auto-read off by default |
-| Maintenance | The app follows the led-app structure (Clean Architecture + BLoC + get_it). The design document is the only reference for the BLE and LAN specifications |
+| Maintenance | The app uses Clean Architecture + BLoC + get_it. The design document is the only reference for the BLE and LAN specifications |
 | Tests | App BLoC unit tests, firmware host unit tests (pure logic: hang-up phrases, delegation parser, settings validation, and so on) |

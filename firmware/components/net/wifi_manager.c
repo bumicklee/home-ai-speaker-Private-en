@@ -1,6 +1,6 @@
 /*
- * Ported from led-app/firmware/main/wifi_manager.c. Changes:
- * - Does not include the ble_prov or mqtt headers (higher modules are notified through app_events)
+ * Wi-Fi station management. Design points:
+ * - Does not include higher-module headers such as ble_prov (higher modules are notified through app_events)
  * - Wi-Fi details are read from the settings module
  * - The disconnect reason mapping adds the IDF 5.x 2xx codes (NO_AP_FOUND_W_COMPATIBLE_SECURITY, etc.)
  * - Logs record only the SSID length, not the SSID
@@ -103,7 +103,7 @@ bool net_is_testing(void)
     return s_testing;
 }
 
-/* Send a terminal status only once per attempt. The first reason decided wins (fixes a led-app defect) */
+/* Send a terminal status only once per attempt. The first reason decided wins (sending it twice makes the app show the wrong guidance) */
 static void report_test(net_wifi_status_t status)
 {
     net_test_cb_t cb = NULL;

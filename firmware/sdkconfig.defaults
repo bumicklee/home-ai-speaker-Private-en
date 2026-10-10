@@ -46,7 +46,7 @@ CONFIG_SR_WN_WN9_COMPUTER_TTS=y
 # Plaintext NVS for secrets: encryption off (if left on, an HMAC key is written to eFuse automatically)
 CONFIG_NVS_ENCRYPTION=n
 
-# BLE (led-app baseline + security). Bonds aren't stored, so NVS_PERSIST stays at the default (n)
+# BLE (custom GATT + security). Bonds aren't stored, so NVS_PERSIST stays at the default (n)
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1

@@ -186,7 +186,7 @@ class BleLink implements BleCommandTransport {
     _cmdTx = find(BleProtocol.svcConfig, BleProtocol.chrCmdTx);
     _provDone = find(BleProtocol.svcConfig, BleProtocol.chrProvDone);
 
-    // Turn on notifications before writing (led-app turned them on later and missed the initial status)
+    // Turn on notifications before writing (turning them on later misses the initial status)
     _subs.add(_status.onValueReceived.listen((v) {
       final s = v.isEmpty ? null : WifiProvStatus.fromCode(v[0]);
       if (s != null) _statusController.add(s);
@@ -238,7 +238,7 @@ class BleLink implements BleCommandTransport {
   /// Writes SSID → password and returns the first terminal status (2–5). Device limit of 20 seconds + margin
   Future<WifiProvStatus> provisionWifi(String ssid, String password,
       {Duration timeout = const Duration(seconds: 30)}) async {
-    final ssidBytes = utf8.encode(ssid); // led-app used UTF-16 codeUnits, which broke Korean SSIDs
+    final ssidBytes = utf8.encode(ssid); // writing the SSID as UTF-16 codeUnits breaks non-ASCII SSIDs
     final pwBytes = utf8.encode(password);
     if (ssidBytes.isEmpty || ssidBytes.length > BleProtocol.ssidMaxBytes || pwBytes.length > BleProtocol.passwordMaxBytes) {
       throw const BleException(BleErrorCode.tooLarge, 'ssid/password length');

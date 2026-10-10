@@ -1,6 +1,6 @@
 /**
  * @file net.h
- * @brief Wi-Fi station management (ported from led-app wifi_manager) and time sync (design document Section 2.4)
+ * @brief Wi-Fi station management and time sync (design document Section 2.4)
  *
  * - Reconnection keeps going with exponential backoff and never stops. A Wi-Fi failure alone does not enter provisioning.
  * - In the "connected but no IP" state, the DHCP watchdog disconnects and tries again.

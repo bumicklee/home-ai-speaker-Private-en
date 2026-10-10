@@ -1,6 +1,6 @@
 /**
  * @file app_config.h
- * @brief Version, timing and identifier constants (central config, led-app style)
+ * @brief Version, timing and identifier constants (config kept in one place)
  *
  * BLE and LAN spec constants follow design document Sections 2.13 and 2.14. When you change them,
  * change the app's ble_protocol.dart and api_paths.dart in the same PR.

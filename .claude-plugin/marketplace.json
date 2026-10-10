@@ -1,6 +1,6 @@
 {
   "name": "home-ai-speaker-book",
-  "description": "『클로드 코드로 만드는 우리 집 AI 스피커』 실습용 스킬 묶음",
+  "description": "Practice skill bundle for the home AI speaker book built with Claude Code",
   "owner": {
     "name": "이범익"
   },

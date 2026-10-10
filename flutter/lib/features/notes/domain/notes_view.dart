@@ -1,9 +1,9 @@
-/// 목록 화면용 계산 (묶기·정렬·찾기·알림 상태). 위젯 없이 테스트한다
+/// Calculations for the list screen (grouping, sorting, search, reminder status). Tested without widgets
 library;
 
 import 'entities/note.dart';
 
-/// 일정 묶음 (디자인 "메모·일정": 오늘 · 내일 · 이번 주 · 나중 · 지난 일정)
+/// Schedule groups (design "메모·일정": today · tomorrow · this week · later · past events)
 enum EventGroupKind { today, tomorrow, thisWeek, later, past }
 
 class EventGroup {
@@ -11,17 +11,17 @@ class EventGroup {
 
   final EventGroupKind kind;
 
-  /// 오늘·내일 묶음의 날짜 (제목 "오늘 · 10월 4일 (일)")
+  /// Date of the today/tomorrow groups (title "오늘 · 10월 4일 (일)")
   final DateTime day;
   final List<Note> items;
 }
 
-/// 목록 줄 오른쪽 상태 표시
+/// Status shown at the right of a list row
 enum NoteBadge { none, scheduled, sent, acked, noAnswer, missed }
 
 DateTime _day(DateTime t) => DateTime(t.year, t.month, t.day);
 
-/// 제목·내용에 글자가 들어 있나 (대소문자·띄어쓰기 무시, 스피커 notes_search와 같은 방식)
+/// Does the title or body contain the text (ignoring case and spaces, same way as the speaker's notes_search)
 bool matchesQuery(Note n, String query) {
   String norm(String s) => s.toLowerCase().replaceAll(RegExp(r'\s+'), '');
   final q = norm(query);
@@ -34,11 +34,11 @@ int _byStart(Note a, Note b) {
   if (sa == null || sb == null) return sa == null ? (sb == null ? 0 : 1) : -1;
   final c = sa.day.compareTo(sb.day);
   if (c != 0) return c;
-  if (sa.allDay != sb.allDay) return sa.allDay ? -1 : 1; // 같은 날은 하루 종일이 먼저
+  if (sa.allDay != sb.allDay) return sa.allDay ? -1 : 1; // on the same day, all-day comes first
   return sa.at.compareTo(sb.at);
 }
 
-/// 일정을 날짜로 묶는다. 이번 주 = 모레부터 7일 안, 지난 일정은 최근 것부터
+/// Groups events by date. This week = within 7 days starting the day after tomorrow; past events most recent first
 List<EventGroup> groupEvents(Iterable<Note> notes, DateTime now) {
   final today = _day(now);
   final tomorrow = today.add(const Duration(days: 1));
@@ -68,17 +68,17 @@ List<EventGroup> groupEvents(Iterable<Note> notes, DateTime now) {
   ];
 }
 
-/// 메모: 최근에 고친 것부터
+/// Notes: most recently edited first
 List<Note> sortedMemos(Iterable<Note> notes) =>
     notes.where((n) => n.isActive && n.isMemo).toList()..sort((a, b) => _updated(b).compareTo(_updated(a)));
 
-/// 휴지통: 최근에 지운 것부터
+/// Trash: most recently deleted first
 List<Note> sortedTrash(Iterable<Note> notes) =>
     notes.where((n) => n.isTrash).toList()..sort((a, b) => _updated(b).compareTo(_updated(a)));
 
 DateTime _updated(Note n) => n.updated ?? n.created ?? DateTime.fromMillisecondsSinceEpoch(0);
 
-/// 휴지통에서 완전히 지워지기까지 남은 날 (스피커가 30일 뒤 gone으로 바꾼다)
+/// Days left until permanently removed from the trash (the speaker changes it to gone after 30 days)
 int trashDaysLeft(Note n, DateTime now, {int keepDays = 30}) {
   final since = n.updated;
   if (since == null) return keepDays;
@@ -86,10 +86,10 @@ int trashDaysLeft(Note n, DateTime now, {int keepDays = 30}) {
   return left.clamp(0, keepDays);
 }
 
-/// 알림이 방금 끝난 것으로 보는 시간 (이 안이면 다음 알림이 남아 있어도 결과를 보여 준다)
+/// How long a reminder counts as just finished (within this, show the result even if another reminder is still pending)
 const alertFreshFor = Duration(hours: 6);
 
-/// 상태 표시: 최근 알림 결과가 있으면 그것, 앞으로 울릴 알림이 있으면 "알림 예정", 놓친 것만 있으면 "놓침"
+/// Status: the recent reminder result if any; "알림 예정" (reminder scheduled) if a reminder is still to ring; "놓침" (missed) if only missed ones remain
 NoteBadge badgeOf(Note n, DateTime now, ClockTime allDayTime) {
   if (!n.isEvent || !n.isActive) return NoteBadge.none;
   final pending = n.pendingReminders(now, allDayTime).isNotEmpty || (n.snoozeAt?.isAfter(now) ?? false);
@@ -111,13 +111,13 @@ NoteBadge badgeOf(Note n, DateTime now, ClockTime allDayTime) {
   return NoteBadge.none;
 }
 
-/// 홈 타일 부제 ("오늘 2개 · 3시 병원")
+/// Home tile subtitle ("오늘 2개 · 3시 병원")
 class TodaySummary {
   const TodaySummary(this.count, this.next);
 
   final int count;
 
-  /// 오늘 아직 지나지 않은 다음 일정 (없으면 오늘 첫 일정, 오늘 일정이 없으면 null)
+  /// The next event today that hasn't passed (if none, today's first event; null if no events today)
   final Note? next;
 }
 
@@ -127,7 +127,7 @@ TodaySummary todaySummary(Iterable<Note> notes, DateTime now) {
   return TodaySummary(today.length, upcoming ?? today.firstOrNull);
 }
 
-/// 알림 칩 고르기: 이미 있으면 빼고, 없으면 최대 3개까지 넣는다. 큰 값(이른 알림)부터 정렬
+/// Toggle a reminder chip: remove it if present, otherwise add it (up to 3). Sorted largest (earliest reminder) first
 List<int> toggleRemind(List<int> current, int minutes) {
   if (current.contains(minutes)) return [...current]..remove(minutes);
   if (current.length >= Note.maxReminders || minutes < 0 || minutes > Note.maxRemindMinutes) return current;

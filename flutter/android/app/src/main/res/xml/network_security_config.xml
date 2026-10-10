@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 스피커 LAN API는 평문 HTTP (설계서 2.14절). 사설 IP 대역은 domain-config로 표현할 수 없어 base-config에서 허용 -->
+<!-- The speaker LAN API is plain HTTP (design document Section 2.14). Private IP ranges can't be expressed with domain-config, so they're allowed in base-config -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>

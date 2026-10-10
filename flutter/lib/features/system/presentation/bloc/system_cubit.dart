@@ -19,11 +19,11 @@ class SystemState extends Equatable {
   final List<RegisteredPhone> phones;
   final bool loading;
 
-  /// `/status` 불러오기 실패 (화면의 나머지 — 키, 앱 설정, 휴대폰에서 지우기 — 는 그대로 쓴다)
+  /// Loading `/status` failed (the rest of the screen — keys, app settings, remove from this phone — still works)
   final Failure? failure;
   final Failure? phonesFailure;
 
-  /// 해지·재시작 중
+  /// Revoking or restarting
   final bool busy;
 
   RegisteredPhone? get self => phones.where((p) => p.self).firstOrNull;
@@ -49,8 +49,8 @@ class SystemState extends Equatable {
   List<Object?> get props => [status, phones, loading, failure, phonesFailure, busy];
 }
 
-/// 시스템 화면: 기기 정보, 등록된 휴대폰, 다시 시작.
-/// 동작 메서드는 실패를 돌려준다 (null = 성공). 화면이 스낵바로 알린다
+/// System screen: device info, registered phones, restart.
+/// Action methods return the failure (null = success). The screen shows it in a snackbar
 class SystemCubit extends Cubit<SystemState> {
   SystemCubit(this._repo) : super(const SystemState());
 
@@ -74,7 +74,7 @@ class SystemCubit extends Cubit<SystemState> {
     ));
   }
 
-  /// 다른 휴대폰 등록 해지. 이미 없으면(404) 목록에서만 뺀다
+  /// Revoke another phone's registration. If already gone (404), just remove it from the list
   Future<Failure?> revoke(RegisteredPhone phone) async {
     emit(state.copyWith(busy: true));
     final r = await _repo.revokePhone(phone.phoneId);
@@ -87,7 +87,7 @@ class SystemCubit extends Cubit<SystemState> {
     return failure;
   }
 
-  /// 대화 중이면 409 VOICE_ACTIVE (errorDeviceVoiceActive)
+  /// 409 VOICE_ACTIVE during a conversation (errorDeviceVoiceActive)
   Future<Failure?> reboot() async {
     emit(state.copyWith(busy: true));
     final r = await _repo.reboot();
@@ -96,7 +96,7 @@ class SystemCubit extends Cubit<SystemState> {
     return r.fold((f) => f, (_) => null);
   }
 
-  /// 휴대폰에서 스피커를 지우기 전에, 연결되면 스피커 쪽의 이 휴대폰 등록도 해지한다 (실패해도 계속)
+  /// Before removing the speaker from the phone, revoke this phone's registration on the speaker if it can connect (continue even if that fails)
   Future<bool> revokeSelf() async {
     var self = state.self;
     if (self == null) {

@@ -10,7 +10,7 @@ import '../../../../core/services/device_event_service.dart';
 import '../../domain/entities/lesson.dart';
 import '../models/lesson_model.dart';
 
-/// 영어 선생님 (펌웨어 lesson.c, LAN /api/v1/lesson)
+/// English Tutor (firmware lesson.c, LAN /api/v1/lesson)
 class LessonRepository {
   LessonRepository(this._device, this._events, this._prefs);
 
@@ -26,13 +26,13 @@ class LessonRepository {
         return LessonModel.fromJson(j);
       });
 
-  /// 스피커에 OpenAI 키가 있는지 (`/status.secrets`). 영어 수업은 늘 OpenAI 실시간이라 꼭 필요하다
+  /// Whether the speaker has an OpenAI key (`/status.secrets`). English lessons always use OpenAI Live, so it is required
   Future<Either<Failure, bool>> openAiKeySaved() => guard(() async {
         final j = await _device.client.get<Map<String, dynamic>>(ApiPaths.status);
         return (j['secrets'] as Map<String, dynamic>? ?? const {})[SecretKey.openai] == true;
       });
 
-  /// 대화 중이면 409 VOICE_ACTIVE, OpenAI 키가 없으면 409 NO_API_KEY (AI 설정과 상관없이), Wi-Fi 없으면 409
+  /// 409 VOICE_ACTIVE during a conversation, 409 NO_API_KEY without an OpenAI key (regardless of the AI setting), 409 without Wi-Fi
   Future<Either<Failure, Lesson>> start(LessonOptions options) => guard(() async {
         final j = await _device.client.post<Map<String, dynamic>>('$_path/start', options.toJson());
         return LessonModel.fromJson(j);
@@ -48,10 +48,10 @@ class LessonRepository {
         return unit;
       });
 
-  /// WS `lesson` (수업 상태·고친 표현이 바뀔 때마다 전체)
+  /// WS `lesson` (the whole lesson each time its state or corrected expressions change)
   Stream<Lesson> updates() => _events.on('lesson').map((e) => LessonModel.fromJson(e.data));
 
-  /// 마지막으로 고른 코스·옵션 (이 휴대폰)
+  /// Last chosen course and options (on this phone)
   LessonOptions savedOptions() {
     final raw = _prefs.getStringList(_prefsKey);
     if (raw == null || raw.length != 4) return const LessonOptions();

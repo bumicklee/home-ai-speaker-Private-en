@@ -1,25 +1,25 @@
 import 'package:equatable/equatable.dart';
 
-/// 스피커의 텔레그램 연결 상태 (펌웨어 `telegram_state_name`)
+/// The speaker's Telegram connection state (firmware `telegram_state_name`)
 class TelegramState {
   TelegramState._();
-  static const off = 'off'; // 토큰 없음
+  static const off = 'off'; // no token
   static const connecting = 'connecting';
   static const ok = 'ok';
-  static const conflict = 'conflict'; // 다른 곳에서 같은 봇을 폴링하거나 Webhook 설정 (TLG-13)
+  static const conflict = 'conflict'; // the same bot is being polled elsewhere, or a webhook is set (TLG-13)
   static const tokenInvalid = 'token_invalid';
 }
 
-/// 등록된 대화방 하나 (`chats[]`: chat_id, alias, title, type)
+/// One registered chat (`chats[]`: chat_id, alias, title, type)
 class TelegramChat extends Equatable {
   const TelegramChat({required this.chatId, required this.alias, this.title = '', this.type = 'private'});
 
   final int chatId;
 
-  /// 음성으로 부르는 이름 (“엄마한테 보내 줘”). 최대 32바이트
+  /// The name you say by voice ("send it to Mom"). Up to 32 bytes
   final String alias;
 
-  /// 텔레그램 대화방 이름 (개인 대화면 사람 이름)
+  /// Telegram chat name (a person's name for a private chat)
   final String title;
 
   /// private / group / supergroup / channel
@@ -34,7 +34,7 @@ class TelegramChat extends Equatable {
   List<Object?> get props => [chatId, alias, title, type];
 }
 
-/// `GET /telegram/chats` 전체 + 토큰 유무
+/// All of `GET /telegram/chats` plus whether a token exists
 class TelegramOverview extends Equatable {
   const TelegramOverview({
     required this.state,
@@ -46,12 +46,12 @@ class TelegramOverview extends Equatable {
 
   final String state;
 
-  /// 봇 사용자 이름 (@ 없이). 아직 연결 전이면 빈 문자열
+  /// Bot username (without @). Empty string if not connected yet
   final String bot;
   final int unread;
   final List<TelegramChat> chats;
 
-  /// 스피커에 봇 토큰이 있는지. state가 off일 때만 /status로 다시 확인한다
+  /// Whether the speaker has a bot token. Rechecked with /status only when state is off
   final bool hasToken;
 
   TelegramOverview copyWith({String? state, String? bot, int? unread, List<TelegramChat>? chats, bool? hasToken}) =>
@@ -67,7 +67,7 @@ class TelegramOverview extends Equatable {
   List<Object?> get props => [state, bot, unread, chats, hasToken];
 }
 
-/// 메시지 알림 옵션 (`auto_read`, `quiet_start`, `quiet_end`; 시는 0–23)
+/// Message notification options (`auto_read`, `quiet_start`, `quiet_end`; hours are 0–23)
 class TelegramOptions extends Equatable {
   const TelegramOptions({this.autoRead = false, this.quietStart = 22, this.quietEnd = 7});
 
@@ -85,21 +85,21 @@ class TelegramOptions extends Equatable {
   List<Object?> get props => [autoRead, quietStart, quietEnd];
 }
 
-/// `POST /telegram/pair` 응답: 6자리 코드 (1회용, 5번 틀리면 무효)
+/// `POST /telegram/pair` response: 6-digit code (single use, void after 5 wrong attempts)
 class PairingCode extends Equatable {
   const PairingCode({required this.code, required this.expiresIn, this.bot = ''});
 
   final String code;
   final Duration expiresIn;
 
-  /// 그룹에서는 `/pair@봇이름 코드`로 보낸다
+  /// In a group, send it as `/pair@botname code`
   final String bot;
 
   @override
   List<Object?> get props => [code, expiresIn, bot];
 }
 
-/// `tg_paired` 이벤트: 새로 등록된 대화방
+/// `tg_paired` event: a newly registered chat
 class PairedChat extends Equatable {
   const PairedChat({required this.chatId, this.title = '', this.type = 'private'});
 

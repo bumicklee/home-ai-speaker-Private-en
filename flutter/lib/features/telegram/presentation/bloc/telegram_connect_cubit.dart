@@ -12,9 +12,9 @@ import '../../domain/repositories/telegram_repository.dart';
 enum TokenCheck {
   idle,
   checking,
-  valid, // getMe 성공
-  invalid, // Telegram이 거절 (또는 모양이 틀림)
-  failed, // Telegram에 닿지 못함
+  valid, // getMe succeeded
+  invalid, // Telegram rejected it (or the shape is wrong)
+  failed, // could not reach Telegram
 }
 
 enum TokenSave { idle, saving, saved, failed }
@@ -22,10 +22,10 @@ enum TokenSave { idle, saving, saved, failed }
 enum Pairing {
   idle,
   requesting,
-  waiting, // 코드 표시, tg_paired 기다림
+  waiting, // code shown, waiting for tg_paired
   expired,
   paired,
-  noToken, // 409: 스피커에 토큰이 없음
+  noToken, // 409: the speaker has no token
   failed,
 }
 
@@ -45,7 +45,7 @@ class TelegramConnectState extends Equatable {
   final String token;
   final TokenCheck check;
 
-  /// getMe로 확인한 봇 이름 (@ 없이)
+  /// Bot name checked with getMe (without @)
   final String botName;
   final TokenSave save;
   final Pairing pairing;
@@ -53,10 +53,10 @@ class TelegramConnectState extends Equatable {
   final Duration remaining;
   final PairedChat? pairedChat;
 
-  /// 저장·코드 받기 실패 (BLE·LAN)
+  /// Saving or getting the code failed (BLE or LAN)
   final Failure? failure;
 
-  /// t.me 링크와 그룹 명령에 쓰는 봇 이름 (스피커가 아직 모르면 앱이 확인한 이름)
+  /// Bot name used for the t.me link and group command (the name the app checked, if the speaker doesn't know it yet)
   String get bot => (code?.bot.isNotEmpty ?? false) ? code!.bot : botName;
 
   TelegramConnectState copyWith({
@@ -86,7 +86,7 @@ class TelegramConnectState extends Equatable {
   List<Object?> get props => [token, check, botName, save, pairing, code, remaining, pairedChat, failure];
 }
 
-/// 텔레그램 연결: 토큰 확인(getMe) → BLE로 스피커에 저장 → 등록 코드 → `tg_paired` 기다림 (설계서 3.4·3.5절)
+/// Telegram connection: check the token (getMe) → save it to the speaker over BLE → pairing code → wait for `tg_paired` (design document, Sections 3.4 and 3.5)
 class TelegramConnectCubit extends Cubit<TelegramConnectState> {
   TelegramConnectCubit(this._repo, this._vault, {DateTime Function()? clock})
       : _now = clock ?? DateTime.now,
@@ -101,7 +101,7 @@ class TelegramConnectCubit extends Cubit<TelegramConnectState> {
   Timer? _ticker;
   DateTime? _expiresAt;
 
-  /// 휴대폰에 기억해 둔 토큰으로 채운다
+  /// Fill in the token remembered on the phone
   Future<void> init() async {
     final saved = await _vault.telegramToken() ?? '';
     if (isClosed || saved.isEmpty || state.token.isNotEmpty) return;
@@ -114,7 +114,7 @@ class TelegramConnectCubit extends Cubit<TelegramConnectState> {
     emit(state.copyWith(token: token, check: TokenCheck.idle, botName: '', save: TokenSave.idle, failure: () => null));
   }
 
-  /// 맞으면 휴대폰에 기억한다 (사용자 요청 2026-10-03)
+  /// If valid, remember it on the phone (user request 2026-10-03)
   Future<void> checkToken() async {
     final token = state.token;
     if (token.isEmpty) return;
@@ -132,7 +132,7 @@ class TelegramConnectCubit extends Cubit<TelegramConnectState> {
     }
   }
 
-  /// 사용자가 Key2를 3초 누른 뒤. [pairAfter]면 저장하자마자 등록 코드를 받는다
+  /// After the user holds Key2 for 3 seconds. With [pairAfter], get a pairing code as soon as it is saved
   Future<void> saveToSpeaker({bool pairAfter = true}) async {
     if (state.check != TokenCheck.valid || state.save == TokenSave.saving) return;
     emit(state.copyWith(save: TokenSave.saving, failure: () => null));
@@ -147,7 +147,7 @@ class TelegramConnectCubit extends Cubit<TelegramConnectState> {
     if (pairAfter) await startPairing();
   }
 
-  /// 새 코드 (5분, 1회용). 다시 부르면 이전 코드는 무효
+  /// New code (5 minutes, single use). Calling again voids the previous code
   Future<void> startPairing() async {
     _ticker?.cancel();
     emit(state.copyWith(pairing: Pairing.requesting, code: () => null, pairedChat: () => null, failure: () => null));
@@ -163,7 +163,7 @@ class TelegramConnectCubit extends Cubit<TelegramConnectState> {
     });
   }
 
-  /// 1초마다 남은 시간을 줄이고, 다 되면 만료로 (테스트에서 직접 부른다)
+  /// Counts the time left down every second and expires at zero (tests call it directly)
   @visibleForTesting
   void tick() {
     final end = _expiresAt;

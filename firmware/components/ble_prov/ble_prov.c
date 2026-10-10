@@ -1,12 +1,12 @@
 /*
- * BLE 창과 작업 태스크 (설계서 2.13절).
+ * BLE window and worker task (design document, Section 2.13).
  *
- * 작업 태스크가 하는 일: NimBLE 올리기·내리기, Wi-Fi 스캔, 새 Wi-Fi 시험 연결, 명령 처리,
- * 0xFF88 확정, 창 시간 관리. GATT 콜백은 여기에 일감을 넣고 바로 돌아간다.
+ * What the worker task does: bring NimBLE up and down, Wi-Fi scan, test connection to new Wi-Fi, command handling,
+ * 0xFF88 commit, window timing. GATT callbacks put jobs here and return right away.
  *
- * led-app에서 고친 것:
- * - 완료(0xFF88) 때 Wi-Fi를 무조건 저장하던 결함: 이번 연결에서 상태 2(성공)에 도달했을 때만 저장
- * - 상태를 두 곳에서 보내 "인증 실패"가 "시간 초과"로 덮이던 결함: 시도마다 종료 상태 한 번 (net이 보장)
+ * Fixed from led-app:
+ * - defect where Wi-Fi was always saved on done (0xFF88): now saved only if status 2 (success) was reached in this connection
+ * - defect where status was sent from two places and "auth failed" got overwritten by "timeout": one final status per attempt (net guarantees it)
  */
 #include "ble_prov.h"
 
@@ -30,7 +30,7 @@ static const char *TAG = "BLE_PROV";
 
 #define SCAN_MAX       20
 #define SCAN_FETCH     32
-#define SCAN_ENTRY_LEN 34      /* SSID 32 + RSSI 1 + 보안 1 (led-app과 같은 크기) */
+#define SCAN_ENTRY_LEN 34      /* SSID 32 + RSSI 1 + security 1 (same size as led-app) */
 #define SCAN_FAILED    0xFF
 
 static QueueHandle_t s_jobs;
@@ -38,7 +38,7 @@ static esp_timer_handle_t s_tick;
 static volatile bool s_open;
 static bool s_unlimited;
 static uint32_t s_opened_ms, s_idle_since_ms;
-static bool s_wifi_ok;          /* 이번 연결에서 상태 2에 도달 */
+static bool s_wifi_ok;          /* reached status 2 in this connection */
 
 static uint32_t now_ms(void)
 {
@@ -56,7 +56,7 @@ bool ble_prov_is_open(void)
     return s_open;
 }
 
-/* ── Wi-Fi 상태 (0xFF53) ──────────────────────────────────── */
+/* ── Wi-Fi status (0xFF53) ──────────────────────────────────── */
 
 static void set_wifi_status(uint8_t status)
 {
@@ -66,7 +66,7 @@ static void set_wifi_status(uint8_t status)
 
 static void on_test_result(net_wifi_status_t status)
 {
-    /* net 이벤트 태스크에서 불린다. 작업 태스크로 넘긴다 */
+    /* called from the net event task. Hands off to the worker task */
     ble_post_job(JOB_WIFI_RESULT, status, NULL, 0);
 }
 
@@ -83,9 +83,9 @@ static void handle_password(void)
     }
 }
 
-/* ── 스캔 (0xFF54) ────────────────────────────────────────── */
+/* ── Scan (0xFF54) ────────────────────────────────────────── */
 
-/* IDF wifi_auth_mode_t 숫자는 버전마다 달라서 그대로 보내지 않는다 (2.13절 표) */
+/* IDF wifi_auth_mode_t numbers differ between versions, so they aren't sent as is (Section 2.13 table) */
 static uint8_t security_code(wifi_auth_mode_t mode)
 {
     switch (mode) {
@@ -114,7 +114,7 @@ static void handle_scan(void)
         ble_notify(g_ble.scan_handle, &fail, 1);
         return;
     }
-    /* 같은 SSID는 신호가 가장 센 것 하나만, 숨김 SSID는 제외 */
+    /* for duplicate SSIDs keep only the strongest signal; skip hidden SSIDs */
     int keep[SCAN_MAX], count = 0;
     for (int i = 0; i < n && count < SCAN_MAX; i++) {
         if (!aps[i].ssid[0]) {
@@ -145,7 +145,7 @@ static void handle_scan(void)
     ESP_LOGI(TAG, "scan: %d network(s)", count);
 }
 
-/* ── 창 열기·닫기 ─────────────────────────────────────────── */
+/* ── Opening and closing the window ─────────────────────────────────────────── */
 
 static void reset_connection_state(void)
 {
@@ -168,7 +168,7 @@ static void do_open(bool unlimited)
 {
     if (s_open) {
         s_unlimited |= unlimited;
-        s_opened_ms = s_idle_since_ms = now_ms();     /* 다시 누르면 시간을 새로 센다 */
+        s_opened_ms = s_idle_since_ms = now_ms();     /* pressing again restarts the timer */
         return;
     }
     uint8_t mac[6] = {0};
@@ -177,7 +177,7 @@ static void do_open(bool unlimited)
     snprintf(name, sizeof(name), APP_BLE_NAME_PREFIX "%02X%02X%02X", mac[3], mac[4], mac[5]);
     reset_connection_state();
     if (s_before_open) {
-        s_before_open();    /* BLE 컨트롤러가 쓸 내부 RAM을 비운다 (main: 대화 끝내기 + AEC 내리기) */
+        s_before_open();    /* free internal RAM for the BLE controller (main: end the conversation + suspend AEC) */
     }
     if (ble_stack_start(name) != ESP_OK) {
         if (s_after_close) {
@@ -203,7 +203,7 @@ static void do_close(void)
     if (s_after_close) {
         s_after_close();
     }
-    /* 확정하지 않은 시험 연결이 남아 있으면 저장된 Wi-Fi로 되돌린다 */
+    /* if an uncommitted test connection is left, revert to the saved Wi-Fi */
     net_end_test(false);
     reset_connection_state();
     s_open = false;
@@ -226,21 +226,21 @@ static void handle_tick(void)
     }
 }
 
-/* ── 0xFF88 확정 ──────────────────────────────────────────── */
+/* ── 0xFF88 commit ──────────────────────────────────────────── */
 
 static void handle_prov_done(void)
 {
     bool was_provisioned = settings_is_provisioned();
     bool reboot = false;
     if (s_wifi_ok) {
-        /* 이번 연결에서 성공한 Wi-Fi만 저장한다 (led-app의 덮어쓰기 결함 수정) */
+        /* save only the Wi-Fi that succeeded in this connection (fixes led-app's overwrite defect) */
         if (settings_set_wifi(g_ble.ssid, g_ble.password) == ESP_OK) {
             net_end_test(true);
             reboot = true;
         }
     }
     if (!was_provisioned && settings_has_wifi()) {
-        settings_set_provisioned(true);     /* 첫 설정 완료 */
+        settings_set_provisioned(true);     /* first-time setup complete */
         reboot = true;
     }
     ESP_LOGI(TAG, "provisioning complete (wifi %s, reboot %d)", s_wifi_ok ? "saved" : "unchanged", reboot);
@@ -251,7 +251,7 @@ static void handle_prov_done(void)
     }
 }
 
-/* ── 작업 태스크 ──────────────────────────────────────────── */
+/* ── Worker task ──────────────────────────────────────────── */
 
 static void worker(void *arg)
 {
@@ -260,7 +260,7 @@ static void worker(void *arg)
         if (xQueueReceive(s_jobs, &job, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        /* 창이 닫힌 뒤 남은 일감은 버린다 (열기 요청은 예외) */
+        /* drop jobs left over after the window closes (except open requests) */
         if (!s_open && job.type != JOB_OPEN) {
             if (job.data) {
                 memset(job.data, 0, job.len);
@@ -282,7 +282,7 @@ static void worker(void *arg)
             ESP_LOGI(TAG, "phone connected");
             break;
         case JOB_DISCONNECTED:
-            /* 저장하지 않은 시험 연결은 되돌리고, 다음 연결은 처음부터 */
+            /* revert an unsaved test connection; the next connection starts from scratch */
             if (net_is_testing()) {
                 net_end_test(false);
             }
@@ -305,9 +305,9 @@ static void worker(void *arg)
             handle_prov_done();
             break;
         case JOB_COMMAND:
-            ble_cmd_handle(job.data, job.len);  /* data를 free한다 */
+            ble_cmd_handle(job.data, job.len);  /* frees data */
             if (ble_cmd_take_close_request()) {
-                do_close();     /* prov.close: 지금까지 쓴 값 적용, 재부팅 없음 */
+                do_close();     /* prov.close: apply the values written so far, no reboot */
             }
             break;
         case JOB_COMMAND_BUSY:
@@ -332,7 +332,7 @@ esp_err_t ble_prov_init(void)
     if (!s_jobs || esp_timer_create(&args, &s_tick) != ESP_OK) {
         return ESP_ERR_NO_MEM;
     }
-    /* 스캔(약 3초)·NVS 쓰기·NimBLE 올리기, spotify.link의 TLS 핸드셰이크를 하므로 넉넉히 */
+    /* generous, since it does the scan (about 3 s), NVS writes, NimBLE bring-up and the spotify.link TLS handshake */
     return xTaskCreatePinnedToCoreWithCaps(worker, "ble_worker", 10240, NULL, 4, NULL, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS ? ESP_OK
                                                                                          : ESP_ERR_NO_MEM;
 }

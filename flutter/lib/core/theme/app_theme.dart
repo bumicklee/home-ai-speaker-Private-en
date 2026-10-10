@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// 디자인 (Claude Artifact "Jarvis 스피커 앱 디자인")의 색. 흰 글자 위 대비 AA 이상
+/// Colors from the design (Claude Artifact "Jarvis 스피커 앱 디자인", Jarvis speaker app design). Contrast AA or better under white text
 class AppColors {
   AppColors._();
 
-  /// 스피커 대기 LED 청록을 어둡게 (흰 글자 대비 5.9:1)
+  /// The speaker's teal standby LED, darkened (5.9:1 contrast with white text)
   static const accent = Color(0xFF0B6E6D);
   static const accentDark = Color(0xFF084F4E);
   static const accentSoft = Color(0xFFE1F0EF);
@@ -17,12 +17,12 @@ class AppColors {
   static const ground = Color(0xFFF2F4F3);
   static const card = Colors.white;
 
-  /// 경고·삭제 (호박색, 흰 글자 대비 AA)
+  /// Warning and delete (amber, AA contrast with white text)
   static const warn = Color(0xFF9A4A07);
   static const warnSoft = Color(0xFFFBEBD9);
   static const ok = Color(0xFF1F6B3A);
 
-  // 어두운 테마
+  // Dark theme
   static const groundDark = Color(0xFF0F1716);
   static const cardDark = Color(0xFF1A2423);
   static const lineDark = Color(0xFF2C3A38);

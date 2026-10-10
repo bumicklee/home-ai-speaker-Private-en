@@ -16,7 +16,7 @@ import '../../../notes/domain/notes_view.dart';
 import '../../../notes/presentation/pages/notes_texts.dart';
 import '../widgets/device_picker_sheet.dart';
 
-/// 홈 (디자인 "홈"): 상태 카드, 지금 재생, 텔레그램, 기능 메뉴
+/// Home (design "Home"): status card, now playing, Telegram, feature menu
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -137,7 +137,7 @@ class _VoiceCard extends StatelessWidget {
               ),
               if (ai != null) ...[
                 const SizedBox(width: 8),
-                // 지금 쓰는 AI·방식 (설계 docs/design-voice-saver-mode.md 11.4)
+                // The AI and mode in use now (design docs/design-voice-saver-mode.md 11.4)
                 Text(l.aiChoiceLabel(ai.provider, ai.mode),
                     style: t.bodySmall?.copyWith(color: const Color(0xFFD6F0EE), fontSize: 12)),
               ],
@@ -334,8 +334,8 @@ class _MenuGrid extends StatelessWidget {
       (Icons.tune_rounded, l.homeMenuAudio, AppRoutes.audio),
       (Icons.settings_outlined, l.homeMenuSystem, AppRoutes.system),
     ];
-    // 한 줄에 4개: 라디오가 나오는 중에도 홈이 스크롤 없이 한 화면에 들어오게 (2026-10-03 사용자 요청).
-    // 네 칸 높이를 똑같이 하고, 글자는 한 줄로 (좁으면 줄 바꿈 대신 조금 줄인다)
+    // Four per row: so Home fits on one screen without scrolling even while the radio plays (2026-10-03 user request).
+    // All four cells get the same height, and labels stay on one line (if narrow, shrink slightly instead of wrapping)
     final theme = Theme.of(context);
     return IntrinsicHeight(
       child: Row(
@@ -382,7 +382,7 @@ class _MenuGrid extends StatelessWidget {
   }
 }
 
-/// 영어 선생님 · 메모·일정 (디자인 "홈": 메뉴 위에 반씩 나란히)
+/// English Tutor · Notes & Schedule (design "Home": side by side, half width each, above the menu)
 class _FeatureTiles extends StatelessWidget {
   const _FeatureTiles();
 
@@ -448,7 +448,7 @@ class _FeatureTile extends StatelessWidget {
   }
 }
 
-/// 부제는 폰의 사본으로 ("오늘 2개 · 3시 병원"). 홈을 열 때 한 번 스피커와 맞춘다
+/// The subtitle comes from the phone's copy ("오늘 2개 · 3시 병원", 2 today · hospital at 3). Synced with the speaker once when Home opens
 class _NotesTile extends StatefulWidget {
   const _NotesTile();
 

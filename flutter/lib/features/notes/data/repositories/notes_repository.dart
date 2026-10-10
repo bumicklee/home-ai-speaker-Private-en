@@ -12,10 +12,10 @@ import '../datasources/notes_local_store.dart';
 import '../datasources/notes_remote_datasource.dart';
 import '../models/note_model.dart';
 
-/// 메모·일정 (원본 = 스피커, 사본 = 이 폰). 설계서 docs/design-notes-schedule.md 6.2절
+/// Notes and schedule (original = speaker, copy = this phone). Design document docs/design-notes-schedule.md Section 6.2
 ///
-/// 동기화: `GET ?since=<사본 rev>` → id별로 rev 큰 쪽 반영, gone은 사본에서 지움 → 파일에 저장.
-/// 스피커 rev가 사본보다 작으면(스피커 초기화) 전체(since=0)를 다시 받아 바꾼다.
+/// Sync: `GET ?since=<copy rev>` → apply the higher rev per id, remove gone from the copy → save to file.
+/// If the speaker rev is lower than the copy's (speaker was reset), fetch everything again (since=0) and replace.
 class NotesRepository {
   NotesRepository(this._device, this._events, this._remote, this._store);
 
@@ -30,7 +30,7 @@ class NotesRepository {
   static const eventNotes = 'notes';
   static const eventReminder = 'reminder';
 
-  /// 이 폰에 있는 사본 (스피커에 닿지 않아도 된다)
+  /// The copy on this phone (works without reaching the speaker)
   Future<NotesCache> cached() async {
     final id = _device.deviceId;
     if (id == null) return const NotesCache();
@@ -52,13 +52,13 @@ class NotesRepository {
         return _save(base.merge(_rev(j), _items(j), replace: full));
       });
 
-  /// remind가 null이면 스피커 기본 알림
+  /// If remind is null, the speaker's default reminders
   Future<Either<Failure, NotesCache>> create(NoteDraft draft) => guard(() async {
         final j = await _remote.create(NoteModel.createJson(draft));
         return _apply(NoteModel.fromJson(j));
       });
 
-  /// 409 CONFLICT면 본문의 최신 항목으로 사본을 바꾸고 실패(errorDeviceConflict)를 돌려준다
+  /// On 409 CONFLICT, replaces the copy with the latest item from the body and returns a failure (errorDeviceConflict)
   Future<Either<Failure, NotesCache>> update(Note note, NoteDraft draft) => guard(() async {
         try {
           final j = await _remote.update(note.id, NoteModel.updateJson(draft, note.rev));
@@ -70,7 +70,7 @@ class NotesRepository {
         }
       });
 
-  /// 스피커 원본 삭제 (되살릴 수 없다)
+  /// Delete the original on the speaker (cannot be restored)
   Future<Either<Failure, NotesCache>> delete(Note note) => guard(() async {
         final j = await _remote.delete(note.id);
         final rev = _rev(j);
@@ -88,7 +88,7 @@ class NotesRepository {
         return s;
       });
 
-  /// 바뀐 키만 보낸다
+  /// Sends only the changed keys
   Future<Either<Failure, NotesSettings>> saveSettings(NotesSettings from, NotesSettings to) => guard(() async {
         final body = NotesSettingsModel.diff(from, to);
         if (body.isEmpty) return to;
@@ -98,7 +98,7 @@ class NotesRepository {
         return s;
       });
 
-  /// 다시 가져올 때: WS `notes`(내용 없이 rev만), `reminder`(알림 결과), 이벤트 연결이 (다시) 열림
+  /// When to refetch: WS `notes` (rev only, no content), `reminder` (reminder result), event connection (re)opened
   Stream<void> changes() {
     final out = StreamController<void>();
     final subs = <StreamSubscription<Object?>>[];
@@ -118,7 +118,7 @@ class NotesRepository {
     return out.stream;
   }
 
-  /// 항목 하나 반영. 사본 rev는 올리지 않는다 (그 사이 다른 변경을 다음 sync에서 놓치지 않게)
+  /// Apply one item. Don't raise the copy rev (so other changes in between aren't missed at the next sync)
   Future<NotesCache> _apply(Note n) async {
     final base = await cached();
     return _save(base.merge(base.rev, [n]));
@@ -132,7 +132,7 @@ class NotesRepository {
     try {
       await _store.write(id, c);
     } on Exception {
-      // 파일을 못 써도 화면은 메모리 사본으로 계속 (다음 저장 때 다시 쓴다)
+      // Even if the file can't be written, the screen keeps going with the in-memory copy (written again at the next save)
     }
     return c;
   }

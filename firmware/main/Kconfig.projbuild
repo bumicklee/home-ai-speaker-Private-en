@@ -4,17 +4,17 @@ menu "AI Speaker"
         bool "Developer console over USB"
         default y
         help
-            USB-Serial-JTAG로 명령을 받는 개발용 콘솔 (wifi, key, provision, talk, status 등).
-            BLE 프로비저닝(Phase 2)이 생기기 전까지 Phase 1 시험에 쓴다.
-            USB로 연결한 사람이 비밀값을 쓸 수 있으므로 배포 빌드에서는 끈다.
+            Developer console that takes commands over USB-Serial-JTAG (wifi, key, provision, talk, status, etc.).
+            Used for Phase 1 testing until BLE provisioning (Phase 2) exists.
+            Anyone connected over USB can write secrets, so turn it off in release builds.
 
     config APP_SPOTIFY
         bool "Spotify voice control (Web API)"
         default n
         help
-            Spotify 계정의 다른 기기(휴대폰 등)를 음성으로 제어한다 (Phase 5, 실기기 미검증).
-            2026-10-03 사용자 결정으로 끔: 스피커 음질상 음악은 당장 필요 없음.
-            끄면 media_spotify가 "연결 안 됨"만 답하는 대체 코드(spotify_off.c)로 빌드된다.
-            HTTPS 코드·잠금·초기화가 빠지고, 툴·지시문에도 Spotify가 나오지 않는다.
+            Controls other devices on the Spotify account (a phone, etc.) by voice (Phase 5, not verified on hardware).
+            Turned off by the user's decision on 2026-10-03: with this speaker's sound quality, music isn't needed for now.
+            When off, media_spotify is built from a stand-in (spotify_off.c) that only answers "not connected".
+            The HTTPS code, lock and initialization are left out, and Spotify does not appear in the tools or instructions.
 
 endmenu

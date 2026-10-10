@@ -1,10 +1,10 @@
 /*
- * 실시간 이벤트 WebSocket: GET /api/v1/events (설계서 2.14절).
- * - esp_http_server에는 핸드셰이크 전 인증 훅이 없다. 핸드셰이크 때(HTTP_GET으로 처음 불릴 때)
- *   헤더를 검사하고, 틀리면 이벤트를 하나도 보내지 않고 닫는다.
- * - 동시 연결 5개. 30초마다 ping.
- * - 앱 이벤트(app_events)를 JSON으로 바꿔 모든 연결에 보낸다. 이벤트 핸들러는 막으면 안 되므로
- *   보내기는 httpd 태스크(httpd_queue_work)에서 한다.
+ * Real-time events WebSocket: GET /api/v1/events (design document Section 2.14).
+ * - esp_http_server has no pre-handshake auth hook. At handshake time (the first call, with HTTP_GET)
+ *   the headers are checked; if they are wrong, the connection is closed without sending a single event.
+ * - Up to 5 concurrent connections. A ping every 30 seconds.
+ * - App events (app_events) are turned into JSON and sent to every connection. Event handlers must not block, so
+ *   the sending happens on the httpd task (httpd_queue_work).
  */
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +59,7 @@ void api_events_on_close(int sockfd)
     portEXIT_CRITICAL(&s_lock);
 }
 
-/* httpd 태스크에서 실행 */
+/* Runs on the httpd task */
 static void broadcast_work(void *arg)
 {
     ws_msg_t *msg = arg;
@@ -132,13 +132,13 @@ static void on_app_event(void *arg, esp_event_base_t base, int32_t id, void *dat
         break;
     case APP_EVT_MEDIA_STATE: {
         cJSON_Delete(e);
-        /* /media/now와 같은 형식. Spotify면 막지 않는 캐시를 쓴다 (이벤트 태스크에서 HTTPS 금지) */
+        /* Same format as /media/now. For Spotify, use the non-blocking cache (no HTTPS on the event task) */
         e = ((const app_media_event_t *)data)->source == MEDIA_SOURCE_SPOTIFY ? spotify_now_cached() : radio_now_json();
         cJSON_AddStringToObject(e, "event", "media_state");
         break;
     }
     case APP_EVT_TG_MESSAGE:
-        /* 본문은 보내지 않는다 (2.14절). 읽지 않은 수만 */
+        /* The body is not sent (Section 2.14). Only the unread count */
         cJSON_AddStringToObject(e, "event", "tg_message");
         cJSON_AddNumberToObject(e, "unread", *(const int *)data);
         break;
@@ -201,17 +201,17 @@ static void ping_cb(void *arg)
 static esp_err_t events_handler(httpd_req_t *req)
 {
     if (req->method == HTTP_GET) {
-        /* 핸드셰이크: 여기서 인증한다 */
+        /* Handshake: authenticate here */
         if (!api_authorize(req, NULL) || !add_client(httpd_req_to_sockfd(req))) {
-            return ESP_FAIL;    /* 세션을 닫는다 */
+            return ESP_FAIL;    /* close the session */
         }
         ESP_LOGI(TAG, "client connected");
         return ESP_OK;
     }
     /*
-     * 제어 프레임(PING·PONG·CLOSE)도 여기서 직접 처리한다 (handle_ws_control_frames).
-     * 맡겨 두었더니 앱이 30초 ping에 답한 PONG을 읽다가 프레임이 어긋나 ("WS frame is not properly masked")
-     * 세션이 30초마다 끊기고 다시 붙었다 (2026-10-03 실기기). 앱이 보내는 데이터 프레임은 쓰지 않고 버린다.
+     * Control frames (PING, PONG, CLOSE) are also handled directly here (handle_ws_control_frames).
+     * When they were left to httpd, reading the PONG the app sent in reply to the 30-second ping knocked the frames out of step ("WS frame is not properly masked")
+     * and the session dropped and reconnected every 30 seconds (2026-10-03, real board). Data frames sent by the app are not used and are discarded.
      */
     httpd_ws_frame_t frame = {0};
     esp_err_t err = httpd_ws_recv_frame(req, &frame, 0);
@@ -219,7 +219,7 @@ static esp_err_t events_handler(httpd_req_t *req)
         return err;
     }
     if (frame.len > 512) {
-        /* 길이만 읽은 상태라 본문이 소켓에 남는다. 다음 프레임이 어긋나지 않게 세션을 닫는다 */
+        /* Only the length was read, so the body is still in the socket. Close the session so the next frame is not misaligned */
         return ESP_FAIL;
     }
     uint8_t buf[513];
@@ -238,10 +238,10 @@ static esp_err_t events_handler(httpd_req_t *req)
     case HTTPD_WS_TYPE_CLOSE: {
         httpd_ws_frame_t close = {.final = true, .type = HTTPD_WS_TYPE_CLOSE};
         httpd_ws_send_frame(req, &close);
-        return ESP_FAIL;    /* 세션을 닫는다 */
+        return ESP_FAIL;    /* close the session */
     }
     default:
-        return ESP_OK;      /* PONG, 앱의 텍스트·바이너리: 버린다 */
+        return ESP_OK;      /* PONG, app text/binary: discard */
     }
 }
 

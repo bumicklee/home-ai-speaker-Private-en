@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// 코스 (펌웨어 lesson.c COURSE_IDS와 같은 id)
+/// Course (same ids as COURSE_IDS in firmware lesson.c)
 enum LessonCourse {
   pron('pron'),
   basic('basic'),
@@ -14,7 +14,7 @@ enum LessonCourse {
   static LessonCourse fromId(String? id) => values.firstWhere((c) => c.id == id, orElse: () => basic);
 }
 
-/// 수업 시작 설정
+/// Lesson start settings
 class LessonOptions extends Equatable {
   const LessonOptions({this.course = LessonCourse.basic, this.explainKorean = true, this.slow = true, this.minutes = 5});
 
@@ -25,7 +25,7 @@ class LessonOptions extends Equatable {
   /// 10, 20, 30
   final int minutes;
 
-  /// 요금 때문에 최대 5분 (2026-10-04). 펌웨어도 3·5만 받는다
+  /// At most 5 minutes because of cost (2026-10-04). The firmware also accepts only 3 and 5
   static const allowedMinutes = [3, 5];
 
   Map<String, Object> toJson() => {

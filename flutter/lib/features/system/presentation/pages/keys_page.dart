@@ -10,7 +10,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../provisioning/domain/entities/provisioning_input.dart';
 import '../bloc/keys_cubit.dart';
 
-/// 키 관리: 이 휴대폰에 기억한 키, 스피커에 저장된 키 (바꾸기는 BLE, 지우기는 LAN)
+/// Key management: keys remembered on this phone, keys saved on the speaker (change over BLE, delete over LAN)
 class KeysPage extends StatelessWidget {
   const KeysPage({super.key});
 

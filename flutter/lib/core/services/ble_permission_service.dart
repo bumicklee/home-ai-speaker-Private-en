@@ -5,15 +5,15 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../errors/exceptions.dart';
 
-/// BLE 권한 (설계서 3.6절).
-/// Android 12+: BLUETOOTH_SCAN(neverForLocation)·CONNECT. Android 11 이하: 위치 권한.
-/// iOS: 처음 BLE를 쓸 때 OS가 묻는다 (permission_handler의 iOS 매크로 설정이 필요 없게 여기서는 묻지 않는다).
+/// BLE permissions (design document Section 3.6).
+/// Android 12+: BLUETOOTH_SCAN (neverForLocation) and CONNECT. Android 11 and below: location permission.
+/// iOS: the OS asks the first time BLE is used (we don't ask here, so permission_handler's iOS macro setup isn't needed).
 class BlePermissionService {
   BlePermissionService({DeviceInfoPlugin? info}) : _info = info ?? DeviceInfoPlugin();
 
   final DeviceInfoPlugin _info;
 
-  /// 거부되면 [BleException] permissionDenied
+  /// Throws [BleException] permissionDenied if denied
   Future<void> ensureGranted() async {
     if (!Platform.isAndroid) return;
     final sdk = (await _info.androidInfo).version.sdkInt;
@@ -25,7 +25,7 @@ class BlePermissionService {
     }
   }
 
-  /// 등록 화면의 기본 휴대폰 이름 (사용자가 고칠 수 있다)
+  /// Default phone name on the registration screen (the user can edit it)
   Future<String> phoneName() async {
     try {
       if (Platform.isAndroid) {

@@ -43,7 +43,7 @@ void main() {
     expect(find.text('OpenAI API 키를 넣어야 다음으로 갈 수 있어요'), findsOneWidget);
     FilledButton button() => t.widget<FilledButton>(find.widgetWithText(FilledButton, '스피커 찾기'));
     expect(button().onPressed, isNull);
-    expect(find.text('(스피커에 따라 준비 중일 수 있어요)'), findsNothing); // OpenAI는 늘 됨
+    expect(find.text('(스피커에 따라 준비 중일 수 있어요)'), findsNothing); // OpenAI always works
 
     await t.tap(find.text('Gemini'));
     await t.pump();

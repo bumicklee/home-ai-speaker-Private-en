@@ -1,11 +1,11 @@
-/// AI 회사 × 대화 방식 (설계서 docs/design-voice-saver-mode.md 11.1·11.4절). 펌웨어 `assistant` 설정·`/status.ai`와 같은 이름.
+/// AI company × conversation mode (design document docs/design-voice-saver-mode.md Sections 11.1, 11.4). Same names as the firmware's `assistant` settings and `/status.ai`.
 library;
 
 import 'package:equatable/equatable.dart';
 
 import '../constants/ble_protocol.dart';
 
-/// 비서 설정 `ai_provider`
+/// Assistant setting `ai_provider`
 enum AiProvider {
   openai('openai', SecretKey.openai),
   gemini('gemini', SecretKey.gemini);
@@ -14,16 +14,16 @@ enum AiProvider {
 
   final String id;
 
-  /// 스피커 보안 저장소의 키 이름 (`secret.set`, `/status.secrets`)
+  /// Key name in the speaker's secure storage (`secret.set`, `/status.secrets`)
   final String secretKey;
 
-  /// 화면 이름 (번역하지 않는 회사 이름)
+  /// Display name (company names are not translated)
   String get displayName => switch (this) {
         openai => 'OpenAI',
         gemini => 'Gemini',
       };
 
-  /// 비서 설정에서 이 회사의 방식을 담는 키 (`mode_openai`, `mode_gemini`)
+  /// Key in the assistant settings that holds this company's mode (`mode_openai`, `mode_gemini`)
   String get modeSettingKey => 'mode_$id';
 
   AiProvider get other => this == openai ? gemini : openai;
@@ -36,7 +36,7 @@ enum AiProvider {
   }
 }
 
-/// `mode_openai`·`mode_gemini`: 실시간 / 절약
+/// `mode_openai` / `mode_gemini`: Live / Saver
 enum AiMode {
   live('live'),
   saver('saver');
@@ -53,14 +53,14 @@ enum AiMode {
   }
 }
 
-/// `"openai.saver"` 같은 조합 이름 (`/status.ai.available`)
+/// A combination name such as `"openai.saver"` (`/status.ai.available`)
 String aiCombo(AiProvider p, AiMode m) => '${p.id}.${m.id}';
 
-/// `GET /status`의 `ai` — 지금 쓰는 AI와 이 펌웨어가 할 수 있는 조합
+/// `ai` in `GET /status` — the AI in use now and the combinations this firmware supports
 class AiStatus extends Equatable {
   const AiStatus({required this.provider, required this.mode, required this.available, this.reported = true});
 
-  /// 옛 펌웨어(`ai` 없음): OpenAI 실시간만
+  /// Old firmware (no `ai`): OpenAI Live only
   static const legacy = AiStatus(
     provider: AiProvider.openai,
     mode: AiMode.live,
@@ -68,7 +68,7 @@ class AiStatus extends Equatable {
     reported: false,
   );
 
-  /// 빠지거나 모르는 값은 옛 펌웨어처럼 본다
+  /// Missing or unknown values are treated as old firmware
   factory AiStatus.fromJson(Object? json) {
     if (json is! Map) return legacy;
     final list = json['available'];
@@ -87,15 +87,15 @@ class AiStatus extends Equatable {
   final AiProvider provider;
   final AiMode mode;
 
-  /// 이 펌웨어가 지금 할 수 있는 조합 (`openai.live` …)
+  /// Combinations this firmware supports now (`openai.live` …)
   final Set<String> available;
 
-  /// 펌웨어가 `ai`를 알려 줬는지 (옛 펌웨어면 false)
+  /// Whether the firmware reported `ai` (false for old firmware)
   final bool reported;
 
   bool isAvailable(AiProvider p, AiMode m) => available.contains(aiCombo(p, m));
 
-  /// 이 회사로 할 수 있는 방식이 하나라도 있는지
+  /// Whether this company supports at least one mode
   bool providerAvailable(AiProvider p) => AiMode.values.any((m) => isAvailable(p, m));
 
   @override

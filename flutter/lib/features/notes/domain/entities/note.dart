@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// 메모·일정 종류 (펌웨어 notes 모듈 `kind`)
+/// Note/event kind (firmware notes module `kind`)
 enum NoteKind {
   memo('memo'),
   event('event');
@@ -11,7 +11,7 @@ enum NoteKind {
   static NoteKind fromId(String? id) => id == 'event' ? event : memo;
 }
 
-/// active = 목록, trash = 말로 지움(30일), gone = 지운 기록(id·rev만)
+/// active = in the list, trash = deleted by voice (30 days), gone = deletion record (id and rev only)
 enum NoteState {
   active('active'),
   trash('trash'),
@@ -23,7 +23,7 @@ enum NoteState {
   static NoteState fromId(String? id) => values.firstWhere((s) => s.id == id, orElse: () => active);
 }
 
-/// 마지막 알림 대화의 결과 (`alert.status`)
+/// Result of the last reminder conversation (`alert.status`)
 enum AlertStatus {
   sent('sent'),
   acked('acked'),
@@ -36,8 +36,8 @@ enum AlertStatus {
   static AlertStatus? fromId(String? id) => values.where((s) => s.id == id).firstOrNull;
 }
 
-/// 일정 시각. 스피커 현지 시각 문자열 그대로 (시간대 변환 없음)
-/// `YYYY-MM-DD` = 하루 종일, `YYYY-MM-DDTHH:MM` = 시각 있음
+/// Event time. The speaker's local time string as is (no time zone conversion)
+/// `YYYY-MM-DD` = all day, `YYYY-MM-DDTHH:MM` = with a time
 class NoteTime extends Equatable {
   NoteTime.date(DateTime d)
       : at = DateTime(d.year, d.month, d.day),
@@ -54,7 +54,7 @@ class NoteTime extends Equatable {
 
   static final _re = RegExp(r'^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?');
 
-  /// 형식이 틀리거나 없는 날짜면 null
+  /// null if the format is wrong or the date doesn't exist
   static NoteTime? tryParse(Object? s) {
     if (s is! String) return null;
     final m = _re.firstMatch(s.trim());
@@ -62,7 +62,7 @@ class NoteTime extends Equatable {
     final y = int.parse(m[1]!), mo = int.parse(m[2]!), d = int.parse(m[3]!);
     if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
     final date = DateTime(y, mo, d);
-    if (date.month != mo) return null; // 2월 30일 같은 날짜
+    if (date.month != mo) return null; // dates like February 30
     if (m[4] == null) return NoteTime.date(date);
     final h = int.parse(m[4]!), mi = int.parse(m[5]!);
     if (h > 23 || mi > 59) return null;
@@ -82,7 +82,7 @@ class NoteTime extends Equatable {
   List<Object?> get props => [at, allDay];
 }
 
-/// 시:분 (하루 종일 일정 알림 시각 `all_day_time`)
+/// Hour:minute (reminder time for all-day events, `all_day_time`)
 class ClockTime extends Equatable {
   const ClockTime(this.hour, this.minute);
 
@@ -105,7 +105,7 @@ class ClockTime extends Equatable {
   List<Object?> get props => [hour, minute];
 }
 
-/// 마지막 알림 (`alert`). offset = 몇 분 전 알림이었나 (-1 = "나중에 다시" 알림)
+/// Last reminder (`alert`). offset = how many minutes before it was (-1 = a "나중에 다시" (remind me later) reminder)
 class NoteAlert extends Equatable {
   const NoteAlert({required this.offset, required this.status, this.at});
 
@@ -117,7 +117,7 @@ class NoteAlert extends Equatable {
   List<Object?> get props => [offset, status, at];
 }
 
-/// 메모·일정 하나 (설계서 4절)
+/// One note or event (design document Section 4)
 class Note extends Equatable {
   const Note({
     required this.id,
@@ -145,7 +145,7 @@ class Note extends Equatable {
   final NoteTime? start;
   final NoteTime? end;
 
-  /// 시작 몇 분 전에 알릴지 (0 = 정각, 최대 3개)
+  /// How many minutes before the start to remind (0 = on time, up to 3)
   final List<int> remind;
   final List<int> reminded;
   final List<int> missed;
@@ -171,17 +171,17 @@ class Note extends Equatable {
   bool get isGone => state == NoteState.gone;
   bool get isAllDay => start?.allDay ?? false;
 
-  /// 알림 기준 시각. 하루 종일이면 그날 [allDayTime]
+  /// Reminder reference time. For all-day events, [allDayTime] on that day
   DateTime? baseTime(ClockTime allDayTime) {
     final s = start;
     if (s == null) return null;
     return s.allDay ? DateTime(s.at.year, s.at.month, s.at.day, allDayTime.hour, allDayTime.minute) : s.at;
   }
 
-  /// [minutes] 전 알림이 울리는 시각
+  /// When the reminder [minutes] before rings
   DateTime? fireTime(int minutes, ClockTime allDayTime) => baseTime(allDayTime)?.subtract(Duration(minutes: minutes));
 
-  /// 아직 울리지 않았고 앞으로 울릴 알림 (분)
+  /// Reminders that haven't rung yet and are still to come (minutes)
   List<int> pendingReminders(DateTime now, ClockTime allDayTime) => [
         for (final m in remind)
           if (!reminded.contains(m) && !missed.contains(m) && (fireTime(m, allDayTime)?.isAfter(now) ?? false)) m,
@@ -192,7 +192,7 @@ class Note extends Equatable {
       [id, kind, title, body, start, end, remind, reminded, missed, snoozeAt, alert, created, updated, rev, by, state];
 }
 
-/// 만들기·고치기 본문 (id·rev는 스피커가 정한다)
+/// Create/edit body (the speaker decides id and rev)
 class NoteDraft extends Equatable {
   const NoteDraft({required this.kind, required this.title, this.body = '', this.start, this.end, this.remind});
 
@@ -202,14 +202,14 @@ class NoteDraft extends Equatable {
   final NoteTime? start;
   final NoteTime? end;
 
-  /// null = 보내지 않음 (만들 때 스피커 기본 알림을 쓴다)
+  /// null = not sent (on create, the speaker's default reminders are used)
   final List<int>? remind;
 
   @override
   List<Object?> get props => [kind, title, body, start, end, remind];
 }
 
-/// 일정 알림 설정 (스피커 전체 하나, `/notes/settings`)
+/// Schedule reminder settings (one for the whole speaker, `/notes/settings`)
 class NotesSettings extends Equatable {
   const NotesSettings({
     this.enabled = true,
@@ -235,23 +235,23 @@ class NotesSettings extends Equatable {
   List<Object?> get props => [enabled, defaultRemind, defaultRemindAllDay, allDayTime];
 }
 
-/// 폰에 둔 사본 (스피커별 하나)
+/// Copy kept on the phone (one per speaker)
 class NotesCache extends Equatable {
   const NotesCache({this.rev = 0, this.items = const [], this.settings});
 
   final int rev;
 
-  /// active·trash (gone은 사본에서 지운다)
+  /// active and trash (gone is removed from the copy)
   final List<Note> items;
 
-  /// 마지막으로 받은 알림 설정 (집 밖에서도 하루 종일 시각 등을 보이게)
+  /// Last reminder settings received (so the all-day time etc. show even away from home)
   final NotesSettings? settings;
 
   NotesCache copyWith({int? rev, List<Note>? items, NotesSettings? settings}) =>
       NotesCache(rev: rev ?? this.rev, items: items ?? this.items, settings: settings ?? this.settings);
 
-  /// 바뀐 항목 합치기: id별로 rev가 큰 쪽이 이기고, gone이면 사본에서 지운다.
-  /// [replace] = 전체 목록(since=0)이라 받은 것에 없는 항목은 지운다
+  /// Merge changed items: per id the higher rev wins; gone removes it from the copy.
+  /// [replace] = full list (since=0), so items not in what was received are removed
   NotesCache merge(int serverRev, Iterable<Note> changes, {bool replace = false}) {
     final byId = <String, Note>{if (!replace) for (final n in items) n.id: n};
     for (final c in changes) {

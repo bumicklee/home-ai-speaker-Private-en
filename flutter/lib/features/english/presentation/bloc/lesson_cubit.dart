@@ -22,7 +22,7 @@ class LessonState extends Equatable {
   List<Object?> get props => [lesson, failure, busy];
 }
 
-/// 수업 중·정리 화면: WS `lesson`으로 갱신하고, 남은 시간은 1초마다 화면에서 줄인다
+/// Lesson and summary screens: updated by WS `lesson`; the screen counts down the time left every second
 class LessonCubit extends Cubit<LessonState> {
   LessonCubit(this._repo, {Lesson? initial, Duration tick = const Duration(seconds: 1)})
       : super(LessonState(lesson: initial)) {

@@ -1,7 +1,7 @@
 /*
- * LAN API 토큰 저장소 (설계서 2.0절 서버 없는 구조, 2.14절 인증).
- * - 휴대폰마다 토큰 하나(최대 5대). 기기는 토큰의 SHA-256만 NVS(api/phones)에 저장한다.
- * - 확인은 5칸 모두를 같은 방법으로 비교한다(상수 시간): 어느 칸에서 맞았는지가 시간으로 새지 않게.
+ * LAN API token store (design document Section 2.0 server-free design, Section 2.14 authentication).
+ * - One token per phone (up to 5). The device stores only the token's SHA-256 in NVS (api/phones).
+ * - Verification compares all 5 slots the same way (constant time), so the timing does not leak which slot matched.
  */
 #include "device_api.h"
 
@@ -25,7 +25,7 @@ typedef struct {
     char phone_id[PHONE_ID_MAX + 1];
     char name[PHONE_NAME_MAX + 1];
     uint8_t hash[32];
-    uint32_t created;       /* UNIX 시각 (시각 미설정이면 0) */
+    uint32_t created;       /* UNIX time (0 if the clock is not set) */
     uint8_t used;
 } phone_t;
 
@@ -98,7 +98,7 @@ esp_err_t phones_pair(const char *phone_id, const char *name, const char *evict,
         return ESP_ERR_INVALID_ARG;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    int slot = find(phone_id);      /* 같은 휴대폰 재등록은 교체 (5대 한도를 쓰지 않음) */
+    int slot = find(phone_id);      /* re-registering the same phone replaces it (does not count against the 5-phone limit) */
     if (slot < 0 && evict) {
         int victim = find(evict);
         if (victim >= 0) {
@@ -121,7 +121,7 @@ esp_err_t phones_pair(const char *phone_id, const char *name, const char *evict,
     char b64[48];
     mbedtls_base64_encode((unsigned char *)b64, sizeof(b64), &olen, raw, sizeof(raw));
     memset(raw, 0, sizeof(raw));
-    /* base64 → base64url, 패딩 제거 */
+    /* base64 → base64url, padding removed */
     size_t n = 0;
     for (size_t i = 0; i < olen && b64[i] != '='; i++) {
         char c = b64[i];
@@ -158,7 +158,7 @@ bool phones_verify(const char *token, char phone_id[PHONE_ID_MAX + 1])
         for (int b = 0; b < 32; b++) {
             diff |= hash[b] ^ s_db.slots[i].hash[b];
         }
-        /* 분기 없이 기록해 칸마다 걸리는 시간을 같게 한다 */
+        /* record without branching so every slot takes the same time */
         int hit = (diff == 0);
         match = hit ? i : match;
     }

@@ -1,5 +1,5 @@
-/// 같은 Wi-Fi의 스피커 찾기 (mDNS `_aispeaker._tcp`, 설계서 2.14절).
-/// iOS는 Info.plist `NSBonjourServices`에 이 서비스가 있어야 한다 (`multicast_dns`는 entitlement가 필요해 `nsd` 사용).
+/// Finds speakers on the same Wi-Fi (mDNS `_aispeaker._tcp`, design document Section 2.14).
+/// On iOS this service must be listed in Info.plist `NSBonjourServices` (`multicast_dns` needs an entitlement, so we use `nsd`).
 library;
 
 import 'dart:async';
@@ -15,7 +15,7 @@ import '../network/device_endpoint.dart';
 class FoundSpeaker extends Equatable {
   const FoundSpeaker({required this.shortId, required this.host, required this.port, this.protocolVersion});
 
-  /// TXT `id` = STA MAC 뒤 6자리 (기기 식별자 12자의 끝)
+  /// TXT `id` = last 6 of the STA MAC (the end of the 12-character device identifier)
   final String shortId;
   final String host;
   final int port;
@@ -28,7 +28,7 @@ class FoundSpeaker extends Equatable {
 }
 
 class DeviceDiscoveryService implements DeviceResolver {
-  /// [timeout] 동안 찾은 스피커 목록
+  /// Speakers found within [timeout]
   Future<List<FoundSpeaker>> discover({Duration timeout = const Duration(seconds: 4)}) async {
     final found = <String, FoundSpeaker>{};
     final discovery = await nsd.startDiscovery(LanDiscovery.serviceType, ipLookupType: nsd.IpLookupType.v4);
@@ -50,7 +50,7 @@ class DeviceDiscoveryService implements DeviceResolver {
     return found.values.toList();
   }
 
-  /// 한 기기를 찾으면 바로 돌려준다
+  /// Returns as soon as one device is found
   Future<FoundSpeaker?> find(String deviceId, {Duration timeout = const Duration(seconds: 4)}) async {
     final discovery = await nsd.startDiscovery(LanDiscovery.serviceType, ipLookupType: nsd.IpLookupType.v4);
     final result = Completer<FoundSpeaker?>();

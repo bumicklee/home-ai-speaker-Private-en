@@ -1,7 +1,7 @@
 /*
- * PCF85063 RTC. 레지스터 0x04–0x0A에 초·분·시·일·요일·월·년(BCD)이 있다.
- * 초 레지스터의 bit7(OS)이 1이면 발진기가 멈췄던 것이라 시각을 믿을 수 없다.
- * RTC에는 UTC로 저장한다.
+ * PCF85063 RTC. Registers 0x04–0x0A hold seconds, minutes, hours, day, weekday, month, year (BCD).
+ * If bit7 (OS) of the seconds register is 1, the oscillator had stopped and the time can't be trusted.
+ * The RTC stores UTC.
  */
 #include "board.h"
 
@@ -74,7 +74,7 @@ esp_err_t board_rtc_write(const struct tm *utc)
     }
     const uint8_t data[8] = {
         REG_SECONDS,
-        bin2bcd(utc->tm_sec),       /* OS 플래그를 함께 지운다 */
+        bin2bcd(utc->tm_sec),       /* also clears the OS flag */
         bin2bcd(utc->tm_min),
         bin2bcd(utc->tm_hour),
         bin2bcd(utc->tm_mday),

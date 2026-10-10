@@ -5,7 +5,7 @@ import '../../../../core/device/current_device.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/repository/guard.dart';
 
-/// 홈 화면의 즉시 동작 (대화 시작·끝, 볼륨, 재생 제어). 선택된 기기로 보낸다
+/// Immediate actions on the home screen (start/end conversation, volume, playback control). Sent to the selected device
 class DeviceControlRepository {
   DeviceControlRepository(this._device);
 
@@ -17,7 +17,7 @@ class DeviceControlRepository {
   /// pause / resume / stop / next / previous
   Future<Either<Failure, Unit>> media(String action) => _post(ApiPaths.mediaControl(action));
 
-  /// 0–80. 기기가 저장하고 WS `volume`으로 알린다
+  /// 0–80. The device saves it and announces it via WS `volume`
   Future<Either<Failure, Unit>> setVolume(int volume) => guard(() async {
         await _device.client.put<dynamic>(ApiPaths.settings(SettingsGroup.audio), {'volume': volume});
         return unit;

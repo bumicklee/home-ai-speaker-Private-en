@@ -1,5 +1,5 @@
 /*
- * 기기 정보(BLE device.info)와 상태(LAN /status). 비밀값은 저장 여부만 넣는다.
+ * Device info (BLE device.info) and status (LAN /status). For secrets, only whether each one is saved.
  */
 #include "device_api.h"
 
@@ -59,7 +59,7 @@ cJSON *device_secrets_state(void)
     return j;
 }
 
-/* GET /status.ai 와 BLE device.info.ai (docs/design-voice-saver-mode.md 11.4 + 코디네이터 요청: 첫 설정은 BLE만 쓴다) */
+/* GET /status.ai and BLE device.info.ai (docs/design-voice-saver-mode.md 11.4 + coordinator request: first-time setup uses BLE only) */
 static cJSON *device_ai_state(void)
 {
     cJSON *s = assistant_settings();
@@ -69,7 +69,7 @@ static cJSON *device_ai_state(void)
     cJSON *j = cJSON_CreateObject();
     cJSON_AddStringToObject(j, "provider", p);
     cJSON_AddStringToObject(j, "mode", cJSON_IsString(mode) && !strcmp(mode->valuestring, "saver") ? "saver" : "live");
-    /* 이 펌웨어가 실제로 구현한 조합 (3단계: Gemini Live 추가, 11.4절 표) */
+    /* The combinations this firmware actually implements (stage 3: Gemini Live added, table in Section 11.4) */
     static const char *const AVAILABLE[] = {"openai.live", "openai.saver", "gemini.saver", "gemini.live"};
     cJSON_AddItemToObject(j, "available", cJSON_CreateStringArray(AVAILABLE, 4));
     cJSON_Delete(s);
@@ -87,7 +87,7 @@ cJSON *device_info(void)
     cJSON_AddBoolToObject(j, "provisioned", settings_is_provisioned());
     cJSON_AddBoolToObject(j, "wifi_connected", net_is_connected());
     cJSON_AddItemToObject(j, "secrets", device_secrets_state());
-    /* 첫 설정은 LAN이 되기 전(BLE만)이라 "available"을 여기서도 줘야 앱이 1단계에서 Gemini를 못 고르게 잠근다 */
+    /* First-time setup runs before LAN is up (BLE only), so "available" must go here too; that is how the app locks Gemini out at stage 1 */
     cJSON_AddItemToObject(j, "ai", device_ai_state());
     return j;
 }
@@ -124,8 +124,8 @@ cJSON *device_status(void)
     cJSON_AddNumberToObject(j, "heap_internal_min", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(j, "psram_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     cJSON_AddStringToObject(j, "voice_state", voice_state_name(live_voice_state()));
-    cJSON_AddItemToObject(j, "media", radio_now_json());   /* Spotify는 Phase 5에서 합친다 */
-    /* Telegram·Spotify는 Phase 4–5에서 채운다 */
+    cJSON_AddItemToObject(j, "media", radio_now_json());   /* Spotify is merged in Phase 5 */
+    /* Telegram and Spotify are filled in during Phases 4–5 */
     cJSON_AddNumberToObject(j, "volume", audio_core_get_volume());
     cJSON_AddItemToObject(j, "secrets", device_secrets_state());
     cJSON_AddItemToObject(j, "ai", device_ai_state());
@@ -133,7 +133,7 @@ cJSON *device_status(void)
     cJSON_AddStringToObject(tg, "state", telegram_state_name(telegram_state()));
     cJSON_AddNumberToObject(tg, "unread", telegram_unread());
     cJSON_AddStringToObject(j, "spotify_state", spotify_state_name(spotify_linked() ? spotify_state() : SPOTIFY_OFF));
-    /* failures(최근 실패 5건)와 task_stack_min은 sys/fail_log 구현 후 추가 */
+    /* failures (the last 5 failures) and task_stack_min are added once sys/fail_log is implemented */
     cJSON_AddArrayToObject(j, "failures");
     return j;
 }

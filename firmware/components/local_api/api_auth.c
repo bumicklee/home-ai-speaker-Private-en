@@ -1,10 +1,10 @@
 /*
- * LAN API 인증 (설계서 2.14절 인증).
- * - Host가 jarvis-*.local 이나 IP 주소가 아니면 거부: 악성 웹페이지가 DNS를 바꿔
- *   브라우저로 스피커에 요청하는 공격(DNS 리바인딩)을 막는다.
- * - Origin 헤더가 있으면 거부: 앱은 보내지 않고 브라우저는 보낸다.
- * - 같은 IP에서 5회 연속 실패하면 30초 동안 429. 기록 표는 8칸.
- * - 401 응답은 본문이 늘 같다. 토큰 비교는 phones_verify의 상수 시간 비교.
+ * LAN API authentication (design document Section 2.14, authentication).
+ * - Reject if Host is not jarvis-*.local or an IP address: this blocks the attack where a malicious web page changes DNS
+ *   so that the browser sends requests to the speaker (DNS rebinding).
+ * - Reject if there is an Origin header: the app never sends one, browsers do.
+ * - 5 consecutive failures from the same IP give 429 for 30 seconds. The record table has 8 slots.
+ * - The 401 response body is always the same. Token comparison is the constant-time comparison in phones_verify.
  */
 #include <ctype.h>
 #include <stdlib.h>
@@ -51,7 +51,7 @@ static uint32_t peer_ip(httpd_req_t *req)
 #if LWIP_IPV6
     if (addr.ss_family == AF_INET6) {
         const uint32_t *w = (const uint32_t *)&((struct sockaddr_in6 *)&addr)->sin6_addr;
-        return w[3] ^ w[2];     /* IPv4 매핑 주소면 마지막 4바이트가 IPv4 */
+        return w[3] ^ w[2];     /* for an IPv4-mapped address, the last 4 bytes are the IPv4 address */
     }
 #endif
     return 0;
@@ -68,7 +68,7 @@ static rate_slot_t *slot_for(uint32_t ip)
             oldest = &s_rate[i];
         }
     }
-    /* 표가 차면 가장 오래 안 쓴 칸을 재사용 */
+    /* when the table is full, reuse the least recently used slot */
     memset(oldest, 0, sizeof(*oldest));
     oldest->ip = ip;
     return oldest;
@@ -118,7 +118,7 @@ static bool host_allowed(httpd_req_t *req)
     if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
         return false;
     }
-    size_t n = strcspn(host, ":");      /* 포트 떼기 */
+    size_t n = strcspn(host, ":");      /* strip the port */
     for (size_t i = 0; i < n; i++) {
         host[i] = (char)tolower((unsigned char)host[i]);
     }

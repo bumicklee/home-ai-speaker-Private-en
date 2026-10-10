@@ -10,14 +10,14 @@ import '../../data/models/assistant_settings_model.dart';
 import '../../domain/entities/assistant_settings.dart';
 import '../../domain/repositories/assistant_repository.dart';
 
-/// AI·방식 카드를 누를 수 없는 이유
+/// Why an AI/mode card can't be tapped
 enum AiLock {
   none,
 
-  /// 스피커에 이 회사 키가 없음 ("키 없음 · 쓸 수 없어요")
+  /// The speaker has no key for this provider ("키 없음 · 쓸 수 없어요")
   noKey,
 
-  /// 이 펌웨어가 아직 못 함 (`/status.ai.available`에 없음, "준비 중")
+  /// This firmware can't do it yet (not in `/status.ai.available`, "준비 중")
   notReady,
 }
 
@@ -31,24 +31,24 @@ class AiModeState extends Equatable {
     this.failure,
   });
 
-  /// 스피커의 비서 설정 (ai_provider, mode_openai, mode_gemini)
+  /// The speaker's assistant settings (ai_provider, mode_openai, mode_gemini)
   final AssistantSettings? settings;
 
-  /// `/status.secrets`. 상태를 못 읽었으면 null (키로는 잠그지 않는다. 스피커가 한 번 더 막는다)
+  /// `/status.secrets`. null if the status couldn't be read (then don't lock by key; the speaker blocks it once more)
   final Map<String, bool>? secrets;
   final AiStatus ai;
   final bool loading;
 
-  /// 바꾸는 중 (카드를 누를 수 없다)
+  /// Changing (cards can't be tapped)
   final bool saving;
 
-  /// 불러오기 실패 (화면 전체)
+  /// Load failed (whole screen)
   final Failure? failure;
 
   AiProvider get provider => settings?.aiProvider ?? AiProvider.openai;
   AiMode get mode => settings?.aiMode ?? AiMode.live;
 
-  /// 스피커에 키가 있는지 (모르면 null)
+  /// Whether the speaker has the key (null if unknown)
   bool? hasKey(AiProvider p) => secrets == null ? null : (secrets![p.secretKey] ?? false);
 
   AiLock providerLock(AiProvider p) {
@@ -80,8 +80,8 @@ class AiModeState extends Equatable {
   List<Object?> get props => [settings, secrets, ai, loading, saving, failure];
 }
 
-/// 비서 > AI · 대화 방식 (설계 docs/design-voice-saver-mode.md 9·11.8절).
-/// 바꾸면 바로 LAN `PUT /settings/assistant` (부분). 키는 BLE로만 보낸다 (시스템 > 키와 같은 길)
+/// Assistant > AI · Conversation mode (design docs/design-voice-saver-mode.md Sections 9 and 11.8).
+/// Changes go straight to LAN `PUT /settings/assistant` (partial). Keys go over BLE only (same path as System > Keys)
 class AiModeCubit extends Cubit<AiModeState> {
   AiModeCubit(this._assistant, this._system, this._vault) : super(const AiModeState());
 
@@ -89,7 +89,7 @@ class AiModeCubit extends Cubit<AiModeState> {
   final SystemRepository _system;
   final KeyVault _vault;
 
-  /// 스피커가 키가 없다고 거절함 (LAN 409 / BLE `NO_API_KEY`)
+  /// The speaker refused because it has no key (LAN 409 / BLE `NO_API_KEY`)
   static bool isNoKey(Failure f) => f.code == BleCmdError.noApiKey;
 
   Future<void> load() async {
@@ -108,7 +108,7 @@ class AiModeCubit extends Cubit<AiModeState> {
     );
   }
 
-  /// ① AI 바꾸기. 그 회사의 마지막 방식이 이 스피커에서 안 되면 되는 방식으로 함께 바꾼다
+  /// ① Change the AI. If that provider's last mode doesn't work on this speaker, switch to one that does at the same time
   Future<Failure?> chooseProvider(AiProvider p) async {
     final s = state.settings;
     if (s == null || state.saving || p == s.aiProvider || state.providerLock(p) != AiLock.none) return null;
@@ -123,7 +123,7 @@ class AiModeCubit extends Cubit<AiModeState> {
     return _put(changes, provider: p);
   }
 
-  /// ② 지금 AI의 방식 바꾸기
+  /// ② Change the mode of the current AI
   Future<Failure?> chooseMode(AiMode m) async {
     final s = state.settings;
     final p = state.provider;
@@ -136,7 +136,7 @@ class AiModeCubit extends Cubit<AiModeState> {
     final r = await _assistant.update(changes);
     if (isClosed) return r.fold((f) => f, (_) => null);
     return r.fold((f) {
-      // 스피커에서 키가 지워졌다: 카드를 잠근다
+      // The key was erased on the speaker: lock the card
       final secrets =
           isNoKey(f) && state.secrets != null ? {...state.secrets!, provider.secretKey: false} : state.secrets;
       emit(state.copyWith(saving: false, secrets: () => secrets));
@@ -147,11 +147,11 @@ class AiModeCubit extends Cubit<AiModeState> {
     });
   }
 
-  /// 휴대폰에 기억한 키 ("키 넣기" 칸을 미리 채운다)
+  /// Key remembered on the phone (pre-fills the "키 넣기" field)
   Future<String> rememberedKey(AiProvider p) async =>
       (p == AiProvider.openai ? await _vault.openAiKey() : await _vault.geminiKey()) ?? '';
 
-  /// "○○ 키 넣기": BLE `secret.set` (사용자가 Key2를 3초 눌러 BLE 창을 연 뒤). 성공하면 휴대폰에도 기억
+  /// "○○ 키 넣기" (enter key): BLE `secret.set` (after the user holds Key2 for 3 seconds to open the BLE window). On success, the phone remembers it too
   Future<Failure?> sendKey(AiProvider p, String value) async {
     final r = await _system.sendKeyOverBle(p.secretKey, value);
     if (isClosed) return r.fold((f) => f, (_) => null);

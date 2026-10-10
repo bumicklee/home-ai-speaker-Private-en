@@ -1,11 +1,11 @@
 /*
- * 음성 메모·일정 + 일정 알림 (notes.h 참고, 설계서 docs/design-notes-schedule.md 2판 4·5·8절).
+ * Voice notes and events + event reminders (see notes.h; design document docs/design-notes-schedule.md, second edition, Sections 4, 5, and 8).
  *
- * 저장: /storage/notes.jsonl(한 줄에 하나) + /storage/notes.meta({"rev":N}), 고칠 때 .tmp에 쓰고 rename.
- * 전체를 PSRAM 배열(note_t[])에 올려 두고 뮤텍스 하나로 지킨다(내부 RAM은 쓰지 않는다).
- * 새 태스크를 만들지 않는다: 알림 검사는 main.c가 30초 esp_timer로 notes_tick()을 부른다.
+ * Storage: /storage/notes.jsonl (one per line) + /storage/notes.meta ({"rev":N}); edits write to .tmp, then rename.
+ * Everything is kept in a PSRAM array (note_t[]) guarded by a single mutex (internal RAM is not used).
+ * No new task is created: for reminder checks, main.c calls notes_tick() from a 30 s esp_timer.
  *
- * 제목·내용·검색어는 로그에 남기지 않는다. 예: NOTES: add event n_7f3a9c21 (rev 43)
+ * Titles, content, and search terms are never logged. Example: NOTES: add event n_7f3a9c21 (rev 43)
  */
 #include "notes.h"
 #include "notes_logic.h"
@@ -29,16 +29,16 @@ static const char *TAG = "NOTES";
 #define NOTES_TMP       "/storage/notes.tmp"
 #define META_FILE       "/storage/notes.meta"
 #define META_TMP        "/storage/notes.meta.tmp"
-#define NOTES_CAPACITY  1400        /* 배열 상한(사용자 보이는 1,000건 + gone 묘비 여유 400). PSRAM: 약 800B × 1,400 ≈ 1.1MB */
-#define VISIBLE_LIMIT   1000        /* active + trash 상한 (FULL) */
+#define NOTES_CAPACITY  1400        /* array cap (1,000 user-visible items + 400 spare for gone tombstones). PSRAM: about 800B × 1,400 ≈ 1.1MB */
+#define VISIBLE_LIMIT   1000        /* cap on active + trash (FULL) */
 #define TITLE_MAX       80
 #define BODY_MAX        600
 #define START_MAX       16          /* "YYYY-MM-DDTHH:MM" */
 #define REMIND_MAX      3
 #define REMIND_MIN_VAL  0
-#define REMIND_MAX_VAL  10080       /* 7일 */
+#define REMIND_MAX_VAL  10080       /* 7 days */
 #define TRASH_GONE_DAYS 30
-#define BATCH_MAX       5           /* 한 번의 알림 대화로 묶는 최대 개수 */
+#define BATCH_MAX       5           /* max items bundled into one reminder conversation */
 #define LINE_BUF_MAX    2048
 
 typedef enum { KIND_MEMO, KIND_EVENT } note_kind_t;
@@ -53,9 +53,9 @@ typedef struct {
     uint8_t by;                     /* note_by_t */
     char title[TITLE_MAX + 1];
     char body[BODY_MAX + 1];
-    char start[START_MAX + 1];      /* 비어 있으면 null (memo) */
+    char start[START_MAX + 1];      /* null if empty (memo) */
     char end[START_MAX + 1];
-    int64_t created, updated;       /* unix 초 */
+    int64_t created, updated;       /* unix seconds */
     uint32_t rev;
     int16_t remind[REMIND_MAX];
     uint8_t remind_n;
@@ -80,8 +80,8 @@ typedef struct {
 } notes_cfg_t;
 
 static SemaphoreHandle_t s_lock;
-static note_t *s_notes;             /* PSRAM 배열, NOTES_CAPACITY개 */
-static int s_count;                 /* 쓰는 중인 항목 수(앞쪽부터 채움) */
+static note_t *s_notes;             /* PSRAM array, NOTES_CAPACITY entries */
+static int s_count;                 /* number of items in use (filled from the front) */
 static uint32_t s_rev;
 static notes_cfg_t s_cfg = {
     .enabled = true,
@@ -93,14 +93,14 @@ static notes_cfg_t s_cfg = {
     .all_day_mm = 0,
 };
 
-/* 알림 묶음(기다리는 중 또는 확정돼 대답을 기다리는 중) */
+/* reminder batch (waiting, or committed and waiting for an answer) */
 typedef struct {
     char id[11];
     int16_t offset;      /* -1 = snooze */
 } batch_item_t;
 static batch_item_t s_batch[BATCH_MAX];
 static int s_batch_n;
-static bool s_batch_committed;       /* build_text가 이미 "보냄"으로 확정했다 */
+static bool s_batch_committed;       /* build_text has already committed it as "sent" */
 static bool s_batch_acked;
 
 #define LOCK()   xSemaphoreTake(s_lock, portMAX_DELAY)
@@ -118,7 +118,7 @@ static void notify_reminder(const char *id, alert_status_t status)
     app_events_post(APP_EVT_REMINDER, &evt, sizeof(evt), 0);
 }
 
-/* ── 찾기 ─────────────────────────────────────────────────────────────── */
+/* ── Lookup ───────────────────────────────────────────────────────────── */
 
 static note_t *find_locked(const char *id)
 {
@@ -144,7 +144,7 @@ static bool visible_count_at_limit_locked(void)
     return n >= VISIBLE_LIMIT;
 }
 
-/* ── JSON 직렬화 (한 항목. gone이면 id·rev·state만) ──────────────────── */
+/* ── JSON serialization (one item; if gone, only id, rev, state) ─────── */
 
 static const char *const KIND_NAMES[] = {"memo", "event"};
 static const char *const STATE_NAMES[] = {"active", "trash", "gone"};
@@ -167,7 +167,7 @@ static cJSON *note_to_json(const note_t *n)
     cJSON_AddNumberToObject(j, "rev", n->rev);
     cJSON_AddStringToObject(j, "state", STATE_NAMES[n->state]);
     if (n->state == STATE_GONE) {
-        return j;       /* 내용을 담지 않는다(바로 지움) */
+        return j;       /* no content (deleted right away) */
     }
     cJSON_AddStringToObject(j, "kind", KIND_NAMES[n->kind]);
     cJSON_AddStringToObject(j, "title", n->title);
@@ -204,7 +204,7 @@ static cJSON *note_to_json(const note_t *n)
     return j;
 }
 
-/* 파일에서 한 줄을 읽어 note_t로. 깨진 줄은 거부(false) */
+/* Reads one line from the file into note_t. Rejects broken lines (false) */
 static bool json_to_note(const cJSON *j, note_t *n)
 {
     memset(n, 0, sizeof(*n));
@@ -228,7 +228,7 @@ static bool json_to_note(const cJSON *j, note_t *n)
     }
     n->state = (uint8_t)st;
     if (n->state == STATE_GONE) {
-        return true;    /* 내용 없음 */
+        return true;    /* no content */
     }
     const cJSON *kind = cJSON_GetObjectItemCaseSensitive(j, "kind");
     const cJSON *title = cJSON_GetObjectItemCaseSensitive(j, "title");
@@ -300,7 +300,7 @@ static bool json_to_note(const cJSON *j, note_t *n)
     return true;
 }
 
-/* ── 파일 I/O ─────────────────────────────────────────────────────────── */
+/* ── File I/O ─────────────────────────────────────────────────────────── */
 
 static bool write_meta_locked(void)
 {
@@ -317,7 +317,7 @@ static bool write_meta_locked(void)
     return ok;
 }
 
-/* 전체를 다시 쓴다(소규모 코덱 기기 흔한 방식, radio_presets.c와 같은 tmp+rename) */
+/* Rewrites the whole file (common on small devices; the same tmp+rename as radio_presets.c) */
 static bool persist_locked(void)
 {
     FILE *f = fopen(NOTES_TMP, "w");
@@ -392,7 +392,7 @@ static void load_meta_locked(void)
     cJSON_Delete(j);
 }
 
-/* 30일 지난 trash→gone, gone은 배열에서 완전히 뺀다. 시각이 유효해야 한다. 바뀌었으면 true */
+/* trash older than 30 days → gone; gone items are removed from the array entirely. The clock must be valid. true if anything changed */
 static bool purge_locked(time_t now)
 {
     if (now < APP_TIME_VALID_EPOCH) {
@@ -415,7 +415,7 @@ static bool purge_locked(time_t now)
             changed = true;
         }
     }
-    /* gone을 완전히 뺀다(뒤에서부터 당겨 채움) */
+    /* remove gone items entirely (pull from the back to fill) */
     for (int i = 0; i < s_count;) {
         note_t *n = &s_notes[i];
         int64_t age_days = (now - n->updated) / 86400;
@@ -430,7 +430,7 @@ static bool purge_locked(time_t now)
     return changed;
 }
 
-/* ── 알림 설정 (NVS "notes"/"cfg") ───────────────────────────────────── */
+/* ── Reminder settings (NVS "notes"/"cfg") ───────────────────────────── */
 
 static bool remind_array_valid(const cJSON *arr, int16_t *out, uint8_t *out_n)
 {
@@ -446,7 +446,7 @@ static bool remind_array_valid(const cJSON *arr, int16_t *out, uint8_t *out_n)
         }
         for (uint8_t i = 0; i < n; i++) {
             if (out[i] == v->valueint) {
-                return false;   /* 중복 */
+                return false;   /* duplicate */
             }
         }
         out[n++] = (int16_t)v->valueint;
@@ -569,9 +569,9 @@ esp_err_t notes_settings_set(const cJSON *body)
     return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
 }
 
-/* ── 만들기·고치기 검증 ───────────────────────────────────────────────── */
+/* ── Validation for create and edit ───────────────────────────────────── */
 
-/* j[key]가 없거나 null이면 true(선택값 없음). 문자열이면 *out을 채우고 true. 그 외 타입이면 false(오류) */
+/* true if j[key] is missing or null (no optional value). If a string, fills *out and returns true. Any other type: false (error) */
 static bool opt_string(const cJSON *body, const char *key, const char **out)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(body, key);
@@ -591,7 +591,7 @@ static int64_t base_minutes_of(int y, int m, int d, int hh, int mm, bool all_day
     return notes_base_minutes(y, m, d, hh, mm, all_day, s_cfg.all_day_hh, s_cfg.all_day_mm);
 }
 
-/* start/end 쌍을 검사한다(존재 여부는 호출한 쪽에서 kind에 맞게 미리 확인). end가 start보다 이르면 거부 */
+/* Checks a start/end pair (the caller checks presence beforehand to match the kind). Rejects end earlier than start */
 static bool valid_start_end(const char *start, const char *end, bool *all_day_out)
 {
     int sy, sm, sd, shh, smm;
@@ -613,7 +613,7 @@ static bool valid_start_end(const char *start, const char *end, bool *all_day_ou
     return em_abs >= sm_abs;
 }
 
-/* remind 배열(JSON) 검증. null/missing이면 present=false. kind가 memo면 비어 있어야 한다 */
+/* Validates the remind array (JSON). null/missing means present=false. Must be empty if kind is memo */
 static bool valid_remind(const cJSON *body, note_kind_t kind, bool *present, int16_t *out, uint8_t *out_n)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(body, "remind");
@@ -628,7 +628,7 @@ static bool valid_remind(const cJSON *body, note_kind_t kind, bool *present, int
     return kind != KIND_MEMO || *out_n == 0;
 }
 
-/* 지금 시각 기준으로 이미 지난 remind 오프셋을 reminded에 미리 채운다(창조·수정 시점, 울리지 않게) */
+/* Pre-fills reminded with remind offsets already past as of now (at create/edit time, so they don't ring) */
 static void prefill_reminded(note_t *n, int64_t now_min)
 {
     n->reminded_n = 0;
@@ -668,7 +668,7 @@ static void new_id_locked(char out[11])
     }
 }
 
-/* 새로 만든다. ESP_OK | ESP_ERR_INVALID_ARG | ESP_ERR_INVALID_SIZE(가득 참, FULL) */
+/* Creates a new item. ESP_OK | ESP_ERR_INVALID_ARG | ESP_ERR_INVALID_SIZE (full, FULL) */
 static esp_err_t create_note_locked(const cJSON *body, note_by_t by, note_t **out)
 {
     const char *title = NULL, *body_s = NULL, *start = NULL, *end = NULL;
@@ -698,10 +698,10 @@ static esp_err_t create_note_locked(const cJSON *body, note_by_t by, note_t **ou
         return ESP_ERR_INVALID_ARG;
     }
     if (kind == KIND_MEMO && (start || end)) {
-        return ESP_ERR_INVALID_ARG;        /* 메모는 start·end가 없어야 한다 */
+        return ESP_ERR_INVALID_ARG;        /* a memo must have no start or end */
     }
     if (kind == KIND_EVENT && !start) {
-        return ESP_ERR_INVALID_ARG;        /* 일정은 start 필수 */
+        return ESP_ERR_INVALID_ARG;        /* an event requires start */
     }
     bool all_day = false;
     if (start && !valid_start_end(start, end, &all_day)) {
@@ -729,8 +729,8 @@ static esp_err_t create_note_locked(const cJSON *body, note_by_t by, note_t **ou
             remind_n = 0;
         }
     }
-    /* id를 먼저 만든다. 새 칸을 목록에 넣은 뒤 만들면 find_locked가 자기 자신(빈 칸에 막 쓴 id)을 찾아
-     * "이미 있음"이 되어 끝없이 다시 만든다 → 태스크 감시 타이머 재부팅 (2026-10-04 실기기) */
+    /* Generate the id first. If it is generated after the new slot is in the list, find_locked finds the slot itself
+     * (the id just written into the empty slot), says "already exists", and regenerates forever → task watchdog reboot (real board) */
     char id[11];
     new_id_locked(id);
     note_t *n = &s_notes[s_count++];
@@ -760,7 +760,7 @@ static esp_err_t create_note_locked(const cJSON *body, note_by_t by, note_t **ou
     return ESP_OK;
 }
 
-/* j[key]가 null/없음이면 changed=false. ""(빈 문자열)이면 changed=true,clear=true. 그 외 문자열이면 value */
+/* If j[key] is null/missing, changed=false. If "" (empty string), changed=true, clear=true. Any other string goes to value */
 typedef struct {
     bool changed, clear;
     const char *value;
@@ -782,7 +782,7 @@ static bool opt_change(const cJSON *body, const char *key, field_str_t *f)
     return true;
 }
 
-/* 고치기. ESP_OK | ESP_ERR_NOT_FOUND | ESP_ERR_INVALID_ARG | ESP_ERR_INVALID_STATE(충돌, conflict_out 채움) */
+/* Edit. ESP_OK | ESP_ERR_NOT_FOUND | ESP_ERR_INVALID_ARG | ESP_ERR_INVALID_STATE (conflict, fills conflict_out) */
 static esp_err_t update_note_locked(const char *id, const uint32_t *base_rev, const cJSON *body, note_by_t by,
                                     note_t **out, note_t **conflict_out)
 {
@@ -828,7 +828,7 @@ static esp_err_t update_note_locked(const char *id, const uint32_t *base_rev, co
     if (f_start.changed) {
         bool ad;
         if (f_start.clear || !valid_start_end(f_start.value, NULL, &ad)) {
-            return ESP_ERR_INVALID_ARG;        /* start는 비울 수 없다 */
+            return ESP_ERR_INVALID_ARG;        /* start can't be cleared */
         }
         snprintf(new_start, sizeof(new_start), "%s", f_start.value);
         reset_reminders = true;
@@ -856,7 +856,7 @@ static esp_err_t update_note_locked(const char *id, const uint32_t *base_rev, co
         new_start[0] = new_end[0] = '\0';
         remind_n = 0;
     } else if (!new_start[0]) {
-        return ESP_ERR_INVALID_ARG;            /* event는 start가 있어야 한다 */
+        return ESP_ERR_INVALID_ARG;            /* an event must have start */
     }
 
     if (f_title.changed) {
@@ -884,7 +884,7 @@ static esp_err_t update_note_locked(const char *id, const uint32_t *base_rev, co
     return ESP_OK;
 }
 
-/* 말로 지우기: 휴지통(active만 대상). ESP_OK | ESP_ERR_NOT_FOUND */
+/* Delete by voice: to the trash (active items only). ESP_OK | ESP_ERR_NOT_FOUND */
 static esp_err_t trash_note_locked(const char *id, note_t **out)
 {
     note_t *n = find_locked(id);
@@ -901,7 +901,7 @@ static esp_err_t trash_note_locked(const char *id, note_t **out)
     return ESP_OK;
 }
 
-/* 앱에서 지우기: 원본 영구 삭제(gone). active·trash 모두 대상. ESP_OK | ESP_ERR_NOT_FOUND */
+/* Delete from the app: permanently delete the original (gone). Applies to both active and trash. ESP_OK | ESP_ERR_NOT_FOUND */
 esp_err_t notes_api_delete(const char *id, cJSON **result_out)
 {
     LOCK();
@@ -988,9 +988,9 @@ esp_err_t notes_api_update(const char *id, const cJSON *body, cJSON **note_out, 
     return err;
 }
 
-/* ── GET ?since= : rev 오름차순, 큰 트리는 쓰지 않고 항목별로 조립한다(내부 RAM 보호) ── */
+/* ── GET ?since= : rev ascending, assembled per item without building a big tree (protects internal RAM) ── */
 
-/* 삽입정렬(최대 1,000여 개라 충분히 빠르다, qsort_r의 플랫폼별 인자 순서 문제를 피한다) */
+/* Insertion sort (fast enough for about 1,000 items; avoids qsort_r's per-platform argument order problem) */
 static void sort_by_rev(int *idx, int n, const note_t *notes)
 {
     for (int i = 1; i < n; i++) {
@@ -1059,7 +1059,7 @@ char *notes_api_since_text(uint32_t since)
     return out;
 }
 
-/* ── 초기화 ───────────────────────────────────────────────────────────── */
+/* ── Initialization ───────────────────────────────────────────────────── */
 
 esp_err_t notes_init(void)
 {
@@ -1080,13 +1080,13 @@ esp_err_t notes_init(void)
     return ESP_OK;
 }
 
-/* ── 비서 툴 ──────────────────────────────────────────────────────────── */
+/* ── Assistant tools ──────────────────────────────────────────────────── */
 
 /*
- * args에 allowed[] 밖의 키가 있으면 false (docs/design-voice-saver-mode.md stage 2: Gemini는 nullable 인자를
- * 아예 생략해서 보낼 수 있어 "키 개수가 정확히 N개"로는 더는 검사할 수 없다 — 모르는 키만 막고, 비어 있는
- * nullable 인자는 아래 opt_string/opt_change/valid_remind·opt_id_string이 이미 "없으면 null과 같음"으로
- * 다룬다. OpenAI는 항상 선언한 키를 전부 보내므로 동작이 그대로 유지된다).
+ * false if args has a key outside allowed[] (docs/design-voice-saver-mode.md stage 2: Gemini can omit nullable arguments
+ * entirely, so "exactly N keys" no longer works as a check. Only unknown keys are rejected; empty
+ * nullable arguments are already treated as "missing = same as null" by opt_string/opt_change/valid_remind and opt_id_string below.
+ * OpenAI always sends every declared key, so its behavior stays the same).
  */
 static bool only_known_keys(const cJSON *args, const char *const *allowed, size_t count)
 {
@@ -1106,7 +1106,7 @@ static bool only_known_keys(const cJSON *args, const char *const *allowed, size_
     return true;
 }
 
-/* 글자 그대로 들어온 id를 검사한다. 형식이 틀리면 모델이 지어낸 것 */
+/* Checks an id that arrived verbatim. If the format is wrong, the model made it up */
 static bool opt_id_string(const cJSON *args, const char *key, const char **out)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(args, key);
@@ -1161,7 +1161,7 @@ static void format_confirm(const note_t *n, char *out, size_t cap)
     snprintf(out, cap, "%s, reminders: %s", when, phrases);
 }
 
-/* notes_add 결과에 담을 note + confirm(음성 확인용 영어 요약) */
+/* note + confirm (English summary for spoken confirmation) for the notes_add result */
 static void add_result(cJSON *out, const note_t *n)
 {
     cJSON *note = note_to_json(n);
@@ -1266,8 +1266,8 @@ const char *notes_tool_snooze(const cJSON *args, cJSON *out)
 
 typedef struct {
     int idx;
-    int bucket;      /* 0 다가오는 일정, 1 지난 일정, 2 메모 */
-    int64_t key;      /* 오름차순 정렬 키 */
+    int bucket;      /* 0 upcoming event, 1 past event, 2 memo */
+    int64_t key;      /* ascending sort key */
 } cand_t;
 
 static int cmp_cand(const void *pa, const void *pb)
@@ -1398,12 +1398,12 @@ const char *notes_tool_search(const cJSON *args, cJSON *out)
     return NULL;
 }
 
-/* ── 알림 엔진 ─────────────────────────────────────────────────────────
- * s_batch: 지금 알릴 묶음(최대 5개, id+오프셋). 채워지면(>0) 비워질 때까지 다시 훑지 않는다(main.c가 재시도해도
- * 중복으로 쌓이지 않는다). s_batch_committed: notes_reminder_build_text()가 "보냄"으로 확정했다(대답을 기다리는 중).
+/* ── Reminder engine ───────────────────────────────────────────────────
+ * s_batch: the batch to announce now (up to 5, id+offset). Once filled (>0), no new scan until it is cleared (so retries by main.c
+ * don't pile up duplicates). s_batch_committed: notes_reminder_build_text() has committed it as "sent" (waiting for an answer).
  */
 
-/* offset(분) 알림이 지금(now_min) 이미 지났는가. 지났으면 true, overdue_out에 몇 분 지났는지(0 이상) */
+/* Has the offset (minutes) reminder already passed now (now_min)? true if so; overdue_out gets how many minutes past (0 or more) */
 static bool offset_due(int64_t base_min, int16_t offset, int64_t now_min, int64_t *overdue_out)
 {
     int64_t due = base_min - offset;
@@ -1414,12 +1414,12 @@ static bool offset_due(int64_t base_min, int16_t offset, int64_t now_min, int64_
     return true;
 }
 
-/* 한 번: 지금 시각 기준 알릴 것·놓친 것을 계산한다(묶음이 비어 있을 때만) */
+/* One pass: works out what to announce and what was missed as of now (only when the batch is empty) */
 void notes_tick(void)
 {
     time_t now = time(NULL);
     if (now < APP_TIME_VALID_EPOCH) {
-        return;        /* 시각 미설정: 건너뛴다 */
+        return;        /* clock not set: skip */
     }
     LOCK();
     if (purge_locked(now)) {
@@ -1428,7 +1428,7 @@ void notes_tick(void)
     }
     if (s_batch_n > 0) {
         UNLOCK();
-        return;         /* 처리 중인 묶음이 있다: 비워질 때까지 새로 훑지 않는다 */
+        return;         /* a batch is in progress: no new scan until it is cleared */
     }
     int64_t now_min = now_civil_minutes(now);
     bool dirty = false;
@@ -1551,7 +1551,7 @@ char *notes_reminder_build_text(void)
         if (len + 80 < ANNOUNCE_TEXT_MAX) {
             snprintf(text + len, ANNOUNCE_TEXT_MAX - len, " %d) %s, %s;", i + 1, title, rel);
         }
-        /* 확정: 보냄으로 표시 */
+        /* commit: mark as sent */
         if (s_batch[i].offset == -1) {
             n->snooze_at = 0;
         } else if (n->reminded_n < REMIND_MAX) {
@@ -1671,33 +1671,33 @@ void notes_reminder_unreachable(void)
     UNLOCK();
 }
 
-/* ── 셀프테스트(알림 상태 전이, 플래시 없이) ─────────────────────────── */
+/* ── Self-test (reminder state transitions, no flash) ────────────────── */
 
 bool notes_state_selftest(void)
 {
     bool ok = true;
 
-    /* 경계: 30분은 아직 "곧"(배치), 31분은 "놓침" */
+    /* boundary: 30 minutes is still "soon" (batch), 31 minutes is "missed" */
     int64_t overdue;
-    ok &= offset_due(1000, 60, 970, &overdue) && overdue == 30;         /* due=940, now=970 -> 30분 지남: 배치 */
-    ok &= offset_due(1000, 60, 971, &overdue) && overdue == 31;         /* 31분 지남: notes_tick에서 missed 처리 */
-    ok &= !offset_due(1000, 60, 939, &overdue);                         /* 아직 안 됨 */
-    ok &= offset_due(1000, 0, 1000, &overdue) && overdue == 0;          /* 정각, 지금 막 됨 */
+    ok &= offset_due(1000, 60, 970, &overdue) && overdue == 30;         /* due=940, now=970 -> 30 minutes past: batch */
+    ok &= offset_due(1000, 60, 971, &overdue) && overdue == 31;         /* 31 minutes past: handled as missed in notes_tick */
+    ok &= !offset_due(1000, 60, 939, &overdue);                         /* not yet */
+    ok &= offset_due(1000, 0, 1000, &overdue) && overdue == 0;          /* on time, just due */
 
-    /* 만들 때 이미 지난 remind는 reminded로 미리 채운다(울리지 않게), 안 지난 건 그대로 둔다 */
+    /* a remind already past at creation is pre-filled as reminded (so it doesn't ring); ones not yet past are left alone */
     {
         note_t n = {0};
         n.kind = KIND_EVENT;
         snprintf(n.start, sizeof(n.start), "2026-11-01T09:00");
-        n.remind[0] = 60;      /* 2026-10-31 08:00 -> 지남 */
-        n.remind[1] = 1440;    /* 하루 전(2026-10-31 09:00) -> 안 지남(기준 시각을 2026-10-31 08:30으로 둔다) */
+        n.remind[0] = 60;      /* 2026-10-31 08:00 -> past */
+        n.remind[1] = 1440;    /* one day before (2026-10-31 09:00) -> not past (now is set to 2026-10-31 08:30) */
         n.remind_n = 2;
         int64_t now_min = notes_base_minutes(2026, 10, 31, 8, 30, false, 0, 0);
         prefill_reminded(&n, now_min);
         ok &= n.reminded_n == 1 && n.reminded[0] == 60;
-        ok &= n.missed_n == 0;         /* 미리 채우기는 missed로 보내지 않는다(설계 4절) */
+        ok &= n.missed_n == 0;         /* pre-fill does not move anything to missed (design Section 4) */
     }
-    /* 메모는 손대지 않는다 */
+    /* memos are left untouched */
     {
         note_t n = {0};
         n.kind = KIND_MEMO;
@@ -1705,14 +1705,14 @@ bool notes_state_selftest(void)
         prefill_reminded(&n, 999999);
         ok &= n.reminded_n == 0 && n.missed_n == 0;
     }
-    /* 모두 안 지난 경우 */
+    /* case where none have passed */
     {
         note_t n = {0};
         n.kind = KIND_EVENT;
         snprintf(n.start, sizeof(n.start), "2026-11-01T09:00");
         n.remind[0] = 10;
         n.remind_n = 1;
-        int64_t now_min = notes_base_minutes(2026, 11, 1, 8, 0, false, 0, 0);   /* 09:00-10분=08:50, 아직 08:00 */
+        int64_t now_min = notes_base_minutes(2026, 11, 1, 8, 0, false, 0, 0);   /* 09:00 - 10 min = 08:50, now is still 08:00 */
         prefill_reminded(&n, now_min);
         ok &= n.reminded_n == 0;
     }

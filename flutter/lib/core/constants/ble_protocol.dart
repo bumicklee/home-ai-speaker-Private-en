@@ -1,5 +1,5 @@
-/// BLE GATT 규격 — 펌웨어 `app_config.h`와 설계서 2.13절과 1:1로 같아야 하는 유일한 파일.
-/// 값을 바꾸면 펌웨어도 같이 바꾼다.
+/// BLE GATT specification — the only file that must match the firmware's `app_config.h` and design document Section 2.13 one to one.
+/// If you change a value, change the firmware too.
 library;
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -7,13 +7,13 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 class BleProtocol {
   BleProtocol._();
 
-  /// 광고 이름 접두어. 뒤 6자리 = Wi-Fi STA MAC 뒤 6자리
+  /// Advertising name prefix. Last 6 characters = last 6 of the Wi-Fi STA MAC
   static const namePrefix = 'JARVIS_';
 
-  /// `device.info`의 `protocol_version`. 펌웨어가 더 크면 앱 업데이트 안내
+  /// `protocol_version` in `device.info`. If the firmware's is higher, prompt for an app update
   static const protocolVersion = 1;
 
-  // 서비스·특성 (16비트)
+  // Service and characteristics (16-bit)
   static final svcWifi = Guid('ff50');
   static final chrSsid = Guid('ff51');
   static final chrPassword = Guid('ff52');
@@ -32,36 +32,36 @@ class BleProtocol {
 
   static const productCode = 'AISPK-S3-V1';
 
-  // 길이 제한 (UTF-8 바이트)
+  // Length limits (UTF-8 bytes)
   static const ssidMaxBytes = 32;
   static const passwordMaxBytes = 64;
 
-  // 설정 명령 프로토콜 (0xFF81/0xFF82)
+  // Settings command protocol (0xFF81/0xFF82)
   static const flagLast = 0x01;
   static const flagFirst = 0x02;
   static const frameHeaderBytes = 2;
 
-  /// ATT 헤더 3B + 조각 헤더 2B. 조각 payload = MTU − 5
+  /// ATT header 3B + frame header 2B. Frame payload = MTU − 5
   static const mtuOverhead = 5;
   static const androidMtuRequest = 247;
   static const cmdMaxBytes = 4096;
   static const maxFrames = 256;
   static const cmdTimeout = Duration(seconds: 10);
 
-  /// 0xFF88에 쓰는 값
+  /// Values written to 0xFF88
   static const provDoneValue = 0x01;
 
-  /// Key2 3초로 연 BLE 창: 연결 없으면 5분, 연결 중 최대 15분
+  /// BLE window opened by holding Key2 for 3 seconds: 5 minutes with no connection, up to 15 minutes while connected
   static const windowIdle = Duration(minutes: 5);
   static const windowMax = Duration(minutes: 15);
 
-  // 0xFF54 스캔 알림
+  // 0xFF54 scan notifications
   static const scanEntryBytes = 34;
   static const scanFailed = 0xFF;
   static const scanMaxEntries = 20;
 }
 
-/// 0xFF53 Wi-Fi 상태. 2–5는 종료 상태이고 비밀번호를 쓸 때마다 한 번만 온다.
+/// 0xFF53 Wi-Fi status. 2–5 are terminal statuses and arrive only once per password write.
 enum WifiProvStatus {
   idle(0),
   connecting(1),
@@ -83,7 +83,7 @@ enum WifiProvStatus {
   }
 }
 
-/// 0xFF54 보안 값 (IDF 숫자가 아니라 설계서 표)
+/// 0xFF54 security values (the design document's table, not IDF numbers)
 enum WifiSecurity {
   open(0),
   wep(1),
@@ -104,7 +104,7 @@ enum WifiSecurity {
       values.firstWhere((s) => s.code == code, orElse: () => other);
 }
 
-/// 0xFF81 명령 이름
+/// 0xFF81 command names
 class BleOp {
   BleOp._();
   static const deviceInfo = 'device.info';
@@ -118,7 +118,7 @@ class BleOp {
   static const provClose = 'prov.close';
 }
 
-/// `secret.set`·`secret.erase` 키
+/// `secret.set` / `secret.erase` keys
 class SecretKey {
   SecretKey._();
   static const openai = 'openai_key';
@@ -126,7 +126,7 @@ class SecretKey {
   static const telegramBot = 'tg_bot_token';
 }
 
-/// 0xFF82 응답 오류 코드
+/// 0xFF82 response error codes
 class BleCmdError {
   BleCmdError._();
   static const invalidArg = 'INVALID_ARG';
@@ -139,6 +139,6 @@ class BleCmdError {
   static const phonesFull = 'PHONES_FULL';
   static const unsupportedVersion = 'UNSUPPORTED_VERSION';
 
-  /// `settings.set assistant`에서 키가 없는 AI를 고름 (LAN은 409 같은 이름)
+  /// Chose an AI with no key in `settings.set assistant` (LAN uses the same name with 409)
   static const noApiKey = 'NO_API_KEY';
 }

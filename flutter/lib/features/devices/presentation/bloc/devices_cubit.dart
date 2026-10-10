@@ -14,7 +14,7 @@ class DevicesState extends Equatable {
   final String? selectedId;
   final Failure? failure;
 
-  /// 주소를 모르는 기기를 mDNS로 찾는 중
+  /// Searching via mDNS for devices whose address is unknown
   final bool locating;
 
   Device? get selected => devices.where((d) => d.id == selectedId).firstOrNull;
@@ -38,7 +38,7 @@ class DevicesState extends Equatable {
   List<Object?> get props => [loaded, devices, selectedId, failure, locating];
 }
 
-/// 앱 전역: 등록된 스피커 목록과 선택 (설계서 3.2 DeviceSelectionCubit). 선택이 바뀌면 CurrentDevice를 맞춘다
+/// App-wide: list of registered speakers and the selection (design document 3.2 DeviceSelectionCubit). Updates CurrentDevice when the selection changes
 class DevicesCubit extends Cubit<DevicesState> {
   DevicesCubit(this._repo, this._current) : super(const DevicesState());
 
@@ -66,13 +66,13 @@ class DevicesCubit extends Cubit<DevicesState> {
     await _applySelection();
   }
 
-  /// 휴대폰에서 지운다 (스피커 쪽 등록 해지는 시스템 화면)
+  /// Removes it from the phone (unregistering on the speaker side is on the System screen)
   Future<void> remove(String id) async {
     await _repo.remove(id);
     await load();
   }
 
-  /// 주소를 다시 찾는다 (연결 실패·주소 없음)
+  /// Finds the address again (connection failed or no address)
   Future<bool> locate() async {
     final device = state.selected;
     if (device == null) return false;

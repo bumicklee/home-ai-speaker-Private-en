@@ -1,6 +1,6 @@
 /*
- * SNTP 시간 동기화. TLS 인증서 검증에 정확한 시각이 필요하다.
- * 부팅 때는 RTC(PCF85063) 시각을 먼저 쓰고(main이 복원), SNTP가 맞추면 콜백으로 RTC를 갱신한다.
+ * SNTP time sync. TLS certificate validation needs an accurate clock.
+ * At boot the RTC (PCF85063) time is used first (main restores it); once SNTP syncs, a callback updates the RTC.
  */
 #include "net.h"
 

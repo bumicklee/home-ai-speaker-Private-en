@@ -1,10 +1,10 @@
 /**
  * @file board_config.h
- * @brief Waveshare ESP32-S3-AUDIO-Board 핀·I2C 주소 (설계서 2.0절)
+ * @brief Waveshare ESP32-S3-AUDIO-Board pins and I2C addresses (design document, Section 2.0)
  *
- * 펌웨어의 모든 핀 번호는 이 파일에서만 가져온다. 검증된 값만 적는다.
- * 쓰면 안 되는 GPIO: 26–32(플래시), 33–37(옥탈 PSRAM), 0·3·45·46(스트래핑),
- * 19·20(USB), 43·44(UART0 콘솔).
+ * Every pin number in the firmware comes from this file only. Only verified values go here.
+ * GPIOs you must not use: 26–32 (flash), 33–37 (octal PSRAM), 0/3/45/46 (strapping),
+ * 19/20 (USB), 43/44 (UART0 console).
  */
 #pragma once
 
@@ -12,14 +12,14 @@
 #include "driver/i2c_types.h"
 #include "driver/i2s_types.h"
 
-/* ── LED 링 (WS2812B × 7, RMT) ────────────────────────────── */
+/* ── LED ring (WS2812B × 7, RMT) ────────────────────────────── */
 #define BOARD_LED_GPIO              GPIO_NUM_38
 #define BOARD_LED_COUNT             7
 #define BOARD_LED_RMT_RES_HZ        (10 * 1000 * 1000)
-/* 전류 제한: 채널 값 상한 (USB 전원 + 앰프 동시 사용) */
+/* current limit: per-channel value cap (USB power + amp in use at the same time) */
 #define BOARD_LED_CHANNEL_MAX       128
 
-/* ── I2C (코덱·확장 칩·RTC 공유, 뮤텍스로 보호) ───────────── */
+/* ── I2C (shared by codecs, expander chip and RTC, mutex-protected) ───────────── */
 #define BOARD_I2C_PORT              I2C_NUM_0
 #define BOARD_I2C_SDA_GPIO          GPIO_NUM_11
 #define BOARD_I2C_SCL_GPIO          GPIO_NUM_10
@@ -30,7 +30,7 @@
 #define BOARD_I2C_ADDR_TCA9555      0x20
 #define BOARD_I2C_ADDR_PCF85063     0x51
 
-/* ── I2S (포트 1, 전이중) ──────────────────────────────────── */
+/* ── I2S (port 1, full duplex) ──────────────────────────────────── */
 #define BOARD_I2S_PORT              I2S_NUM_1
 #define BOARD_I2S_MCLK_GPIO         GPIO_NUM_12
 #define BOARD_I2S_BCLK_GPIO         GPIO_NUM_13
@@ -38,9 +38,9 @@
 #define BOARD_I2S_DIN_GPIO          GPIO_NUM_15   /* ES7210 → ESP */
 #define BOARD_I2S_DOUT_GPIO         GPIO_NUM_16   /* ESP → ES8311 */
 
-/* ── TCA9555 EXIO (인터럽트 미연결, 폴링만) ───────────────── */
-#define BOARD_EXIO_PA_EN            8    /* 앰프 Enable, 액티브 하이. 코덱 초기화 후 켠다 */
-#define BOARD_EXIO_KEY1             9    /* 볼륨 내림, 액티브 로우 */
-#define BOARD_EXIO_KEY2             10   /* 시스템 버튼, 액티브 로우 */
-#define BOARD_EXIO_KEY3             11   /* 볼륨 올림, 액티브 로우 */
-/* EXIO 6·7(카메라 클럭·USB 먹스)과 0–5, 12–15는 건드리지 않는다 */
+/* ── TCA9555 EXIO (interrupt not wired, polling only) ───────────────── */
+#define BOARD_EXIO_PA_EN            8    /* amp enable, active high. Turn on after codec init */
+#define BOARD_EXIO_KEY1             9    /* volume down, active low */
+#define BOARD_EXIO_KEY2             10   /* system button, active low */
+#define BOARD_EXIO_KEY3             11   /* volume up, active low */
+/* Leave EXIO 6/7 (camera clock, USB mux), 0–5 and 12–15 alone */

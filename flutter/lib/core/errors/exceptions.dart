@@ -1,5 +1,5 @@
-/// 데이터소스가 던지는 예외. 외부 라이브러리 예외(`DioException`, `FlutterBluePlusException`)는
-/// 데이터소스에서 이것들로 바꾼다. `guard`는 이것만 다룬다.
+/// Exceptions thrown by data sources. External library exceptions (`DioException`, `FlutterBluePlusException`)
+/// are converted into these in the data source. `guard` handles only these.
 library;
 
 sealed class AppException implements Exception {
@@ -10,38 +10,38 @@ sealed class AppException implements Exception {
   String toString() => '$runtimeType(${message ?? ''})';
 }
 
-/// LAN API가 HTTP 오류를 돌려줌. [code]는 본문 `{"error": "..."}` (없으면 null)
+/// The LAN API returned an HTTP error. [code] is the body's `{"error": "..."}` (null if absent)
 class DeviceApiException extends AppException {
   const DeviceApiException(this.status, this.code, [super.message, this.data]);
   final int status;
   final String? code;
 
-  /// 오류 응답 본문 전체 (메모 409 `CONFLICT`의 `note` 등). 본문이 JSON 객체가 아니면 null
+  /// The whole error response body (e.g. `note` in a notes 409 `CONFLICT`). null if the body isn't a JSON object
   final Map<String, dynamic>? data;
 }
 
-/// 기기 응답 시간 초과. dart:async `TimeoutException`과 이름이 겹치지 않게 따로 둔다
+/// Device response timeout. Kept separate so the name doesn't clash with dart:async `TimeoutException`
 class DeviceTimeoutException extends AppException {
   const DeviceTimeoutException([super.message]);
 }
 
-/// 기기에 닿지 못함 (같은 Wi-Fi가 아님, IP 바뀜, 꺼짐)
+/// Can't reach the device (not on the same Wi-Fi, IP changed, powered off)
 class NetworkException extends AppException {
   const NetworkException([super.message]);
 }
 
-/// BLE 오류. [code]는 `BleErrorCode` 값
+/// BLE error. [code] is a `BleErrorCode` value
 class BleException extends AppException {
   const BleException(this.code, [super.message]);
   final String code;
 }
 
-/// 0xFF81 명령에 기기가 `ok: false`로 답함. [code]는 `BleCmdError` 값
+/// The device answered a 0xFF81 command with `ok: false`. [code] is a `BleCmdError` value
 class BleCommandException extends AppException {
   const BleCommandException(this.code, {this.data, String? message}) : super(message);
   final String code;
 
-  /// 오류 응답 전체 (`PHONES_FULL`의 `phones` 목록 등)
+  /// The whole error response (e.g. the `phones` list for `PHONES_FULL`)
   final Map<String, dynamic>? data;
 }
 
@@ -49,7 +49,7 @@ class CacheException extends AppException {
   const CacheException([super.message]);
 }
 
-/// 앱 내부 BLE 오류 코드
+/// App-internal BLE error codes
 class BleErrorCode {
   BleErrorCode._();
   static const adapterOff = 'adapter_off';

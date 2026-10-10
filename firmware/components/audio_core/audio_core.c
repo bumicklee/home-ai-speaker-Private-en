@@ -1,9 +1,9 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * 오디오 코어. 기존 펌웨어(waveshare-ai-speaker-assistant)의 main.c에 있던
- * speaker_task·mic_task·재생 큐를 모듈로 옮겼다. 검증된 값은 그대로 둔다:
- * 16kHz, 32비트 슬롯 2개, DMA 블록 = 20ms(320프레임), AEC(16000, 4, 1, VOIP_HIGH_PERF),
- * 재생 프리필 160ms·용량 15초, 마지막 부분 프레임 240ms 뒤 플러시.
+ * Audio core. Moves speaker_task, mic_task and the playback queue, which lived in main.c of
+ * the existing firmware (waveshare-ai-speaker-assistant), into a module. Proven values are kept as is:
+ * 16kHz, two 32-bit slots, DMA block = 20ms (320 frames), AEC(16000, 4, 1, VOIP_HIGH_PERF),
+ * playback prefill 160ms, capacity 15 s, final partial frame flushed after 240ms.
  */
 #include "audio_core.h"
 
@@ -33,13 +33,13 @@
 static const char *TAG = "AUDIO";
 
 #define MAX_SINKS          4
-/* 15초 (PSRAM 약 480KB). Gemini 실시간은 긴 대답을 실제 속도보다 몇 배 빨리 한꺼번에 보내서
- * 3.2초 큐가 넘쳐 "Speaker backlog"로 대화가 끊겼다 (책 18장 장애 D) */
+/* 15 s (about 480KB of PSRAM). Gemini Live sends long replies all at once, several times faster than real time,
+ * so the 3.2 s queue overflowed and "Speaker backlog" cut the conversation (Chapter 18, Failure D) */
 #define PLAYBACK_FRAMES    750
 #define PLAYBACK_PREFILL   8        /* 160ms */
 #define PLAYBACK_WAIT_MS   160
 #define PARTIAL_FLUSH_MS   240
-#define TONE_FRAMES        15       /* 0.3초 */
+#define TONE_FRAMES        15       /* 0.3 s */
 
 typedef struct {
     int16_t samples[AUDIO_FRAME_SAMPLES];
@@ -47,56 +47,56 @@ typedef struct {
 
 static i2s_chan_handle_t s_tx, s_rx;
 
-/* 재생 */
+/* Playback */
 static QueueHandle_t s_playback;
 static SemaphoreHandle_t s_playback_lock;
 static audio_frame_t s_partial;
 static size_t s_partial_samples;
 static atomic_uint s_playback_epoch, s_last_enqueue_ms, s_last_signal_ms, s_generation;
-/* 비서 목소리가 실제로 소리 나게 나간 마지막 시각. 서버는 말이 끝난 뒤에도 무음 음성 조각을 보낸다 (2026-10-04) */
+/* Last time the assistant's voice actually went out audibly. The server keeps sending silent audio chunks after speech ends (2026-10-04) */
 static atomic_uint s_voice_signal_ms;
 #define VOICE_AUDIBLE_PEAK 200
 #define VOICE_PLAYING_HOLD_MS 600
 static atomic_int s_tone_frames;
 static atomic_int s_volume;
 
-/* 알림음 클립 (부팅음). 클립 메모리는 startup_sound.c가 소유 */
+/* Alert clip (boot sound). startup_sound.c owns the clip memory */
 static const int16_t *volatile s_clip;
 static volatile size_t s_clip_len, s_clip_pos;
 
-/* 음악 */
-/* 인터넷 라디오는 받는 속도가 들쭉날쭉하다. 1초 버퍼에서 끊김이 나서 4초로 (PSRAM 128KB, 2026-10-03 실기기) */
+/* Music */
+/* Internet radio arrives at an uneven rate. A 1 s buffer caused dropouts, so 4 s (128KB of PSRAM, real board 2026-10-03) */
 #define MUSIC_BUFFER_MS    4000
-#define MUSIC_PREFILL_MS   750      /* 비어 있다가 다시 시작할 때 이만큼 모은 뒤 재생 */
+#define MUSIC_PREFILL_MS   750      /* after running empty, collect this much before playing again */
 #define DUCK_DOWN_FRAMES   10       /* 200ms */
 #define DUCK_UP_FRAMES     25       /* 500ms */
 #define MUSIC_BUFFER_BYTES (AUDIO_SAMPLE_RATE * MUSIC_BUFFER_MS / 1000 * sizeof(int16_t))
 static StreamBufferHandle_t s_music;
 static atomic_bool s_music_flush, s_duck;
-static atomic_uint s_music_underruns;   /* 재생 중 버퍼가 비어 끊긴 횟수 (진단) */
+static atomic_uint s_music_underruns;   /* times playback cut out because the buffer ran empty (diagnostic) */
 static atomic_int s_duck_db = 20;
 
-/* 마이크 */
+/* Mic */
 static audio_mic_sink_t s_sinks[MAX_SINKS];
 static atomic_int s_sink_count;
 static _Atomic(audio_mic_processor_t) s_processor;
 static _Atomic(audio_mic_sink_t) s_wake_sink;
 /*
- * AEC 잠시 내리기 (BLE 창): AEC가 내부 RAM 약 91KB를 쓰는데, 오래 켜 둔 뒤 BLE 컨트롤러를 올리면
- * 내부 RAM이 모자랐다 (2026-10-03 실기기: BLE_INIT Malloc failed, nimble init ESP_ERR_NO_MEM).
- * 요청은 s_aec_want_off, 마이크 태스크가 실제로 내리고 올린 상태는 s_aec_off.
+ * Suspending AEC (BLE window): AEC uses about 91KB of internal RAM, and bringing up the BLE controller after a long uptime
+ * ran out of internal RAM (real board 2026-10-03: BLE_INIT Malloc failed, nimble init ESP_ERR_NO_MEM).
+ * The request is s_aec_want_off; the state the mic task actually applied is s_aec_off.
  */
 static atomic_bool s_aec_want_off, s_aec_off;
 static atomic_int s_wake_src = AUDIO_WAKE_SRC_AUTO;
-#define REF_ACTIVE      300     /* 레퍼런스(ch0) 진폭이 이보다 크면 스피커가 소리를 내는 중 (조용할 때 약 20) */
-#define REF_HANGOVER_MS 500     /* 소리가 그친 뒤 잔향이 남는 동안은 계속 AEC 출력 */
+#define REF_ACTIVE      300     /* reference (ch0) amplitude above this means the speaker is playing (about 20 when quiet) */
+#define REF_HANGOVER_MS 500     /* keep using AEC output while reverb lingers after sound stops */
 
 static uint32_t now_ms(void)
 {
     return (uint32_t)(esp_timer_get_time() / 1000);
 }
 
-/* ── 공개 API ─────────────────────────────────────────────── */
+/* ── Public API ───────────────────────────────────────────── */
 
 esp_err_t audio_core_add_mic_sink(audio_mic_sink_t sink)
 {
@@ -105,7 +105,7 @@ esp_err_t audio_core_add_mic_sink(audio_mic_sink_t sink)
         return ESP_ERR_NO_MEM;
     }
     s_sinks[n] = sink;
-    atomic_store(&s_sink_count, n + 1);     /* 값을 먼저 쓰고 개수를 늘린다 */
+    atomic_store(&s_sink_count, n + 1);     /* write the value first, then bump the count */
     return ESP_OK;
 }
 
@@ -142,8 +142,8 @@ bool audio_core_is_playing(void)
 
 bool audio_core_voice_playing(void)
 {
-    /* 음악(라디오)은 빼고 비서 목소리만. 큐가 비어도 마지막 조각이 나가는 동안(약 0.3초)은 말하는 중으로 본다 */
-    /* 큐에 무음 조각이 계속 쌓여도 "말하는 중"으로 보지 않는다. 문장 사이 짧은 쉼(0.6초 이내)은 말하는 중 */
+    /* Assistant voice only, not music (radio). Even with an empty queue, count as speaking while the last chunk plays out (about 0.3 s) */
+    /* Silent chunks piling up in the queue don't count as "speaking". A short pause between sentences (up to 0.6 s) does */
     return now_ms() - atomic_load(&s_voice_signal_ms) < VOICE_PLAYING_HOLD_MS;
 }
 
@@ -178,7 +178,7 @@ bool audio_core_voice_enqueue(const int16_t *samples, size_t count)
         if (s_partial_samples == AUDIO_FRAME_SAMPLES) {
             s_partial_samples = 0;
             if (xQueueSend(s_playback, &s_partial, pdMS_TO_TICKS(30)) != pdTRUE) {
-                ok = false;     /* 15초 넘게 밀림 */
+                ok = false;     /* backed up more than 15 s */
                 break;
             }
         }
@@ -226,7 +226,7 @@ size_t audio_core_music_write(const int16_t *samples, size_t count, uint32_t tim
 
 void audio_core_music_flush(void)
 {
-    /* 버퍼를 비우는 것은 읽는 쪽(재생 태스크)이 한다. 스트림 버퍼는 쓰는 쪽이 기다리는 중에 리셋할 수 없다 */
+    /* The reader (playback task) empties the buffer. A stream buffer can't be reset while the writer is waiting on it */
     atomic_store(&s_music_flush, true);
 }
 
@@ -234,7 +234,7 @@ void audio_core_music_duck(bool duck)
 {
     if (duck) {
         settings_audio_t a;
-        settings_get_audio(&a);     /* 앱에서 바꾼 덕킹 세기를 매번 반영 */
+        settings_get_audio(&a);     /* pick up the ducking depth changed in the app every time */
         atomic_store(&s_duck_db, a.duck_db);
     }
     atomic_store(&s_duck, duck);
@@ -267,14 +267,14 @@ uint32_t audio_core_music_buffered_ms(void)
     return s_music ? xStreamBufferBytesAvailable(s_music) / sizeof(int16_t) * 1000 / AUDIO_SAMPLE_RATE : 0;
 }
 
-/* 음악 한 프레임을 읽어 게인을 곱해 frame에 더한다 */
-/* 음악이 끊겼다가(버퍼 빔·채널 바꿈) 다시 나올 때 10ms에 걸쳐 키운다. 갑자기 시작하면 "딱" 소리가 난다 */
+/* Read one music frame, apply gain and add it to frame */
+/* When music resumes after a break (buffer empty, channel change), ramp it up over 10ms. An abrupt start makes a "click" */
 #define MUSIC_FADE_IN_SAMPLES (AUDIO_SAMPLE_RATE / 100)
 
 static void mix_music(audio_frame_t *frame, float *gain, bool *primed)
 {
     static int16_t music[AUDIO_FRAME_SAMPLES];
-    static float fade = 0.0f;   /* 다시 시작할 때의 페이드인 (0 → 1) */
+    static float fade = 0.0f;   /* fade-in on restart (0 → 1) */
     if (atomic_load(&s_music_flush)) {
         while (xStreamBufferReceive(s_music, music, sizeof(music), 0) > 0) {
         }
@@ -286,7 +286,7 @@ static void mix_music(audio_frame_t *frame, float *gain, bool *primed)
     size_t avail = xStreamBufferBytesAvailable(s_music);
     if (!*primed) {
         if (avail < AUDIO_SAMPLE_RATE * MUSIC_PREFILL_MS / 1000 * sizeof(int16_t)) {
-            return;     /* 버퍼링 중: 아무것도 섞지 않는다 (무음) */
+            return;     /* buffering: mix nothing in (silence) */
         }
         *primed = true;
         fade = 0.0f;
@@ -294,11 +294,11 @@ static void mix_music(audio_frame_t *frame, float *gain, bool *primed)
     size_t got = xStreamBufferReceive(s_music, music, sizeof(music), 0) / sizeof(int16_t);
     bool underrun = got < AUDIO_FRAME_SAMPLES;
     if (underrun) {
-        *primed = false;    /* 모자람: 다시 모은다 */
+        *primed = false;    /* ran short: collect again */
         atomic_fetch_add(&s_music_underruns, 1);
     }
 
-    /* 덕킹: 목표 게인으로 프레임마다 조금씩 */
+    /* Ducking: move toward the target gain a little each frame */
     int duck_db = atomic_load(&s_duck_db);
     float target = atomic_load(&s_duck) ? powf(10.0f, -duck_db / 20.0f) : 1.0f;
     float step = (1.0f - powf(10.0f, -duck_db / 20.0f)) / (target < *gain ? DUCK_DOWN_FRAMES : DUCK_UP_FRAMES);
@@ -308,8 +308,8 @@ static void mix_music(audio_frame_t *frame, float *gain, bool *primed)
     } else if (*gain < target) {
         *gain = fminf(target, *gain + step);
     }
-    /* 게인은 프레임 안에서 샘플마다 조금씩 바꾼다. 프레임 경계에서 한 번에 바꾸면 20ms마다 계단이 생겨
-     * 덕킹하는 동안 "지지직" 소리가 났다 (책 14장 버그 6) */
+    /* Change the gain a little per sample within the frame. Changing it all at once at frame boundaries makes a step every 20ms
+     * and caused "crackling" while ducking (Chapter 14, Bug 6) */
     float dg = (*gain - g0) / AUDIO_FRAME_SAMPLES;
     for (size_t i = 0; i < got; i++) {
         float g = g0 + dg * (float)(i + 1);
@@ -318,14 +318,14 @@ static void mix_music(audio_frame_t *frame, float *gain, bool *primed)
             g *= fade;
         }
         if (underrun) {
-            g *= (float)(got - i) / (float)got;     /* 데이터가 모자라면 남은 조각을 0까지 줄여 끝낸다 ("딱" 방지) */
+            g *= (float)(got - i) / (float)got;     /* data ran short: scale the remaining piece down to 0 (prevents the "click") */
         }
         int v = frame->samples[i] + (int)(music[i] * g);
         frame->samples[i] = v > 32767 ? 32767 : (v < -32768 ? -32768 : v);
     }
 }
 
-/* 알림 차임: 660Hz → 880Hz, 각 150ms, 끝을 부드럽게 줄인다. 처음 부를 때 한 번 만든다 */
+/* Alert chime: 660Hz → 880Hz, 150ms each, with a soft decay. Built once on first call */
 #define CHIME_NOTE_MS 150
 static int16_t *s_chime;
 static size_t s_chime_len;
@@ -343,7 +343,7 @@ void audio_core_chime(void)
         const float freqs[2] = {660.0f, 880.0f};
         for (int n = 0; n < 2; n++) {
             for (size_t i = 0; i < note; i++) {
-                float env = 1.0f - (float)i / note;     /* 감쇠 */
+                float env = 1.0f - (float)i / note;     /* decay */
                 buf[n * note + i] = (int16_t)(2200 * env * sinf(2 * 3.14159265f * freqs[n] * i / AUDIO_SAMPLE_RATE));
             }
         }
@@ -353,7 +353,7 @@ void audio_core_chime(void)
     audio_core_play_clip(s_chime, s_chime_len);
 }
 
-/* startup_sound.c에서 부른다 */
+/* Called from startup_sound.c */
 void audio_core_play_clip(const int16_t *pcm, size_t samples)
 {
     s_clip = NULL;
@@ -362,11 +362,11 @@ void audio_core_play_clip(const int16_t *pcm, size_t samples)
     s_clip = pcm;
 }
 
-/* ── 재생 태스크 ──────────────────────────────────────────── */
+/* ── Playback task ────────────────────────────────────────── */
 
 static void flush_partial_if_stale(uint32_t now)
 {
-    /* 마지막 짧은 프레임을 남겨 두지 않고 0으로 채워 내보낸다 (마지막 음절이 잘리지 않게) */
+    /* Pad the last short frame with zeros and send it instead of holding it (so the last syllable isn't cut off) */
     if (xSemaphoreTake(s_playback_lock, 0) != pdTRUE) {
         return;
     }
@@ -407,7 +407,7 @@ static void speaker_task(void *arg)
             }
             atomic_fetch_sub(&s_tone_frames, 1);
         } else {
-            /* 네트워크 지터를 흡수하도록 160ms를 모은 다음 재생을 시작한다 */
+            /* Collect 160ms before starting playback to absorb network jitter */
             unsigned depth = uxQueueMessagesWaiting(s_playback);
             if (!playing && depth) {
                 if (!first_wait) {
@@ -432,7 +432,7 @@ static void speaker_task(void *arg)
 
         mix_music(&frame, &music_gain, &music_primed);
 
-        /* 알림 클립을 섞는다 */
+        /* Mix in the alert clip */
         const int16_t *clip = s_clip;
         if (clip) {
             for (int i = 0; i < AUDIO_FRAME_SAMPLES && s_clip_pos < s_clip_len; i++) {
@@ -451,7 +451,7 @@ static void speaker_task(void *arg)
             if (a > peak) {
                 peak = a;
             }
-            /* 모노 스피커: 두 슬롯에 같은 값을 넣는다 (상위 16비트) */
+            /* Mono speaker: put the same value in both slots (upper 16 bits) */
             stereo[2 * i] = stereo[2 * i + 1] = (int32_t)s * 65536;
         }
         if (peak > 8) {
@@ -459,12 +459,12 @@ static void speaker_task(void *arg)
             atomic_fetch_add(&s_generation, 1);
         }
         led_ring_feed_level(peak);
-        /* 재생이 없을 때도 무음을 계속 쓴다 (멈췄다 켜면 잡음, 2.19절) */
+        /* Keep writing silence even with nothing to play (stopping and restarting causes noise, Section 2.19) */
         board_codec_write(stereo, sizeof(stereo));
     }
 }
 
-/* ── 마이크 태스크 ────────────────────────────────────────── */
+/* ── Mic task ─────────────────────────────────────────────── */
 
 static void mic_task(void *arg)
 {
@@ -482,10 +482,10 @@ static void mic_task(void *arg)
     configASSERT(mic && ref && clean);
     ESP_LOGI(TAG, "AEC chunk %d samples", chunk);
 
-    /* 진단: AEC 전 4채널과 AEC 뒤의 최대 진폭 (어느 채널이 마이크·레퍼런스인지 확인용, 책 5장 5.2절) */
+    /* Diagnostics: peak amplitude of the 4 channels before AEC and after AEC (to tell which channel is mic or reference, Chapter 5, Section 5.2) */
     int ch_peak[4] = {0}, clean_peak = 0;
     uint32_t diag_since = now_ms();
-    uint32_t ref_active_ms = 0;     /* 레퍼런스에 소리가 마지막으로 있던 때 */
+    uint32_t ref_active_ms = 0;     /* last time the reference had sound */
     unsigned raw_chunks = 0, aec_chunks = 0;
 
     for (;;) {
@@ -493,7 +493,7 @@ static void mic_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-        /* AEC 내리기·올리기 (이 태스크만 aec를 만진다). 내려 둔 동안은 I2S만 비우고 소리를 넘기지 않는다 */
+        /* Suspend/resume AEC (only this task touches aec). While suspended, just drain I2S and pass no audio on */
         if (atomic_load(&s_aec_want_off)) {
             if (aec) {
                 aec_destroy(aec);
@@ -525,7 +525,7 @@ static void mic_task(void *arg)
                 ch_peak[i & 3] = a;
             }
         }
-        if (now_ms() - diag_since >= 60000) {     /* 1분마다 (튜닝용) */
+        if (now_ms() - diag_since >= 60000) {     /* every minute (for tuning) */
             ESP_LOGI(TAG, "levels: ch0 %d  ch1 %d  ch2 %d  ch3 %d  | aec out %d  (mic=ch1, ref=ch0) | wake input raw %u%%",
                      ch_peak[0], ch_peak[1], ch_peak[2], ch_peak[3], clean_peak,
                      raw_chunks + aec_chunks ? raw_chunks * 100 / (raw_chunks + aec_chunks) : 0);
@@ -535,7 +535,7 @@ static void mic_task(void *arg)
             diag_since = now_ms();
         }
         for (int i = 0; i < AUDIO_FRAME_SAMPLES; i++) {
-            /* 실측 채널 배치 (16kHz): [0]=레퍼런스, [1]=마이크1, [3]=마이크2 (2.7절) */
+            /* Measured channel layout (16kHz): [0]=reference, [1]=mic 1, [3]=mic 2 (Section 2.7) */
             mic[filled] = raw[4 * i + 1];
             ref[filled++] = raw[4 * i];
             if (filled < chunk) {
@@ -578,12 +578,12 @@ static void mic_task(void *arg)
     }
 }
 
-/* ── 초기화 ───────────────────────────────────────────────── */
+/* ── Initialization ───────────────────────────────────────── */
 
 static esp_err_t i2s_init(void)
 {
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(BOARD_I2S_PORT, I2S_ROLE_MASTER);
-    /* DMA 블록 하나 = 20ms 프레임 하나. 기본값(511)이면 쓰기가 몰렸다 멈췄다 한다 */
+    /* One DMA block = one 20ms frame. With the default (511), writes come in bursts and stall */
     chan_cfg.dma_frame_num = AUDIO_FRAME_SAMPLES;
     chan_cfg.auto_clear = true;
     esp_err_t err = i2s_new_channel(&chan_cfg, &s_tx, &s_rx);
@@ -603,7 +603,7 @@ static esp_err_t i2s_init(void)
     };
     ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_tx, &std_cfg), TAG, "tx init");
     ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_rx, &std_cfg), TAG, "rx init");
-    /* MCLK가 먼저 나가야 코덱 레지스터 설정이 먹는다 */
+    /* MCLK must be running first for codec register writes to take effect */
     ESP_RETURN_ON_ERROR(i2s_channel_enable(s_tx), TAG, "tx enable");
     ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "rx enable");
     return ESP_OK;
@@ -625,7 +625,7 @@ esp_err_t audio_core_init(void)
     }
     s_music = xStreamBufferCreateStatic(MUSIC_BUFFER_BYTES, sizeof(int16_t), music_storage, &music_ctrl);
 
-    /* MP3·AAC 해독기 등록은 한 번만 (부팅음·라디오가 같이 쓴다) */
+    /* Register the MP3/AAC decoders only once (shared by the boot sound and the radio) */
     esp_audio_dec_register_default();
     esp_audio_simple_dec_register_default();
 
@@ -639,14 +639,14 @@ esp_err_t audio_core_init(void)
         return err;
     }
 
-    /* 저장된 값은 esp_codec_dev_open() 직후 적용한다 (ESPHome 버그 교훈, 2.7절) */
+    /* Apply saved values right after esp_codec_dev_open() (lesson from an ESPHome bug, Section 2.7) */
     settings_audio_t a;
     settings_get_audio(&a);
     board_codec_set_volume(a.volume);
     board_codec_set_mic_gain((float)a.mic_gain);
     atomic_store(&s_volume, a.volume);
 
-    /* 무음 출력을 먼저 시작하고, 50ms 뒤 앰프를 켠다 */
+    /* Start silence output first, then turn on the amp 50ms later */
     if (xTaskCreatePinnedToCore(speaker_task, "i2s_tx", 8192, NULL, 8, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }

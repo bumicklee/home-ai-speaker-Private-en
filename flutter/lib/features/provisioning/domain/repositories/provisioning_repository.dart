@@ -12,7 +12,7 @@ abstract interface class ProvisioningRepository {
   Stream<List<DiscoveredSpeaker>> scan();
   Future<String> defaultPhoneName();
 
-  /// 이 설치의 휴대폰 ID (api.pair)
+  /// This installation's phone ID (api.pair)
   String get phoneId;
 
   Future<Either<Failure, DeviceInfo>> connect(DiscoveredSpeaker speaker);
@@ -21,14 +21,14 @@ abstract interface class ProvisioningRepository {
   Future<Either<Failure, Unit>> setSecret(String key, String value);
   Future<Either<Failure, PairResult>> pair(String phoneName, {String? evict});
 
-  /// BLE `settings.set` (등록 뒤 고른 AI·방식). 키가 없으면 BleFailure code `NO_API_KEY`
+  /// BLE `settings.set` (the AI and mode chosen after registration). BleFailure code `NO_API_KEY` if there is no key
   Future<Either<Failure, Unit>> setSettings(String group, Map<String, Object?> value);
   Future<Either<Failure, Unit>> finish();
   Future<void> disconnect();
 
-  /// 재부팅 뒤 mDNS로 다시 찾는다. 못 찾으면 host 없이 돌려준다
+  /// Finds it again over mDNS after the reboot. If not found, returns without a host
   Future<Device> discover(String mac, String name, {Duration timeout});
 
-  /// 휴대폰에 저장 (토큰은 보안 저장소)
+  /// Save on the phone (the token goes to secure storage)
   Future<Either<Failure, Unit>> save(Device device, String token);
 }

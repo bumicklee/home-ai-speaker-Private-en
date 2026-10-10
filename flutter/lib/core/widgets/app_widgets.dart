@@ -1,4 +1,4 @@
-/// 디자인의 공통 부품. 기능 화면은 이것들로 조립한다 (모양을 화면마다 다시 만들지 않는다).
+/// Shared widgets from the design. Feature screens are assembled from these (don't rebuild the look on every screen).
 library;
 
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import '../errors/error_localizer.dart';
 import '../errors/failures.dart';
 import '../../l10n/app_localizations.dart';
 
-/// 흰 카드 (모서리 16)
+/// White card (corner radius 16)
 class AppCard extends StatelessWidget {
   const AppCard({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.color, this.border});
 
@@ -30,7 +30,7 @@ class AppCard extends StatelessWidget {
   }
 }
 
-/// 묶음 제목 (회색 작은 글씨)
+/// Section title (small gray text)
 class SectionTitle extends StatelessWidget {
   const SectionTitle(this.text, {super.key, this.trailing});
 
@@ -47,7 +47,7 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-/// 카드 안의 줄 목록 (줄 사이 구분선)
+/// List group inside a card (dividers between rows)
 class ListGroup extends StatelessWidget {
   const ListGroup({super.key, required this.children});
 
@@ -73,7 +73,7 @@ class ListGroup extends StatelessWidget {
   }
 }
 
-/// 목록 한 줄 (높이 56 이상)
+/// One list row (height 56 or more)
 class ListRow extends StatelessWidget {
   const ListRow({super.key, required this.title, this.subtitle, this.leading, this.trailing, this.onTap, this.selected = false});
 
@@ -122,7 +122,7 @@ class ListRow extends StatelessWidget {
   }
 }
 
-/// 스위치 줄
+/// Switch row
 class SwitchRow extends StatelessWidget {
   const SwitchRow({super.key, required this.title, this.subtitle, required this.value, required this.onChanged});
 
@@ -163,7 +163,7 @@ class SwitchRow extends StatelessWidget {
   }
 }
 
-/// 제목 + 값 + 슬라이더
+/// Title + value + slider
 class SliderRow extends StatelessWidget {
   const SliderRow({
     super.key,
@@ -223,7 +223,7 @@ class SliderRow extends StatelessWidget {
   }
 }
 
-/// 첫 설정 단계 막대 (n단계 중 current, 1부터)
+/// First-time setup step bar (step current of n, starting at 1)
 class StepProgress extends StatelessWidget {
   const StepProgress({super.key, required this.current, required this.total});
 
@@ -255,7 +255,7 @@ class StepProgress extends StatelessWidget {
   }
 }
 
-/// 안내 상자 (정보: 청록 바탕, 경고: 호박 바탕)
+/// Notice box (info: teal background, warning: amber background)
 class NoticeBox extends StatelessWidget {
   const NoticeBox({super.key, required this.child, this.warning = false, this.icon});
 
@@ -287,7 +287,7 @@ class NoticeBox extends StatelessWidget {
   }
 }
 
-/// 상태 점 (연결됨 등)
+/// Status dot (connected, etc.)
 class StatusDot extends StatelessWidget {
   const StatusDot({super.key, required this.color, this.size = 10});
 
@@ -299,7 +299,7 @@ class StatusDot extends StatelessWidget {
       Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
 }
 
-/// 불러오기 실패 화면 (다시 시도)
+/// Load failure view (try again)
 class FailureView extends StatelessWidget {
   const FailureView({super.key, required this.failure, this.onRetry});
 
@@ -329,7 +329,7 @@ class FailureView extends StatelessWidget {
   }
 }
 
-/// 실패를 스낵바로
+/// Show a failure as a snackbar
 void showFailure(BuildContext context, Failure failure) {
   final l = AppLocalizations.of(context);
   ScaffoldMessenger.of(context)
@@ -343,7 +343,7 @@ void showMessage(BuildContext context, String text) {
     ..showSnackBar(SnackBar(content: Text(text)));
 }
 
-/// 확인 대화상자 (위험한 동작은 destructive)
+/// Confirmation dialog (destructive for dangerous actions)
 Future<bool> confirm(BuildContext context,
     {required String title, String? body, required String action, bool destructive = false}) async {
   final l = AppLocalizations.of(context);

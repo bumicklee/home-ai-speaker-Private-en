@@ -1,10 +1,10 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * 마이크 자동 게인과 음성 안내 보정. 기존 펌웨어(waveshare-ai-speaker-assistant)
- * mic_control.c를 그대로 가져와 의존 함수만 바꿨다:
- *   setup_portal_gain/auto_gain/set_microphone → 이 파일의 mic_gain/mic_auto_gain/mic_set
+ * Microphone auto gain and voice-guided calibration. Taken as is from the existing firmware (waveshare-ai-speaker-assistant)
+ * mic_control.c, changing only the functions it depends on:
+ *   setup_portal_gain/auto_gain/set_microphone → mic_gain/mic_auto_gain/mic_set in this file
  *   audio_is_playing/audio_output_generation → audio_core_is_playing/audio_core_output_generation
- * 측정 기준(10ms VAD, 소음 3초·말소리 10초, 3dB 단위, 33dB 없음)은 바꾸지 않았다.
+ * The measurement rules (10ms VAD, 3 s of noise and 10 s of speech, 3dB steps, no 33dB) are unchanged.
  */
 #include "mic_control.h"
 #include "audio_core.h"
@@ -39,12 +39,12 @@ static measurement snapshot(void){portENTER_CRITICAL(&stats_lock);measurement s=
 static void reset_stats(void){portENTER_CRITICAL(&stats_lock);memset(&stats,0,sizeof(stats));portEXIT_CRITICAL(&stats_lock);}
 bool mic_control_active(void){return atomic_load(&stage)!=IDLE;}
 
-/* 마이크 설정 캐시. 처리 경로(마이크 태스크)에서 NVS를 읽지 않게 메모리에 둔다 */
+/* Microphone settings cache. Kept in memory so the processing path (mic task) doesn't read NVS */
 static atomic_int s_gain=24;
 static atomic_bool s_auto;
 int mic_gain(void){return atomic_load(&s_gain);}
 bool mic_auto_gain(void){return atomic_load(&s_auto);}
-/* 게인을 코덱에 적용한다. persist가 true면 NVS에도 저장한다 (기존 setup_portal_set_microphone) */
+/* Applies the gain to the codec. If persist is true, also saves it to NVS (formerly setup_portal_set_microphone) */
 esp_err_t mic_set(int gain,bool automatic,bool persist){
     if(gain<0||gain>36)return ESP_ERR_INVALID_ARG;
     esp_err_t err=audio_core_set_mic_gain(gain);

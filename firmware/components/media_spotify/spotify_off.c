@@ -1,10 +1,10 @@
 /*
- * Spotify를 끈 빌드(CONFIG_APP_SPOTIFY=n, 기본)의 대체 코드. 2026-10-03 사용자 결정.
- * 공개 API는 spotify_api.c와 같고, 항상 "연결 안 됨"으로 답한다.
- * 자원을 쓰지 않는다: 잠금·태스크·HTTPS·메모리 할당 없음.
- * - spotify_linked()가 false라 비서 툴·지시문에 Spotify가 나오지 않고, 음악 제어는 라디오로 간다
- * - BLE spotify.link는 ESP_ERR_NOT_SUPPORTED (응답 UNKNOWN_OP)
- * - spotify.logout은 예전에 저장된 값이 있으면 지운다 (켜져 있던 빌드에서 넘어온 경우)
+ * Substitute code for builds with Spotify off (CONFIG_APP_SPOTIFY=n, the default). User decision of 2026-10-03.
+ * The public API is the same as spotify_api.c, and it always answers "not connected".
+ * Uses no resources: no locks, tasks, HTTPS, or memory allocation.
+ * - spotify_linked() is false, so Spotify does not appear in the assistant tools or instructions, and music control goes to the radio
+ * - BLE spotify.link gives ESP_ERR_NOT_SUPPORTED (response UNKNOWN_OP)
+ * - spotify.logout erases previously saved values if any (when coming from a build that had it on)
  */
 #include "media_spotify.h"
 
@@ -84,7 +84,7 @@ cJSON *spotify_status_json(void)
     cJSON *j = cJSON_CreateObject();
     cJSON_AddBoolToObject(j, "linked", false);
     cJSON_AddStringToObject(j, "state", "off");
-    cJSON_AddBoolToObject(j, "available", false);     /* 이 펌웨어에는 Spotify가 없다 (앱이 화면을 숨긴다) */
+    cJSON_AddBoolToObject(j, "available", false);     /* this firmware has no Spotify (the app hides the screen) */
     return j;
 }
 

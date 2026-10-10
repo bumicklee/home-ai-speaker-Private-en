@@ -29,17 +29,17 @@ static esp_err_t expander_init(void)
         return err;
     }
     /*
-     * 드라이버는 생성할 때 16핀을 모두 입력, 출력 레지스터를 0xFFFF(HIGH)로 둔다.
-     * 그대로 EXIO8 방향만 출력으로 바꾸면 앰프가 순간적으로 켜진다. 그리고 공개 API
-     * esp_io_expander_set_level()은 입력 상태의 핀에 쓰기를 거부한다. 그래서 출력
-     * 레지스터의 EXIO8 비트를 먼저 0으로 직접 쓴 다음 방향을 바꾼다 (2.19절).
-     * 다른 핀은 입력이라 출력 레지스터 값이 영향을 주지 않는다.
+     * On creation the driver sets all 16 pins to input and the output register to 0xFFFF (HIGH).
+     * Just switching EXIO8 to output as is turns the amp on for an instant. And the public API
+     * esp_io_expander_set_level() refuses to write to a pin that is an input. So first write
+     * the EXIO8 bit of the output register to 0 directly, then change the direction (Section 2.19).
+     * The other pins are inputs, so the output register value doesn't affect them.
      */
     err = s_expander->write_output_reg(s_expander, 0xFFFF & ~PIN(BOARD_EXIO_PA_EN));
     if (err == ESP_OK) {
         err = esp_io_expander_set_dir(s_expander, PIN(BOARD_EXIO_PA_EN), IO_EXPANDER_OUTPUT);
     }
-    /* 버튼 3개는 입력. 나머지(EXIO 0–7, 12–15)는 드라이버 기본값(입력)을 그대로 둔다 */
+    /* the 3 buttons are inputs. The rest (EXIO 0–7, 12–15) stay at the driver default (input) */
     if (err == ESP_OK) {
         err = esp_io_expander_set_dir(s_expander,
                                       PIN(BOARD_EXIO_KEY1) | PIN(BOARD_EXIO_KEY2) | PIN(BOARD_EXIO_KEY3),
@@ -50,7 +50,7 @@ static esp_err_t expander_init(void)
 
 esp_err_t board_init(void)
 {
-    /* LED는 확장 칩을 거치지 않으므로 가장 먼저 켜서 부팅 표시를 시작한다 */
+    /* the LED doesn't go through the expander chip, so turn it on first to start the boot display */
     if (led_ring_init() != ESP_OK) {
         ESP_LOGW(TAG, "LED ring unavailable; continuing without it");
     }

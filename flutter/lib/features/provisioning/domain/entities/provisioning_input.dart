@@ -2,9 +2,9 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/ai/ai_choice.dart';
 
-/// BLE 연결 **전에** 받는 값 (설계서 3.4: 키를 복사하러 앱을 벗어나는 동안 BLE 창 시간이 흐르지 않게).
-/// 메모리에만 두고 전송 뒤 버린다.
-/// ① AI → 그 AI의 키(필수, 또는 "이미 키가 저장된 스피커") → ② 대화 방식 (docs/design-voice-saver-mode.md 11.3절)
+/// Values collected **before** the BLE connection (design document 3.4: so the BLE window doesn't run down while you leave the app to copy a key).
+/// Kept in memory only and discarded after sending.
+/// ① AI → that AI's key (required, or "this speaker already has the key saved") → ② conversation mode (docs/design-voice-saver-mode.md, Section 11.3)
 class ProvisioningInput extends Equatable {
   const ProvisioningInput({
     this.provider = AiProvider.openai,
@@ -19,21 +19,21 @@ class ProvisioningInput extends Equatable {
   final AiProvider provider;
   final AiMode mode;
 
-  /// 비우면 스피커에 이미 있는 키를 쓴다 (고른 AI라면 [existingKey]를 켜야 한다)
+  /// If empty, use the key already on the speaker ([existingKey] must be on for the chosen AI)
   final String openAiKey;
   final String geminiKey;
 
-  /// "이미 이 AI 키가 저장된 스피커예요" — 연결 뒤 `device.info.secrets`로 확인한다
+  /// "이미 이 AI 키가 저장된 스피커예요" (This speaker already has this AI's key saved) — checked after connecting via `device.info.secrets`
   final bool existingKey;
   final String telegramToken;
   final String phoneName;
 
   String keyFor(AiProvider p) => p == AiProvider.openai ? openAiKey : geminiKey;
 
-  /// 고른 AI의 키를 넣었는지
+  /// Whether the key for the chosen AI was entered
   bool get hasChosenKey => keyFor(provider).isNotEmpty;
 
-  /// "스피커 찾기"를 누를 수 있는지: 고른 AI의 키를 넣었거나, 스피커에 이미 있다고 했거나
+  /// Whether "스피커 찾기" (Find speaker) can be tapped: the chosen AI's key was entered, or the user said the speaker already has it
   bool get canSearch => hasChosenKey || existingKey;
 
   ProvisioningInput copyWith({
@@ -55,7 +55,7 @@ class ProvisioningInput extends Equatable {
 
   static final openAiKeyPattern = RegExp(r'^sk-[A-Za-z0-9_\-]{20,}$');
 
-  /// Google AI Studio 키 (느슨하게: AIza + 30자 이상)
+  /// Google AI Studio key (loose check: AIza + 30 or more characters)
   static final geminiKeyPattern = RegExp(r'^AIza[0-9A-Za-z_\-]{30,}$');
   static final telegramTokenPattern = RegExp(r'^\d{5,}:[A-Za-z0-9_\-]{30,}$');
 
@@ -64,7 +64,7 @@ class ProvisioningInput extends Equatable {
   @override
   List<Object?> get props => [provider, mode, openAiKey, geminiKey, existingKey, telegramToken, phoneName];
 
-  /// 로그·toString에 비밀값이 나오지 않게
+  /// Keep secrets out of logs and toString
   @override
   String toString() => 'ProvisioningInput(phoneName: $phoneName, ai: ${aiCombo(provider, mode)}, '
       'openai: ${openAiKey.isNotEmpty}, gemini: ${geminiKey.isNotEmpty}, existing: $existingKey, '

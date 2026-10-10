@@ -3,7 +3,7 @@ import 'package:aispeaker/features/radio/domain/entities/radio_preset.dart';
 import 'package:aispeaker/features/radio/domain/radio_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 펌웨어 radio_presets.c DEFAULTS (2026-10-03)
+/// Firmware radio_presets.c DEFAULTS (2026-10-03)
 const defaults = [
   RadioPreset(name: 'Big B Radio K-POP 케이팝', url: 'https://antares.dribbcast.com/proxy/kpop?mp=/s', genre: 'kpop,pop,korean'),
   RadioPreset(name: 'ARA FM 아라FM', url: 'http://141.164.38.238/listen/ara_fm/radio.mp3', genre: 'kpop,ballad,chill,korean'),
@@ -57,7 +57,7 @@ void main() {
       expect(isPlayable(station(url: 'https://a.example/live', codec: 'AAC')), isTrue);
       expect(isPlayable(station(codec: 'AAC+')), isTrue);
       expect(isPlayable(station(codec: 'OGG')), isFalse);
-      expect(isPlayable(station(codec: 'mp3')), isFalse); // 펌웨어는 대소문자를 가린다
+      expect(isPlayable(station(codec: 'mp3')), isFalse); // the firmware is case-sensitive
       expect(isPlayable(station(codec: '')), isFalse);
     });
 
@@ -69,7 +69,7 @@ void main() {
 
     test('http(s)가 아니거나 256바이트 넘는 주소는 뺀다', () {
       expect(isPlayable(station(url: 'rtsp://a.example/live')), isFalse);
-      expect(isPlayable(station(url: 'http://a.example/${'x' * 239}')), isTrue); // 256바이트
+      expect(isPlayable(station(url: 'http://a.example/${'x' * 239}')), isTrue); // 256 bytes
       expect(isPlayable(station(url: 'http://a.example/${'x' * 240}')), isFalse);
       expect(isPlayable({'codec': 'MP3'}), isFalse);
       expect(isPlayable({'codec': 'MP3', 'url_resolved': 3}), isFalse);
@@ -105,7 +105,7 @@ void main() {
     });
 
     test('본문이 8KB를 넘으면 거절', () {
-      // 한도 안이어도 JSON 이스케이프(\")로 본문이 커질 수 있다
+      // Even within the limit, JSON escaping (\") can make the body larger
       final big = RadioPreset(name: '"' * 48, url: 'https://${'"' * 248}', genre: '"' * 64);
       expect(validatePreset(big), isNull);
       expect(validatePresets(List.filled(20, big)), PresetError.tooLarge);
@@ -130,6 +130,6 @@ void main() {
     expect(playingPresetIndex(defaults, now(8, '블룸버그 Bloomberg Radio')), 8);
     expect(playingPresetIndex(defaults, now(0, 'CNN')), 6);
     expect(playingPresetIndex(defaults, now(null, 'Some URL')), isNull);
-    expect(playingPresetIndex(defaults, const RadioNow(preset: 0)), isNull); // 멈춤
+    expect(playingPresetIndex(defaults, const RadioNow(preset: 0)), isNull); // stopped
   });
 }

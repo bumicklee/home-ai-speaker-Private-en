@@ -8,14 +8,14 @@ import 'package:geolocator/geolocator.dart';
 import '../../domain/services/place_formatter.dart';
 
 enum LocationError {
-  /// 휴대폰 위치 기능이 꺼짐
+  /// Location is turned off on the phone
   serviceOff,
   denied,
 
-  /// 다시 묻지 않음 → 휴대폰 설정에서 켜야 한다
+  /// Don't ask again → must be turned on in the phone's settings
   deniedForever,
 
-  /// 좌표나 주소를 얻지 못함
+  /// Could not get coordinates or an address
   unavailable,
 }
 
@@ -27,16 +27,16 @@ class LocationLookupException implements Exception {
   String toString() => 'LocationLookupException($error)';
 }
 
-/// 휴대폰 위치·시간대 (geolocator·geocoding·flutter_timezone을 감싼다. Cubit 시험용으로 바꿔 끼울 수 있게).
-/// 좌표는 이 안에서 주소로 바꾸고 밖으로 내보내지 않는다 (스피커로 보내지 않는다. 설계서 3.0절)
+/// Phone location and time zone (wraps geolocator, geocoding and flutter_timezone; swappable so the Cubit can be tested).
+/// Coordinates are turned into an address in here and never leave it (they are not sent to the speaker; design document Section 3.0)
 abstract class LocationService {
-  /// 권한을 묻고 현재 위치의 주소 조각. 실패하면 [LocationLookupException]
+  /// Asks for permission and returns the address parts of the current location. Throws [LocationLookupException] on failure
   Future<PlaceParts> currentPlace();
 
-  /// 휴대폰 IANA 시간대 (못 읽으면 null)
+  /// Phone IANA time zone (null if it can't be read)
   Future<String?> phoneTimezone();
 
-  /// 휴대폰 설정의 앱 권한 화면
+  /// The app permission screen in the phone's settings
   Future<void> openSettings();
 }
 
@@ -54,7 +54,7 @@ class DeviceLocationService implements LocationService {
     }
     final Position position;
     try {
-      // 동네만 알면 되므로 정확도 낮음 (배터리·시간 절약)
+      // Only the neighborhood is needed, so low accuracy (saves battery and time)
       position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 15)),
       );
@@ -71,7 +71,7 @@ class DeviceLocationService implements LocationService {
   Future<PlaceParts> _place(Position p) async {
     final List<Placemark> marks;
     try {
-      // 한국어 주소로 받아야 "서울 강남구 역삼동" 형식을 만들 수 있다 (해외면 그 나라 이름이 한국어로 온다)
+      // The address must come back in Korean to build the "서울 강남구 역삼동" form (abroad, the country name comes back in Korean)
       marks = await Geocoding().placemarkFromCoordinates(p.latitude, p.longitude, locale: const Locale('ko', 'KR'));
     } catch (_) {
       throw const LocationLookupException(LocationError.unavailable);

@@ -1,25 +1,25 @@
 ---
 name: speaker-method
-description: 책의 작업 방식 양식 모음. 새 기능 기획서 1쪽, 설계서 절, 인수인계 문서(HANDOFF) 갱신, 장애 분석 보고서(RCA), 기존 코드와 대조하는 적대적 리뷰, 보안 관점 리뷰를 쓸 때 쓴다.
-when_to_use: 기획서, 설계서, 인수인계, HANDOFF, 장애 분석, RCA, 원인 분석, 리뷰, 검토, 보안 검토
+description: The book's working-method templates. Use when writing a one-page plan document for a new feature, a design document section, a handoff document (HANDOFF) update, a failure analysis report (RCA), an adversarial review against the existing code, or a review from a security perspective.
+when_to_use: plan document, design document, handoff, HANDOFF, failure analysis, RCA, root cause analysis, review, check, security review
 argument-hint: "[plan | design | handoff | rca | review | security]"
 ---
 
-# 작업 방식 양식
+# Working-Method Templates
 
-인자에 따라 [templates.md](templates.md)의 해당 양식을 쓴다. 인자가 없으면 지금 대화에 맞는 양식을 고르고, 무엇을 골랐는지 먼저 말한다.
+Use the matching template in [templates.md](templates.md) according to the argument. If there is no argument, pick the template that fits the current conversation, and say which one you picked first.
 
-| 인자 | 하는 일 |
+| Argument | What it does |
 |:--|:--|
-| `plan` | 새 기능 기획서 1쪽 (목표, 범위 제외, 결정할 것, 단계, 위험) |
-| `design` | 설계서에 절 하나 추가 (데이터, 흐름, API, 메모리, 확인 방법) |
-| `handoff` | `docs/HANDOFF.md` 갱신 (지금 상태, 다음 할 일, 확인 못 받은 결정) |
-| `rca` | 장애 분석 보고서 (증상, 로그, 직접 원인, 근본 원인, 키운 원인, 조치, 재발 방지, 상태) |
-| `review` | 방금 바꾼 코드를 원래 코드·설계서와 한 줄씩 대조하는 적대적 리뷰 |
-| `security` | 비밀값 흐름, 외부 입력(텔레그램·라디오 제목), 인증, 로그 유출 관점의 리뷰 |
+| `plan` | One-page plan document for a new feature (goals, out of scope, decisions to make, stages, risks) |
+| `design` | Add one section to the design document (data, flow, API, memory, how to verify) |
+| `handoff` | Update `docs/HANDOFF.md` (current state, next steps, decisions not yet confirmed) |
+| `rca` | Failure analysis report (symptom, log, direct cause, root cause, contributing cause, fix, recurrence prevention, status) |
+| `review` | Adversarial review that compares the code just changed against the original code and the design document line by line |
+| `security` | Review from the perspective of secret flows, external input (Telegram, radio titles), authentication, and log leaks |
 
-## 공통 원칙
+## Common Principles
 
-- **추측하지 않는다.** 판단에 쓰는 값은 로그나 코드로 먼저 확인하고, 확인 못 한 것은 "확인 필요"로 표시한다.
-- **사람의 결정은 기록한다.** 사용자가 고른 것과 그 이유를 문서에 남긴다.
-- **리뷰는 고치기 전에 보고만 한다.** 찾은 문제마다 근거(파일·함수)와 고칠 방법을 적고, 사용자가 승인하면 고친다.
+- **Don't guess.** Confirm the values used for a decision in the log or the code first, and mark anything you couldn't confirm as "needs confirmation".
+- **Record human decisions.** Leave what the user chose, and why, in the document.
+- **A review only reports before fixing.** For each problem found, write the evidence (file and function) and how to fix it, and fix it once the user approves.

@@ -1,5 +1,5 @@
-/// 0xFF81/0xFF82 조각 형식 `[seq:1B][flags:1B][payload…]` (설계서 2.13절, 펌웨어 `ble_cmd.c`).
-/// flags bit0 = 마지막, bit1 = 첫 조각. 한 조각짜리 메시지는 둘 다 켠다.
+/// 0xFF81/0xFF82 frame format `[seq:1B][flags:1B][payload…]` (design document Section 2.13, firmware `ble_cmd.c`).
+/// flags bit0 = last, bit1 = first frame. A single-frame message sets both.
 library;
 
 import 'dart:typed_data';
@@ -10,7 +10,7 @@ import '../errors/exceptions.dart';
 class BleFrameCodec {
   BleFrameCodec._();
 
-  /// [message]를 조각으로 나눈다. [payloadSize] = 협상된 MTU − 5
+  /// Splits [message] into frames. [payloadSize] = negotiated MTU − 5
   static List<Uint8List> encode(List<int> message, int payloadSize) {
     if (payloadSize < 1) {
       throw const BleException(BleErrorCode.protocol, 'payload size < 1');
@@ -34,12 +34,12 @@ class BleFrameCodec {
   }
 }
 
-/// 응답 조각을 모은다. 순서가 틀리거나 너무 크면 버리고 다음 첫 조각을 기다린다.
+/// Collects response frames. If the order is wrong or the total is too large, it discards everything and waits for the next first frame.
 class BleFrameReassembler {
   final _buffer = BytesBuilder(copy: false);
-  int _nextSeq = -1; // -1 = 진행 중인 메시지 없음
+  int _nextSeq = -1; // -1 = no message in progress
 
-  /// 메시지가 완성되면 그 바이트, 아니면 null. 형식 오류는 [BleException]
+  /// The bytes once the message is complete, otherwise null. Format errors throw [BleException]
   Uint8List? add(List<int> frame) {
     if (frame.length < BleProtocol.frameHeaderBytes) {
       reset();

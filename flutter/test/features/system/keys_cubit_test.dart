@@ -81,7 +81,7 @@ void main() {
     await c.forgetOnPhone(SecretKey.openai);
     verify(() => vault.saveOpenAiKey(null)).called(1);
     expect(c.state.onPhone, isEmpty);
-    expect(c.state.onSpeaker?[SecretKey.openai], isTrue); // 스피커는 그대로
+    expect(c.state.onSpeaker?[SecretKey.openai], isTrue); // the speaker keeps it
   });
 
   test('sendToSpeaker: BLE로 보내고 휴대폰에도 기억', () async {
@@ -120,6 +120,6 @@ void main() {
     await c.load();
     expect(await c.deleteOnSpeaker(SecretKey.openai), isNull);
     expect(c.state.onSpeaker?[SecretKey.openai], isFalse);
-    expect(c.state.onPhone[SecretKey.openai], 'sk-old-1234'); // 휴대폰 값은 그대로
+    expect(c.state.onPhone[SecretKey.openai], 'sk-old-1234'); // the phone value stays
   });
 }

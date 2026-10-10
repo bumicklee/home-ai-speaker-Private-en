@@ -1,12 +1,12 @@
 /*
- * Spotify Web API 클라이언트 (설계서 2.10절). 설명은 media_spotify.h.
+ * Spotify Web API client (design document Section 2.10). See media_spotify.h for details.
  *
- * 토큰:
- *   - 앱이 PKCE로 로그인해 refresh token을 BLE(spotify.link)로 넘긴다. 클라이언트 비밀은 없다(공개 클라이언트).
- *   - access token(1시간)은 RAM에만 두고, 만료 60초 전이나 401이면 갱신한다.
- *   - 갱신 응답에 새 refresh token이 오면 즉시 바꿔 저장한다(토큰 회전).
- *   - refresh token이 만료되면(처음 인증에서 6개월) 400 → RELOGIN_REQUIRED, 앱이 다시 로그인을 안내한다.
- * 모든 Web API 호출은 한 번에 하나씩(뮤텍스). 툴 워커, BLE 작업 태스크, LAN 핸들러가 부른다.
+ * Tokens:
+ *   - The app logs in with PKCE and hands the refresh token over BLE (spotify.link). There is no client secret (public client).
+ *   - The access token (1 hour) stays only in RAM and is refreshed 60 seconds before expiry or on a 401.
+ *   - If the refresh response carries a new refresh token, it is swapped in and saved immediately (token rotation).
+ *   - When the refresh token expires (6 months after the first authorization): 400 → RELOGIN_REQUIRED, and the app prompts a new login.
+ * All Web API calls run one at a time (mutex). Called from the tool worker, the BLE work task, and LAN handlers.
  */
 #include "media_spotify.h"
 
@@ -44,7 +44,7 @@ static char s_account[64];
 static char s_device[64];
 static char s_last_error[64];
 static atomic_bool s_recently_playing;
-/* 표시용 문자열과 now 캐시는 긴 HTTPS 잠금(s_lock)과 따로 짧게 잠근다 (LAN 핸들러가 기다리지 않게) */
+/* Display strings and the now cache use a short lock of their own, separate from the long HTTPS lock (s_lock), so LAN handlers do not wait */
 static portMUX_TYPE s_info_mux = portMUX_INITIALIZER_UNLOCKED;
 static SemaphoreHandle_t s_cache_lock;
 static cJSON *s_now_cache;
@@ -63,7 +63,7 @@ static void info_get(char *out, size_t len, const char *src)
     portEXIT_CRITICAL(&s_info_mux);
 }
 
-/* ── 공통 ─────────────────────────────────────────────────── */
+/* ── Common ───────────────────────────────────────────────── */
 
 const char *spotify_state_name(spotify_state_t state)
 {
@@ -124,7 +124,7 @@ static esp_err_t on_http(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-/* HTTP 요청 하나. 상태 코드(네트워크 오류면 -1). out에 응답 JSON(없으면 NULL) */
+/* One HTTP request. Returns the status code (-1 on network error). Response JSON in out (NULL if none) */
 static int http_request(esp_http_client_method_t method, const char *url, const char *auth, const char *content_type,
                         const char *body, cJSON **out)
 {
@@ -141,7 +141,7 @@ static int http_request(esp_http_client_method_t method, const char *url, const 
         .event_handler = on_http,
         .user_data = &resp,
         .buffer_size = 2048,
-        .buffer_size_tx = 2048,     /* Authorization 헤더가 길다 */
+        .buffer_size_tx = 2048,     /* the Authorization header is long */
     };
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     int status = -1;
@@ -152,7 +152,7 @@ static int http_request(esp_http_client_method_t method, const char *url, const 
         if (content_type) {
             esp_http_client_set_header(client, "Content-Type", content_type);
         }
-        if (body) {     /* 본문이 없으면 부르지 않는다 (부르면 Content-Type이 붙는다) */
+        if (body) {     /* not called without a body (calling it adds Content-Type) */
             esp_http_client_set_post_field(client, body, strlen(body));
         }
         if (esp_http_client_perform(client) == ESP_OK) {
@@ -164,14 +164,14 @@ static int http_request(esp_http_client_method_t method, const char *url, const 
         resp.buf[resp.used] = '\0';
         *out = cJSON_Parse(resp.buf);
     }
-    memset(resp.buf, 0, resp.used);     /* 토큰 응답일 수 있다 */
+    memset(resp.buf, 0, resp.used);     /* it may be a token response */
     free(resp.buf);
     return status;
 }
 
-/* ── 토큰 ─────────────────────────────────────────────────── */
+/* ── Tokens ───────────────────────────────────────────────── */
 
-/* client_id·refresh token으로 access token을 받는다. 새 refresh token이 오면 rotated에 넣는다 */
+/* Gets an access token with client_id and the refresh token. If a new refresh token comes back, it goes in rotated */
 static esp_err_t token_request(const char *client_id, const char *refresh, char *rotated, size_t rotated_len)
 {
     const size_t enc_cap = TOKEN_MAX * 3;
@@ -208,7 +208,7 @@ static esp_err_t token_request(const char *client_id, const char *refresh, char 
         }
         err = ESP_OK;
     } else if (status == 400 || status == 401) {
-        err = ESP_ERR_INVALID_ARG;      /* invalid_grant: 만료·해지 또는 잘못된 값 */
+        err = ESP_ERR_INVALID_ARG;      /* invalid_grant: expired, revoked, or a wrong value */
     } else {
         err = ESP_FAIL;
     }
@@ -225,7 +225,7 @@ static esp_err_t token_request(const char *client_id, const char *refresh, char 
     return err;
 }
 
-/* 저장된 값으로 갱신 (잠금을 잡은 상태에서) */
+/* Refresh with the saved values (with the lock held) */
 static esp_err_t refresh_locked(void)
 {
     char client_id[64], refresh[TOKEN_MAX], rotated[TOKEN_MAX];
@@ -239,7 +239,7 @@ static esp_err_t refresh_locked(void)
     refresh[rf_len] = '\0';
     esp_err_t err = token_request(client_id, refresh, rotated, sizeof(rotated));
     if (err == ESP_OK && rotated[0] && strcmp(rotated, refresh)) {
-        secret_set(SECRET_SP_REFRESH, rotated, strlen(rotated));   /* 토큰 회전 */
+        secret_set(SECRET_SP_REFRESH, rotated, strlen(rotated));   /* token rotation */
     }
     memset(refresh, 0, sizeof(refresh));
     memset(rotated, 0, sizeof(rotated));
@@ -251,7 +251,7 @@ static esp_err_t refresh_locked(void)
     return err;
 }
 
-/* Web API 호출. 토큰이 없거나 곧 만료되면 갱신하고, 401이면 한 번 더 갱신해 다시 시도한다 */
+/* Web API call. Refreshes if there is no token or it is about to expire; on a 401, refreshes once more and retries */
 static int api_locked(esp_http_client_method_t method, const char *path, const char *json, cJSON **out)
 {
     *out = NULL;
@@ -262,7 +262,7 @@ static int api_locked(esp_http_client_method_t method, const char *path, const c
     snprintf(url, sizeof(url), API_BASE "%s", path);
     char auth[TOKEN_MAX + 8];
     int status = 0;
-    /* 본문 없는 POST·PUT(next, pause 등)도 Content-Length가 붙도록 빈 객체를 보낸다 */
+    /* Send an empty object so bodyless POST and PUT (next, pause, etc.) still get a Content-Length */
     if (!json && method != HTTP_METHOD_GET) {
         json = "{}";
     }
@@ -288,7 +288,7 @@ static const char *error_reason(const cJSON *resp)
     return cJSON_IsString(reason) ? reason->valuestring : "";
 }
 
-/* 재생 명령의 결과 상태 → esp_err. Premium 여부는 여기서만 알 수 있다 (GET /me에 product가 없음) */
+/* Result status of a playback command → esp_err. This is the only place Premium status shows up (GET /me has no product) */
 static esp_err_t player_result(int status, const cJSON *resp)
 {
     if (status >= 200 && status < 300) {
@@ -305,13 +305,13 @@ static esp_err_t player_result(int status, const cJSON *resp)
         return ESP_ERR_INVALID_STATE;
     }
     if (status == 0) {
-        return ESP_ERR_INVALID_STATE;   /* 연결 안 됨 / 다시 로그인 필요 */
+        return ESP_ERR_INVALID_STATE;   /* not linked / login needed again */
     }
     set_error(SPOTIFY_ERROR, "player command failed");
     return ESP_FAIL;
 }
 
-/* ── 연결 ─────────────────────────────────────────────────── */
+/* ── Linking ──────────────────────────────────────────────── */
 
 static bool client_id_valid(const char *id)
 {
@@ -348,7 +348,7 @@ esp_err_t spotify_link(const char *client_id, const char *refresh_token)
         return ESP_ERR_INVALID_ARG;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    /* 저장하기 전에 실제로 갱신이 되는지 확인한다 (설계서 2.13절 spotify.link) */
+    /* Before saving, confirm that a refresh actually works (design document Section 2.13 spotify.link) */
     char rotated[TOKEN_MAX];
     esp_err_t err = token_request(client_id, refresh_token, rotated, sizeof(rotated));
     if (err == ESP_OK) {
@@ -392,11 +392,11 @@ esp_err_t spotify_logout(void)
     return a != ESP_OK ? a : (b != ESP_OK ? b : c);
 }
 
-/* ── 재생 ─────────────────────────────────────────────────── */
+/* ── Playback ─────────────────────────────────────────────── */
 
 /*
- * 재생할 기기: 이 스피커의 Connect 수신기(이름이 APP_SPOTIFY_DEVICE_NAME으로 시작) → 지금 활성 기기
- * → 제한되지 않은 첫 기기. 수신기를 붙이기 전(Q2)에는 휴대폰 등 같은 계정의 기기가 고른다.
+ * Device to play on: this speaker's Connect receiver (name starts with APP_SPOTIFY_DEVICE_NAME) → the currently active device
+ * → the first unrestricted device. Until the receiver is attached (Q2), a device on the same account, such as a phone, gets picked.
  */
 static bool pick_device_locked(char *id, size_t id_len)
 {
@@ -454,13 +454,13 @@ esp_err_t spotify_play(const char *query, const char *type, char *desc, size_t d
     xSemaphoreTake(s_lock, portMAX_DELAY);
     char enc[320], path[400];
     url_encode(query, enc, sizeof(enc));
-    /* Development Mode 검색 한도는 10개. 하나만 받는다 */
+    /* The Development Mode search limit is 10. Take just one */
     snprintf(path, sizeof(path), "/search?q=%s&type=%s&limit=1&market=from_token", enc, type);
     cJSON *resp = NULL;
     int status = api_locked(HTTP_METHOD_GET, path, NULL, &resp);
     char key[16];
     snprintf(key, sizeof(key), "%ss", type);    /* tracks, artists, albums, playlists */
-    /* 재생목록 결과에는 null 항목이 섞일 수 있다 */
+    /* playlist results may contain null items */
     const cJSON *item = NULL, *it;
     cJSON_ArrayForEach(it, cJSON_GetObjectItem(cJSON_GetObjectItem(resp, key), "items")) {
         if (cJSON_IsObject(it)) {
@@ -483,9 +483,9 @@ esp_err_t spotify_play(const char *query, const char *type, char *desc, size_t d
         }
         char device[64];
         if (!pick_device_locked(device, sizeof(device))) {
-            err = ESP_ERR_INVALID_STATE;    /* 켜져 있는 Spotify 기기가 없다 */
+            err = ESP_ERR_INVALID_STATE;    /* no Spotify device is on */
         } else {
-            /* 곡은 uris, 가수·앨범·재생목록은 context_uri (가수 인기곡 API는 2026년에 없어졌다) */
+            /* tracks use uris; artists, albums and playlists use context_uri (the artist top-tracks API was removed in 2026) */
             cJSON *body = cJSON_CreateObject();
             if (!strcmp(type, "track")) {
                 cJSON *uris = cJSON_AddArrayToObject(body, "uris");
@@ -508,7 +508,7 @@ esp_err_t spotify_play(const char *query, const char *type, char *desc, size_t d
         atomic_store(&s_recently_playing, true);
     }
     xSemaphoreGive(s_lock);
-    ESP_LOGI(TAG, "play %s: %s", type, esp_err_to_name(err));   /* 검색어는 남기지 않는다 */
+    ESP_LOGI(TAG, "play %s: %s", type, esp_err_to_name(err));   /* the search query is not logged */
     return err;
 }
 
@@ -560,7 +560,7 @@ cJSON *spotify_now_json(void)
     const cJSON *item = cJSON_GetObjectItem(resp, "item");
     bool playing = status == 200 && cJSON_IsTrue(cJSON_GetObjectItem(resp, "is_playing"));
     atomic_store(&s_recently_playing, playing);
-    if (status != 200 || !cJSON_IsObject(item)) {     /* 204 = 재생 중인 것 없음 */
+    if (status != 200 || !cJSON_IsObject(item)) {     /* 204 = nothing playing */
         cJSON_AddStringToObject(j, "source", "none");
         cJSON_AddStringToObject(j, "state", "stopped");
     } else {
@@ -575,7 +575,7 @@ cJSON *spotify_now_json(void)
         cJSON_AddStringToObject(j, "device", cJSON_IsString(device) ? device->valuestring : "");
     }
     cJSON_Delete(resp);
-    /* LAN 핸들러가 기다리지 않고 쓰도록 캐시해 둔다 */
+    /* Cache it so LAN handlers can use it without waiting */
     cJSON *copy = cJSON_Duplicate(j, true);
     xSemaphoreTake(s_cache_lock, portMAX_DELAY);
     cJSON_Delete(s_now_cache);
@@ -606,7 +606,7 @@ cJSON *spotify_status_json(void)
     char buf[64];
     info_get(buf, sizeof(buf), s_account);
     cJSON_AddStringToObject(j, "account", buf);
-    /* Connect 수신기(스피커 직접 재생)는 Q2 결정 후. 지금은 마지막으로 고른 재생 기기 */
+    /* The Connect receiver (playing directly on the speaker) comes after the Q2 decision. For now, the last chosen playback device */
     cJSON_AddBoolToObject(j, "connect_receiver", false);
     info_get(buf, sizeof(buf), s_device);
     cJSON_AddStringToObject(j, "device", buf);
@@ -622,7 +622,7 @@ esp_err_t media_spotify_init(void)
     if (!s_lock || !s_cache_lock) {
         return ESP_ERR_NO_MEM;
     }
-    atomic_store(&s_state, spotify_linked() ? SPOTIFY_OK : SPOTIFY_OFF);    /* 첫 호출 때 실제 확인 */
+    atomic_store(&s_state, spotify_linked() ? SPOTIFY_OK : SPOTIFY_OFF);    /* actually checked on the first call */
     ESP_LOGI(TAG, "%s", spotify_linked() ? "linked" : "not linked");
     return ESP_OK;
 }

@@ -1,14 +1,14 @@
 /*
- * 영어 선생님 (lesson.h 참고). 2026-10-03 신규.
+ * English tutor (see lesson.h). New on 2026-10-03.
  *
- * 흐름
- *   앱 "프리토킹 시작" → lesson_start → STARTING → live_voice_start
- *   → assistant_start_event가 lesson_start_event를 부름 → ACTIVE (선생님 지침, 수업 길이 제한)
- *   → 전사 조각을 모으고 45초마다 고친 표현을 뽑음 (툴 워커, HTTPS)
- *   → 세션 끝(시간·버튼·종료 문구·앱) → SUMMARIZING → 마지막 정리 → DONE, /storage/lesson.json 저장
- *   음성("영어 공부하자")은 WAITING으로 두었다가 지금 대화가 끝나면 STARTING으로.
+ * Flow
+ *   App "Start free talking" → lesson_start → STARTING → live_voice_start
+ *   → assistant_start_event calls lesson_start_event → ACTIVE (tutor instructions, lesson length limit)
+ *   → collects transcript fragments and extracts corrected expressions every 45 seconds (tool worker, HTTPS)
+ *   → session ends (time, button, hang-up phrase, app) → SUMMARIZING → final summary → DONE, saved to /storage/lesson.json
+ *   A voice request ("영어 공부하자", let's study English) waits in WAITING, then goes to STARTING when the current conversation ends.
  *
- * 전사·정리는 로그에 남기지 않는다 (2.2절). 상태 구조체·전사 버퍼는 PSRAM.
+ * Transcripts and summaries are never logged (design document 2.2, Coding Rules). The state struct and transcript buffer are in PSRAM.
  */
 #include "lesson.h"
 
@@ -38,13 +38,13 @@ static const char *TAG = "LESSON";
 #define MAX_CORRECTIONS    20
 #define MAX_PRONUNCIATION  12
 #define EXTRACT_EVERY_MS   45000
-#define EXTRACT_MIN_NEW    120     /* 새 전사가 이만큼(바이트) 쌓였을 때만 뽑는다 */
+#define EXTRACT_MIN_NEW    120     /* extract only once this many new transcript bytes have piled up */
 #define WINDOW_OVERLAP     400
 #define WINDOW_MAX         6000
 #define FINAL_WINDOW_MAX   12000
 #define RESPONSE_MAX       (16 * 1024)
-#define IDLE_MS            (60 * 1000)       /* 생각하느라 말이 끊겨도 1분은 기다린다 (수업이 최대 5분이라 2분 → 1분) */
-#define WRAP_UP_MS         60000             /* 끝나기 1분 전에 마무리하라고 알린다 */
+#define IDLE_MS            (60 * 1000)       /* wait a full minute even if speech pauses for thinking (lessons are at most 5 minutes, so 2 minutes → 1 minute) */
+#define WRAP_UP_MS         60000             /* tell the tutor to wrap up 1 minute before the end */
 #define LESSON_FILE        "/storage/lesson.json"
 #define RESPONSES_URL      "https://api.openai.com/v1/responses"
 
@@ -76,13 +76,13 @@ typedef struct {
     int n_pronunciation;
     char *text;             /* "\nLearner: …\nTeacher: …" */
     size_t text_len, extracted_upto;
-    int last_speaker;       /* -1 없음, 0 선생님, 1 학습자 */
+    int last_speaker;       /* -1 none, 0 tutor, 1 learner */
     uint32_t last_extract_ms;
 } lesson_t;
 
 static lesson_t *L;
 static SemaphoreHandle_t s_lock;
-static bool s_record_loaded;    /* 지난 정리 파일은 /storage가 mount된 뒤 처음 읽을 때 불러온다 */
+static bool s_record_loaded;    /* the last summary file is loaded on the first read after /storage is mounted */
 static void load_record(void);
 static lesson_cfg_t s_defaults = {.course = LESSON_BASIC, .explain_korean = true, .slow = true, .minutes = 5};
 
@@ -104,7 +104,7 @@ static void copy_str(char *dst, size_t cap, const char *src)
     snprintf(dst, cap, "%s", src ? src : "");
 }
 
-/* ── 설정 ─────────────────────────────────────────────────── */
+/* ── Settings ───────────────────────────────────────────── */
 
 static void save_defaults(void)
 {
@@ -123,7 +123,7 @@ static void load_defaults(void)
     size_t len = sizeof(c);
     if (nvs_open("lesson", NVS_READONLY, &h) == ESP_OK) {
         if (nvs_get_blob(h, "cfg", &c, &len) == ESP_OK && len == sizeof(c) && c.course < LESSON_COURSE_COUNT) {
-            /* 요금 때문에 최대 5분 (2026-10-04). 예전에 저장한 10·20·30분은 5분으로 */
+            /* Max 5 minutes because of cost (2026-10-04). Previously saved 10, 20, 30 minutes become 5 */
             if (c.minutes != 3 && c.minutes != 5) {
                 c.minutes = 5;
             }
@@ -179,7 +179,7 @@ bool lesson_parse_cfg(const cJSON *j, lesson_cfg_t *out)
     return true;
 }
 
-/* ── 시작·끝 ──────────────────────────────────────────────── */
+/* ── Start and end ──────────────────────────────────────── */
 
 static void reset_record(const lesson_cfg_t *cfg)
 {
@@ -199,7 +199,7 @@ static bool busy_state(lesson_state_t s)
     return s == ST_WAITING || s == ST_STARTING || s == ST_ACTIVE || s == ST_SUMMARIZING;
 }
 
-/* 수업 세션을 연다: 시간 제한을 걸고 live_voice를 시작 */
+/* Opens the lesson session: sets the time limit and starts live_voice */
 static esp_err_t begin_session(void)
 {
     live_voice_set_next_limits((uint32_t)L->cfg.minutes * 60000u, IDLE_MS);
@@ -270,7 +270,7 @@ bool lesson_change_topic(void)
                                   "and ask an opening question about it, then continue the conversation.");
 }
 
-/* 음성으로 요청한 수업: 지금 대화가 완전히 끝난 뒤 연다 (툴 워커) */
+/* A lesson requested by voice: open it after the current conversation has fully ended (tool worker) */
 static void begin_after_job(void *arg)
 {
     for (int i = 0; i < 50 && live_voice_active(); i++) {
@@ -287,7 +287,7 @@ static void begin_after_job(void *arg)
     }
 }
 
-/* ── 선생님 지침 ──────────────────────────────────────────── */
+/* ── Tutor instructions ─────────────────────────────────── */
 
 static const char *course_focus(lesson_course_t c)
 {
@@ -365,7 +365,7 @@ done:
     return text;
 }
 
-/* ── 전사 모으기 ──────────────────────────────────────────── */
+/* ── Collecting the transcript ──────────────────────────── */
 
 static void append_locked(const char *s, size_t n)
 {
@@ -373,7 +373,7 @@ static void append_locked(const char *s, size_t n)
         return;
     }
     if (L->text_len + n + 1 > TRANSCRIPT_MAX) {
-        /* 앞쪽 절반을 버린다 (긴 수업). 아직 안 뽑은 부분도 밀리면 뽑은 자리를 맞춘다 */
+        /* Drop the first half (long lesson). If the not-yet-extracted part shifts too, adjust the extracted position */
         size_t drop = TRANSCRIPT_MAX / 2;
         memmove(L->text, L->text + drop, L->text_len - drop);
         L->text_len -= drop;
@@ -400,7 +400,7 @@ void lesson_on_transcript(bool from_user, const char *delta)
     UNLOCK();
 }
 
-/* ── 고친 표현 뽑기 (Responses API) ───────────────────────── */
+/* ── Extracting corrected expressions (Responses API) ───── */
 
 typedef struct {
     char *buf;
@@ -429,7 +429,7 @@ static const char SCHEMA[] =
     "\"next_topic\":{\"type\":\"string\"}},"
     "\"required\":[\"topic\",\"corrections\",\"pronunciation\",\"next_topic\"],\"additionalProperties\":false}";
 
-/* 응답 JSON에서 output_text를 찾아 그 안의 JSON을 돌려준다 */
+/* Finds output_text in the response JSON and returns the JSON inside it */
 static cJSON *output_json(const char *body)
 {
     cJSON *root = cJSON_Parse(body);
@@ -565,7 +565,7 @@ static void merge_notes(const cJSON *notes, bool final)
 
 static void save_record(void)
 {
-    s_record_loaded = true;     /* 새 정리가 지난 파일보다 우선 */
+    s_record_loaded = true;     /* a new summary takes priority over the old file */
     cJSON *j = lesson_json();
     char *text = cJSON_PrintUnformatted(j);
     cJSON_Delete(j);
@@ -577,7 +577,7 @@ static void save_record(void)
     free(text);
 }
 
-/* 툴 워커에서 실행 (arg != NULL이면 마지막 정리) */
+/* Runs on the tool worker (final summary if arg != NULL) */
 static void extract_job(void *arg)
 {
     bool final = arg != NULL;
@@ -674,11 +674,11 @@ void lesson_on_session_end(void)
     bool summarize = false;
     if (st == ST_WAITING) {
         UNLOCK();
-        assistant_queue_work(begin_after_job, NULL);    /* 지금 끝난 대화 뒤에 수업을 연다 */
+        assistant_queue_work(begin_after_job, NULL);    /* open the lesson after the conversation that just ended */
         return;
     }
     if (st == ST_STARTING) {
-        L->state = ST_IDLE;     /* 연결 실패 등으로 수업 세션이 열리지 않음 */
+        L->state = ST_IDLE;     /* the lesson session didn't open (connection failure, etc.) */
     } else if (st == ST_ACTIVE) {
         L->ended_ms = now_ms();
         bool spoke = strstr(L->text, "Learner:") != NULL;
@@ -705,7 +705,7 @@ bool lesson_busy(void)
     return L && busy_state(L->state);
 }
 
-/* ── 상태 ─────────────────────────────────────────────────── */
+/* ── State ──────────────────────────────────────────────── */
 
 cJSON *lesson_json(void)
 {
@@ -756,7 +756,7 @@ cJSON *lesson_json(void)
     return j;
 }
 
-/* 지난 수업 정리를 읽어 온다 (재부팅 뒤에도 앱이 볼 수 있게) */
+/* Loads the last lesson summary (so the app can see it even after a reboot) */
 static void load_record(void)
 {
     FILE *f = fopen(LESSON_FILE, "r");
@@ -778,7 +778,7 @@ static void load_record(void)
         merge_notes(j, true);
         const cJSON *el = cJSON_GetObjectItem(j, "elapsed_s");
         if (cJSON_IsNumber(el)) {
-            /* 시각은 부팅 기준이라 걸린 시간만 되살린다 */
+            /* Times are relative to boot, so only the duration is restored */
             L->started_ms = 1;
             L->ended_ms = 1 + (uint32_t)el->valueint * 1000;
         }

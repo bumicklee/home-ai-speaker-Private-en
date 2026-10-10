@@ -7,7 +7,7 @@ import 'package:aispeaker/l10n/app_localizations.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 펌웨어 device_status() 모양 그대로
+/// Exactly the shape of the firmware device_status()
 const statusJson = <String, dynamic>{
   'fw': '0.5.0',
   'build_date': 'Oct  3 2026 10:12:00',
@@ -109,7 +109,7 @@ void main() {
       expect(s.ai.isAvailable(AiProvider.openai, AiMode.saver), isTrue);
       expect(s.ai.providerAvailable(AiProvider.gemini), isFalse);
       expect(s.hasSecret('gemini_key'), isFalse);
-      // 홈도 같은 값
+      // Home shows the same value
       expect(DeviceStatusModel.fromJson(j).ai, s.ai);
     });
 

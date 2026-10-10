@@ -7,7 +7,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/entities/assistant_settings.dart';
 import '../bloc/memories_cubit.dart';
 
-/// 비서 기억 목록 (GET /memories, 하나씩 DELETE /memories/{key})
+/// Assistant memory list (GET /memories, DELETE /memories/{key} one at a time)
 class MemoriesPage extends StatelessWidget {
   const MemoriesPage({super.key});
 

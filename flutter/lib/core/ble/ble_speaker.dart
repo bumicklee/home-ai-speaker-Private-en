@@ -1,5 +1,5 @@
-/// 스피커와의 BLE 작업 (설계서 2.13, 3.4절). 첫 설정·텔레그램 토큰·휴대폰 추가가 모두 이것을 쓴다.
-/// 실제 구현은 BleLink·BleSecretWriter, 테스트는 가짜.
+/// BLE work with the speaker (design document Sections 2.13, 3.4). First-time setup, the Telegram token, and adding a phone all use this.
+/// The real implementation is BleLink and BleSecretWriter; tests use a fake.
 library;
 
 import 'dart:async';
@@ -11,9 +11,9 @@ import 'ble_link.dart';
 import 'ble_secret_writer.dart';
 import 'wifi_scan.dart';
 
-/// 연결된 스피커 하나
+/// One connected speaker
 abstract interface class BleSpeakerSession {
-  /// 기기 식별자 (0xFF61 STA MAC)
+  /// Device identifier (0xFF61 STA MAC)
   String get mac;
   Future<DeviceInfo> deviceInfo();
   Future<List<WifiNetwork>> scanWifi();
@@ -22,25 +22,25 @@ abstract interface class BleSpeakerSession {
   Future<void> eraseSecret(String key);
   Future<PairResult> pair({required String phoneId, required String phoneName, String? evict});
 
-  /// `settings.set` (부분 수정). 키 없는 AI를 고르면 [BleCommandException] `NO_API_KEY`
+  /// `settings.set` (partial update). Choosing an AI with no key gives [BleCommandException] `NO_API_KEY`
   Future<void> setSettings(String group, Map<String, Object?> value);
 
-  /// 0xFF88: Wi-Fi를 바꿨으면 저장 후 재부팅, 아니면 BLE 창만 닫는다
+  /// 0xFF88: if Wi-Fi was changed, save and reboot; otherwise just close the BLE window
   Future<void> finish();
 
-  /// prov.close: 쓴 값 적용, BLE 창 닫기, 재부팅 없음 (첫 설정이 아닌 작업의 끝)
+  /// prov.close: apply written values, close the BLE window, no reboot (the end of any task other than first-time setup)
   Future<void> closeWindow();
   Future<void> disconnect();
 }
 
 abstract interface class BleSpeakerDataSource {
-  /// 권한 + Bluetooth 켜짐 확인
+  /// Check permissions + that Bluetooth is on
   Future<void> ensureReady();
   Stream<List<DiscoveredSpeaker>> scan();
   Future<BleSpeakerSession> connect(DiscoveredSpeaker speaker);
 
-  /// 이미 등록한 스피커(기기 ID = STA MAC)를 찾아 연결한다. 사용자가 Key2를 3초 눌러 BLE 창을 연 뒤에 부른다.
-  /// [timeout] 안에 광고가 안 보이면 [BleException] notFound
+  /// Finds and connects to an already registered speaker (device ID = STA MAC). Call it after the user holds Key2 for 3 seconds to open the BLE window.
+  /// If no advertisement shows up within [timeout], throws [BleException] notFound
   Future<BleSpeakerSession> connectById(String deviceId, {Duration timeout});
   Future<String> defaultPhoneName();
 }
@@ -114,7 +114,7 @@ class _BleSession implements BleSpeakerSession {
     try {
       await _writer.close();
     } on BleException catch (e) {
-      // 닫으면서 기기가 연결을 끊어 응답이 안 올 수 있다
+      // The device may drop the connection as it closes, so the response may never arrive
       if (e.code != BleErrorCode.disconnected && e.code != BleErrorCode.timeout) rethrow;
     }
   }
@@ -131,7 +131,7 @@ class _BleSession implements BleSpeakerSession {
     try {
       await _link.provisioningDone();
     } catch (_) {
-      // 기기가 바로 재부팅하며 연결이 끊겨 쓰기 응답이 안 올 수 있다. 저장은 기기가 이미 했다
+      // The device reboots right away and drops the connection, so the write response may never arrive. The device has already saved
     }
   }
 

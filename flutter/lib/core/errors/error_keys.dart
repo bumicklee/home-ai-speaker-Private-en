@@ -1,5 +1,5 @@
-/// 오류 → ARB 키. 모든 Failure는 errorKey를 반드시 채운다 (led-app은 비워 둬서 현지화가 안 됐다).
-/// 키 이름은 `app_ko.arb`·`app_en.arb`와 같아야 한다.
+/// Error → ARB key. Every Failure must fill errorKey (led-app left it empty, so localization didn't work).
+/// Key names must match `app_ko.arb` and `app_en.arb`.
 library;
 
 import '../constants/ble_protocol.dart';
@@ -42,7 +42,7 @@ class ErrorKeys {
   static const wifiNotFound = 'errorWifiNotFound';
   static const wifiTimeout = 'errorWifiTimeout';
 
-  /// LAN 응답 (HTTP 상태 + 본문 code) → 키
+  /// LAN response (HTTP status + body code) → key
   static String fromDeviceStatus(int status, String? code) {
     switch (code) {
       case 'INVALID_ARG':

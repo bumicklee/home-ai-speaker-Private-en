@@ -1,6 +1,6 @@
 import '../../domain/entities/note.dart';
 
-/// 펌웨어 notes JSON ↔ Note. 모르는 값·빠진 필드는 기본값으로 (gone은 id·rev·state만 온다)
+/// Firmware notes JSON ↔ Note. Unknown values and missing fields get defaults (gone comes with only id, rev, state)
 class NoteModel {
   static Note fromJson(Map<String, dynamic> j) {
     final alert = j['alert'];
@@ -27,7 +27,7 @@ class NoteModel {
     );
   }
 
-  /// 사본 파일에 쓰는 모양 (펌웨어와 같은 키)
+  /// Shape written to the copy file (same keys as the firmware)
   static Map<String, dynamic> toJson(Note n) => {
         'id': n.id,
         'kind': n.kind.id,
@@ -49,7 +49,7 @@ class NoteModel {
         'state': n.state.id,
       };
 
-  /// POST 본문. remind가 null이면 빼서 스피커 기본 알림을 쓰게 한다
+  /// POST body. If remind is null, leave it out so the speaker's default reminders are used
   static Map<String, dynamic> createJson(NoteDraft d) => {
         'kind': d.kind.id,
         'title': d.title,
@@ -59,7 +59,7 @@ class NoteModel {
         if (d.remind != null) 'remind': d.kind == NoteKind.event ? d.remind : <int>[],
       };
 
-  /// PUT 본문. base_rev = 앱이 본 항목의 rev (그 사이 바뀌었으면 409 CONFLICT)
+  /// PUT body. base_rev = the rev of the item the app saw (409 CONFLICT if it changed in between)
   static Map<String, dynamic> updateJson(NoteDraft d, int baseRev) {
     final event = d.kind == NoteKind.event;
     return {
@@ -104,7 +104,7 @@ class NotesSettingsModel {
         'all_day_time': s.allDayTime.format(),
       };
 
-  /// PUT은 일부만 보내도 된다: 바뀐 키만
+  /// PUT may send only some fields: just the changed keys
   static Map<String, dynamic> diff(NotesSettings from, NotesSettings to) {
     final a = toJson(from), b = toJson(to);
     return {

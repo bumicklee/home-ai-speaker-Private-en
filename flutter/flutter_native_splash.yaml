@@ -1,12 +1,12 @@
-# 스플래시 (디자인 "스플래시"). 이미지는 tool/gen_brand_assets.py가 만든다
-# 적용: dart run flutter_native_splash:create
+# Splash screen (design "Splash"). The images are made by tool/gen_brand_assets.py
+# Apply: dart run flutter_native_splash:create
 flutter_native_splash:
   color: "#0B6E6D"
   image: assets/brand/splash_logo.png
   branding: assets/brand/splash_branding.png
   branding_mode: bottom
   branding_bottom_padding: 48
-  # Android 12+ 는 시스템 스플래시 형식(가운데 아이콘 + 아래 브랜딩)만 쓴다
+  # Android 12+ only uses the system splash format (icon in the center + branding at the bottom)
   android_12:
     color: "#0B6E6D"
     image: assets/brand/splash_android12.png

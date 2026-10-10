@@ -1,6 +1,6 @@
-/// 의존성 등록 (설계서 3.2절).
+/// Dependency registration (design document Section 3.2).
 /// Bloc = Factory, Repository·DataSource·Service = LazySingleton.
-/// 예외: 앱 전역 상태(SettingsCubit, DevicesCubit)는 LazySingleton + BlocProvider.value.
+/// Exception: app-wide state (SettingsCubit, DevicesCubit) is LazySingleton + BlocProvider.value.
 library;
 
 import 'package:dio/dio.dart';
@@ -46,7 +46,7 @@ Future<void> initDependencies() async {
     ..registerSingleton<SharedPreferences>(prefs)
     ..registerSingleton<FlutterSecureStorage>(secure)
     ..registerSingleton<InstallState>(InstallState(prefs, secure));
-  await sl<InstallState>().init(); // 재설치면 Keychain을 비운다 (토큰을 읽기 전에)
+  await sl<InstallState>().init(); // On reinstall, clear the Keychain (before reading tokens)
 
   // core
   sl
@@ -74,7 +74,7 @@ Future<void> initDependencies() async {
     ..registerLazySingleton<ProvisioningRepository>(() => ProvisioningRepositoryImpl(sl(), sl(), sl(), sl()))
     ..registerFactory<ProvisioningCubit>(() => ProvisioningCubit(sl(), sl()));
 
-  // 기능 화면
+  // feature screens
   registerRadioFeature(sl);
   registerTelegramFeature(sl);
   registerAssistantFeature(sl);

@@ -1,5 +1,5 @@
-/// 비서 기능 진입점. `injection_container.dart`에서 [registerAssistantFeature]를 부르고,
-/// `app_router.dart`에서 `AppRoutes.assistant`를 [AssistantPage]에 연결한다.
+/// Assistant feature entry point. `injection_container.dart` calls [registerAssistantFeature],
+/// and `app_router.dart` connects `AppRoutes.assistant` to [AssistantPage].
 library;
 
 import 'package:get_it/get_it.dart';
@@ -22,7 +22,7 @@ void registerAssistantFeature(GetIt sl) {
     ..registerLazySingleton<AssistantRepository>(() => AssistantRepositoryImpl(sl()))
     ..registerLazySingleton<LocationService>(DeviceLocationService.new)
     ..registerFactory<AssistantCubit>(() => AssistantCubit(sl(), sl()))
-    // SystemRepository(키 상태·BLE 키 보내기)는 registerSystemFeature, KeyVault는 core에서 등록
+    // SystemRepository (key status, sending keys over BLE) is registered by registerSystemFeature; KeyVault is registered in core
     ..registerFactory<AiModeCubit>(() => AiModeCubit(sl(), sl(), sl()))
     ..registerFactory<MemoriesCubit>(() => MemoriesCubit(sl()));
 }

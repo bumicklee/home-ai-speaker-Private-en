@@ -1,14 +1,14 @@
 /*
- * 라디오 프리셋: storage(littlefs) 파티션의 /storage/presets.json (설계서 2.9절, RAD-08·12).
- * URL이 길어 NVS 문자열 한도(4,000B)를 넘을 수 있어 파일로 둔다.
+ * Radio presets: /storage/presets.json on the storage (littlefs) partition (design document Section 2.9, RAD-08/12).
+ * URLs are long and can exceed the NVS string limit (4,000B), so they live in a file.
  *
- * 기본 프리셋 13개 (RAD-12, 2026-10-03 사용자 요청: 한국 채널 + CNN·블룸버그 + 미국·한국 토크).
- * 모두 MP3/AAC 직접 스트림이다 (HLS는 이 재생기로 못 튼다). 2026-10-03 Mac에서 접속·형식 확인.
- * - KBS·MBC·SBS·CBS·YTN·TBS·EBS·경인방송·TBN·아리랑 등 한국 주요 방송은 전부 HLS(대부분 토큰)라 넣지 못했다.
- *   한국 채널은 인터넷 방송(K-POP, 올드팝)과 공동체 라디오(마포FM, 전주FM, 말 위주)다.
- * - CNN·CNN International·Bloomberg는 TuneIn CDN 주소다. 방송사 공식 주소가 아니라 바뀌거나 막힐 수 있다.
- * - 이름에 한글·영어를 함께 넣어 "블룸버그 틀어 줘"도 이름 일부로 찾게 했다 (radio_presets_find는 부분 일치).
- * 예전 기본값 6개를 그대로 쓰던 기기는 부팅 때 새 기본값으로 바꾼다 (사용자가 고친 목록은 건드리지 않음).
+ * 13 default presets (RAD-12, user request 2026-10-03: Korean channels + CNN/Bloomberg + US/Korean talk).
+ * All are direct MP3/AAC streams (this player can't play HLS). Connection and format checked on a Mac 2026-10-03.
+ * - Major Korean broadcasters (KBS, MBC, SBS, CBS, YTN, TBS, EBS, OBS Gyeongin, TBN, Arirang) are all HLS (mostly tokenized), so they're not included.
+ *   The Korean channels are internet stations (K-POP, oldies) and community radio (Mapo FM, Jeonju FM, mostly talk).
+ * - CNN, CNN International and Bloomberg are TuneIn CDN URLs. They aren't the broadcasters' official URLs and may change or be blocked.
+ * - Names carry both Korean and English so "블룸버그 틀어 줘" (play Bloomberg) also matches part of a name (radio_presets_find is a partial match).
+ * Devices still using the old 6 defaults unchanged are switched to the new defaults at boot (user-edited lists are left alone).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,7 +44,7 @@ static const char DEFAULTS[] =
     "{\"name\":\"BBC World Service\",\"url\":\"https://stream.live.vc.bbcmedia.co.uk/bbc_world_service\",\"genre\":\"news,world,english\"}"
     "]";
 
-/* 예전(2026-10-02) 기본값. 이것과 똑같이 저장된 기기만 새 기본값으로 바꾼다 */
+/* Old (2026-10-02) defaults. Only devices with exactly this saved list get the new defaults */
 static const char OLD_DEFAULTS_V1[] =
     "["
     "{\"name\":\"Radio Paradise Mellow\",\"url\":\"http://stream.radioparadise.com/mellow-128\",\"genre\":\"chill,mellow,eclectic\"},"
@@ -97,7 +97,7 @@ static esp_err_t write_file(const cJSON *arr)
     if (f) {
         bool ok = fputs(text, f) >= 0;
         ok = (fclose(f) == 0) && ok;
-        /* 임시 파일에 다 쓴 뒤 바꿔 끼운다 (쓰다가 전원이 꺼져도 이전 목록이 남게) */
+        /* Write everything to a temp file, then swap it in (so the previous list survives a power loss mid-write) */
         if (ok) {
             remove(FILE_PATH);
             ok = rename(FILE_PATH ".tmp", FILE_PATH) == 0;
@@ -219,7 +219,7 @@ bool radio_presets_entry(int index, char *url, size_t url_len, char *name, size_
     return ok;
 }
 
-/* 대소문자를 무시하고 부분 문자열 찾기 (한글은 바이트 그대로 비교) */
+/* Case-insensitive substring search (Korean is compared byte for byte) */
 static bool contains_ci(const char *hay, const char *needle)
 {
     size_t n = strlen(needle);

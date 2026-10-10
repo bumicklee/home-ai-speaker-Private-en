@@ -1,4 +1,4 @@
-/// 텔레그램 기능 입구. 경로 `/telegram` → [TelegramPage]
+/// Telegram feature entry point. Route `/telegram` → [TelegramPage]
 library;
 
 import 'package:dio/dio.dart';
@@ -13,8 +13,8 @@ import 'presentation/bloc/telegram_cubit.dart';
 
 export 'presentation/pages/telegram_page.dart' show TelegramPage;
 
-/// DataSource·Repository = LazySingleton, Cubit = Factory (설계서 3.2절).
-/// 필요한 core: CurrentDevice, BleSpeakerDataSource, DeviceEventService, KeyVault, Dio('external')
+/// DataSource and Repository = LazySingleton, Cubit = Factory (design document, Section 3.2).
+/// Required from core: CurrentDevice, BleSpeakerDataSource, DeviceEventService, KeyVault, Dio('external')
 void registerTelegramFeature(GetIt sl) {
   sl
     ..registerLazySingleton<TelegramRemoteDataSource>(() => TelegramRemoteDataSource(sl()))

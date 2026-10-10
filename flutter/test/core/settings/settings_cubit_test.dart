@@ -22,7 +22,7 @@ void main() {
     act: (c) async {
       await c.setThemeMode(ThemeMode.dark);
       await c.setLanguage('en');
-      await c.setLanguage('fr'); // 지원 안 함 → 무시
+      await c.setLanguage('fr'); // not supported → ignored
       await c.setLanguage(null);
     },
     expect: () => const [

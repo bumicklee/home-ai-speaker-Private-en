@@ -9,7 +9,7 @@ import '../bloc/english_cubit.dart';
 import 'english_lesson_page.dart';
 import 'english_texts.dart';
 
-/// 영어 선생님: 코스 고르기 (디자인 "영어 선생님: 코스 고르기")
+/// English Tutor: choosing a course (design "English Tutor: Choose a Course")
 class EnglishPage extends StatelessWidget {
   const EnglishPage({super.key});
 
@@ -87,7 +87,7 @@ class _EnglishView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (s.openAiKey == false) ...[
-                  // 영어 수업은 늘 OpenAI 실시간 (설계 docs/design-voice-saver-mode.md 9절 2)
+                  // English lessons always use OpenAI Live (design docs/design-voice-saver-mode.md Section 9, item 2)
                   NoticeBox(warning: true, icon: Icons.key_off_rounded, child: Text(l.engNeedOpenAiKey)),
                   const SizedBox(height: 8),
                 ],
@@ -182,7 +182,7 @@ class _CourseCard extends StatelessWidget {
   }
 }
 
-/// 라벨 + 버튼 몇 개 중 하나 고르기
+/// A label + picking one of a few buttons
 class _ChoiceRow<T> extends StatelessWidget {
   const _ChoiceRow({required this.label, required this.value, required this.options, required this.onChanged});
 

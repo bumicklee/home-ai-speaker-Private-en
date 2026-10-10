@@ -10,7 +10,7 @@ import 'package:aispeaker/core/errors/exceptions.dart';
 import 'package:aispeaker/core/repository/guard.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 요청 조각을 모아 [handler]의 응답을 조각으로 돌려주는 가짜 기기
+/// Fake device that collects request chunks and returns [handler]'s response in chunks
 class FakeDevice implements BleCommandTransport {
   FakeDevice(this.handler, {this.payloadSize = 20});
 
@@ -32,7 +32,7 @@ class FakeDevice implements BleCommandTransport {
     final req = jsonDecode(utf8.decode(msg)) as Map<String, dynamic>;
     requests.add(req);
     final res = handler(req);
-    if (res == null) return; // 응답 안 함 (시간 초과 시험)
+    if (res == null) return; // no response (timeout test)
     scheduleMicrotask(() {
       for (final f in BleFrameCodec.encode(utf8.encode(jsonEncode(res)), payloadSize)) {
         _responses.add(f);
@@ -93,7 +93,7 @@ void main() {
         first = false;
         return null;
       }
-      dev.push({'id': 1, 'ok': false, 'error': 'BUSY'}); // 옛 요청의 늦은 응답
+      dev.push({'id': 1, 'ok': false, 'error': 'BUSY'}); // late response to an old request
       return {'id': r['id'], 'ok': true, 'v': 2};
     });
     final ch = BleCommandChannel(dev, timeout: const Duration(milliseconds: 30));

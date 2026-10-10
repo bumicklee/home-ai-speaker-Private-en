@@ -1,4 +1,4 @@
-# 설계서 2.17절. 중요한 설정은 모두 여기에 둔다 (sdkconfig는 저장소에 넣지 않음)
+# Design document Section 2.17. All important settings live here (sdkconfig is not committed)
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
@@ -11,26 +11,26 @@ CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
-# Wi-Fi·lwIP 버퍼를 먼저 PSRAM에 잡는다 (내부 RAM 부족, 실기기 2026-10-03)
+# Allocate Wi-Fi and lwIP buffers from PSRAM first (internal RAM shortage, real board 2026-10-03)
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
-# 위 옵션은 Wi-Fi 기본 버퍼 수를 늘린다(정적 RX 16, 정적 TX 16). 개수를 줄여 고정한다.
-# (이 모드에서는 동적 TX를 고를 수 없다: Kconfig depends on !SPIRAM_TRY_ALLOCATE_WIFI_LWIP)
+# The option above raises the default Wi-Fi buffer counts (static RX 16, static TX 16). Pin them lower.
+# (Dynamic TX can't be chosen in this mode: Kconfig depends on !SPIRAM_TRY_ALLOCATE_WIFI_LWIP)
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
 CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
 CONFIG_ESP_WIFI_RX_BA_WIN=6
-# S3는 IRAM과 DRAM이 같은 SRAM을 나눠 쓴다. Wi-Fi 코드를 IRAM에 두지 않아 힙을 늘린다
-# (처리량이 조금 줄지만 128kbps 라디오·음성 대화에는 충분)
+# On the S3, IRAM and DRAM share the same SRAM. Keep Wi-Fi code out of IRAM to grow the heap
+# (throughput drops a little, but it's plenty for 128kbps radio and voice conversation)
 CONFIG_ESP_WIFI_IRAM_OPT=n
 CONFIG_ESP_WIFI_RX_IRAM_OPT=n
-# 코드·상수를 PSRAM에서 실행한다 (XIP). 플래시 작업 중에도 캐시를 끄지 않으므로, 스택이 PSRAM인
-# 태스크도 NVS를 읽고 쓸 수 있다 → 태스크 스택을 PSRAM으로 옮겨 내부 RAM을 아낀다 (책 7장 7.3절)
-# 대가: PSRAM 약 2.2MB 사용 (8MB 중), 부팅 때 복사 시간
+# Run code and constants from PSRAM (XIP). The cache stays on during flash operations, so tasks
+# with PSRAM stacks can read and write NVS too → move task stacks to PSRAM to save internal RAM (Chapter 7, Section 7.3)
+# Cost: about 2.2MB of PSRAM (out of 8MB), copy time at boot
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y
-# (검토) 호출어 성능 향상용 캐시 설정 — 효과와 메모리 사용량 측정 후
+# (Under review) cache settings to improve wake word performance — after measuring the effect and memory use
 # CONFIG_ESP32S3_DATA_CACHE_64KB=y
 # CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 
-# 파티션 (2.16절)
+# Partitions (Section 2.16)
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
@@ -39,14 +39,14 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK=y
 
-# 호출어 모델
+# Wake word models
 CONFIG_SR_WN_WN9_ALEXA=y
 CONFIG_SR_WN_WN9_COMPUTER_TTS=y
 
-# 비밀값 평문 NVS: 암호화 끔 (켜두면 HMAC 키가 자동으로 eFuse에 기록됨)
+# Plaintext NVS for secrets: encryption off (if left on, an HMAC key is written to eFuse automatically)
 CONFIG_NVS_ENCRYPTION=n
 
-# BLE (led-app 기준 + 보안). 본딩을 저장하지 않으므로 NVS_PERSIST는 기본값(n)
+# BLE (led-app baseline + security). Bonds aren't stored, so NVS_PERSIST stays at the default (n)
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
@@ -55,41 +55,41 @@ CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
 CONFIG_BT_NIMBLE_SM_SC=y
 CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
 
-# 앱 롤백, 서명된 OTA (eFuse 사용 안 함, 2.18절)
+# App rollback, signed OTA (no eFuse, Section 2.18)
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
 CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y
-# 빌드할 때 RSA-3072 키로 서명한다. 키는 ../certificates/ (Git에 넣지 않음, 책 1.4.9절)
-# 키가 없으면 빌드가 실패한다.
+# Signed with an RSA-3072 key at build time. The key is in ../certificates/ (not in Git, Chapter 1, Section 1.4.9)
+# Without the key, the build fails.
 CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
 CONFIG_SECURE_BOOT_SIGNING_KEY="../certificates/ota_signing_key.pem"
 
-# HTTP 서버
+# HTTP server
 CONFIG_HTTPD_WS_SUPPORT=y
 
-# 로그: INFO까지만 빌드에 넣는다 (HTTP 클라이언트가 URL·헤더를 찍지 않게, 2.2절)
+# Logging: build in only up to INFO (so the HTTP client never prints URLs or headers, Section 2.2)
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 CONFIG_LOG_MAXIMUM_LEVEL_INFO=y
 
-# FreeRTOS 타이머 태스크: Wi-Fi 재연결·DHCP 워치독 콜백이 esp_wifi_*와 로그를 부른다.
-# 기본 2KB로는 넘쳤다 (실기기 2026-10-03, Tmr Svc stack overflow)
+# FreeRTOS timer task: Wi-Fi reconnect and DHCP watchdog callbacks call esp_wifi_* and logging.
+# The default 2KB overflowed (real board 2026-10-03, Tmr Svc stack overflow)
 CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=4096
 
-# 워치독: 멈추면 재부팅 (SYS-10)
+# Watchdog: reboot if stuck (SYS-10)
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
 CONFIG_ESP_TASK_WDT_PANIC=y
 
-# 콘솔: UART0 기본 + USB-Serial-JTAG 보조
+# Console: UART0 primary + USB-Serial-JTAG secondary
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
 
-# mDNS 태스크·메모리도 PSRAM으로 (XIP라 안전, 책 7장 7.3절)
+# mDNS task and memory to PSRAM as well (safe thanks to XIP, Chapter 7, Section 7.3)
 CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y
 CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y
 
-# 소켓 예산 (2.14절): httpd 7 + TLS 3 + mDNS·SNTP 등
+# Socket budget (Section 2.14): httpd 7 + TLS 3 + mDNS, SNTP, etc.
 CONFIG_LWIP_MAX_SOCKETS=16
-# 하드웨어 AES는 PSRAM의 데이터를 처리할 때 내부 RAM에 임시(DMA) 버퍼를 빌린다. 라디오·대화·도구가 TLS를 함께 쓰면
-# 그 버퍼를 못 빌려 "esp-aes: Failed to allocate memory"로 연결이 끊겼다 (책 14장 버그 5, 18장 장애 C).
-# 소프트웨어 AES는 내부 RAM 임시 버퍼가 필요 없다 (CPU는 조금 더 씀, 이 기기의 전송량에는 충분)
+# Hardware AES borrows a temporary (DMA) buffer in internal RAM when it processes PSRAM data. When radio, conversation, and tools use TLS together,
+# it couldn't borrow that buffer and connections dropped with "esp-aes: Failed to allocate memory" (Chapter 14, Bug 5; Chapter 18, Failure C).
+# Software AES needs no temporary buffer in internal RAM (it uses a little more CPU, plenty for this device's traffic)
 # CONFIG_MBEDTLS_HARDWARE_AES is not set

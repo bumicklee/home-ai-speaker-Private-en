@@ -1,8 +1,8 @@
 /*
- * 설정 명령 프로토콜 (설계서 2.13절, 0xFF81 / 0xFF82).
- * 조각: [seq:1B][flags:1B][payload…], flags bit0 = 마지막, bit1 = 첫 조각.
- * 재조립 최대 4,096바이트, 3초 제한, 연결당 동시 요청 1개.
- * 응답은 요청을 보낸 암호화 링크로만 나간다. 비밀값은 응답·로그에 절대 넣지 않는다.
+ * Settings command protocol (design document, Section 2.13, 0xFF81 / 0xFF82).
+ * Chunk: [seq:1B][flags:1B][payload…], flags bit0 = last, bit1 = first chunk.
+ * Reassembly up to 4,096 bytes, 3 s limit, 1 request at a time per connection.
+ * Responses go out only on the encrypted link that sent the request. Secrets never go into responses or logs.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -23,14 +23,14 @@ static const char *TAG = "BLE_CMD";
 #define FLAG_LAST  0x01
 #define FLAG_FIRST 0x02
 
-/* 재조립 (GATT 콜백에서만 쓴다) */
+/* Reassembly (used only from the GATT callback) */
 static char *s_buf;
 static size_t s_used;
-static int s_next_seq = -1;             /* -1 = 진행 중인 메시지 없음 */
+static int s_next_seq = -1;             /* -1 = no message in progress */
 static esp_timer_handle_t s_timeout;
-static volatile bool s_busy;            /* 요청 하나를 처리하는 중 */
+static volatile bool s_busy;            /* handling one request */
 static volatile bool s_close_requested;
-/* 재조립 상태는 NimBLE 호스트 태스크(조각)와 esp_timer 태스크(시간 초과)가 함께 만진다 */
+/* Reassembly state is touched by both the NimBLE host task (chunks) and the esp_timer task (timeout) */
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 typedef enum {
@@ -104,7 +104,7 @@ int ble_cmd_on_fragment(const uint8_t *data, size_t len)
         esp_timer_stop(s_timeout);
     }
 
-    /* 상태 변경은 잠금 안에서, 일감 넣기·타이머·malloc은 잠금 밖에서 */
+    /* state changes inside the lock; posting jobs, timers and malloc outside it */
     enum { R_MORE, R_ERROR, R_TOO_LARGE, R_DONE } result;
     size_t total = 0;
     portENTER_CRITICAL(&s_lock);
@@ -123,12 +123,12 @@ int ble_cmd_on_fragment(const uint8_t *data, size_t len)
         memcpy(s_buf + s_used, data + 2, len - 2);
         s_used += len - 2;
         if (flags & FLAG_LAST) {
-            s_next_seq = -1;        /* 시간 초과 콜백이 이 메시지를 건드리지 못하게 먼저 닫는다 */
+            s_next_seq = -1;        /* close it first so the timeout callback can't touch this message */
             s_buf[s_used] = '\0';
             total = s_used;
             result = R_DONE;
         } else {
-            s_next_seq = seq == 255 ? -1 : seq + 1;     /* 255개 초과 금지 */
+            s_next_seq = seq == 255 ? -1 : seq + 1;     /* no more than 255 */
             result = R_MORE;
         }
     }
@@ -150,7 +150,7 @@ int ble_cmd_on_fragment(const uint8_t *data, size_t len)
         return 0;
     }
 
-    /* 완성된 메시지: 복사한 뒤 버퍼를 바로 지운다 (BUSY여도 비밀값이 남지 않게) */
+    /* complete message: copy it, then wipe the buffer right away (so no secret is left behind, even on BUSY) */
     char *copy = malloc(total + 1);
     portENTER_CRITICAL(&s_lock);
     if (copy) {
@@ -179,7 +179,7 @@ int ble_cmd_on_fragment(const uint8_t *data, size_t len)
     return 0;
 }
 
-/* ── 응답 보내기 (작업 태스크) ────────────────────────────── */
+/* ── Sending responses (worker task) ────────────────────────────── */
 
 static void send_response(cJSON *resp)
 {
@@ -189,7 +189,7 @@ static void send_response(cJSON *resp)
         return;
     }
     size_t len = strlen(text);
-    size_t chunk = ble_mtu() - 5;       /* ATT 헤더 3바이트 + 조각 헤더 2바이트 */
+    size_t chunk = ble_mtu() - 5;       /* 3-byte ATT header + 2-byte chunk header */
     uint8_t frame[520];
     if (chunk > sizeof(frame) - 2) {
         chunk = sizeof(frame) - 2;
@@ -236,7 +236,7 @@ static const char *err_code(esp_err_t err)
     case ESP_ERR_NOT_FOUND:
         return "INVALID_ARG";
     case ESP_ERR_NOT_ALLOWED:
-        /* settings.set group assistant: ai_provider를 키가 없는 회사로 (docs/design-voice-saver-mode.md 11.1) */
+        /* settings.set group assistant: ai_provider set to a provider with no key (docs/design-voice-saver-mode.md 11.1) */
         return "NO_API_KEY";
     default:
         return "STORAGE_FAIL";
@@ -255,7 +255,7 @@ static void secrets_changed(void)
     app_events_post(APP_EVT_SETTINGS_CHANGED, &key, sizeof(key), 0);
 }
 
-/* ── 명령 처리 ────────────────────────────────────────────── */
+/* ── Command handling ────────────────────────────────────────────── */
 
 static cJSON *handle(int id, const char *op, cJSON *req)
 {
@@ -314,7 +314,7 @@ static cJSON *handle(int id, const char *op, cJSON *req)
         char token[PHONE_TOKEN_LEN + 1];
         esp_err_t err = phones_pair(phone_id, name ? name : "", string_field(req, "evict"), token);
         if (err == ESP_ERR_INVALID_SIZE) {
-            /* 가득 참: 목록을 주고 앱이 지울 휴대폰을 골라 evict로 다시 요청 */
+            /* full: return the list; the app picks a phone to remove and retries with evict */
             cJSON *r = new_response(id, false);
             cJSON_AddStringToObject(r, "error", "PHONES_FULL");
             cJSON_AddItemToObject(r, "phones", phones_list(NULL));
@@ -342,7 +342,7 @@ static cJSON *handle(int id, const char *op, cJSON *req)
     }
 
     if (!strcmp(op, "spotify.link")) {
-        /* 두 값을 한 번에 저장한다. 저장하기 전에 토큰 갱신으로 확인 (2.13절) */
+        /* save both values at once. Verify with a token refresh before saving (Section 2.13) */
         cJSON *rt = cJSON_GetObjectItemCaseSensitive(req, "refresh_token");
         esp_err_t err = spotify_link(string_field(req, "client_id"), cJSON_IsString(rt) ? rt->valuestring : NULL);
         if (cJSON_IsString(rt)) {
@@ -351,14 +351,14 @@ static cJSON *handle(int id, const char *op, cJSON *req)
         cJSON *r = new_response(id, err == ESP_OK);
         if (err != ESP_OK) {
             cJSON_AddStringToObject(r, "error", err == ESP_ERR_INVALID_ARG    ? "INVALID_ARG"
-                                                : err == ESP_ERR_NOT_SUPPORTED ? "UNKNOWN_OP"    /* Spotify를 끈 빌드 */
+                                                : err == ESP_ERR_NOT_SUPPORTED ? "UNKNOWN_OP"    /* build with Spotify turned off */
                                                                                : "STORAGE_FAIL");
         }
         return r;
     }
 
     if (!strcmp(op, "prov.close")) {
-        s_close_requested = true;   /* 응답을 보낸 뒤 작업 태스크가 창을 닫는다 */
+        s_close_requested = true;   /* the worker task closes the window after sending the response */
         return new_response(id, true);
     }
 
@@ -381,7 +381,7 @@ void ble_cmd_handle(char *json, size_t len)
         resp = new_response(rid, false);
         cJSON_AddStringToObject(resp, "error", "INVALID_ARG");
     } else {
-        ESP_LOGI(TAG, "op %s", op->valuestring);    /* 내용은 남기지 않는다 */
+        ESP_LOGI(TAG, "op %s", op->valuestring);    /* content is never logged */
         resp = handle(rid, op->valuestring, req);
         if (!resp) {
             resp = new_response(rid, false);
@@ -393,7 +393,7 @@ void ble_cmd_handle(char *json, size_t len)
     s_busy = false;
 }
 
-/* 작업 태스크에서: 재조립 실패 응답 */
+/* From the worker task: reassembly failure response */
 void ble_cmd_frame_error(int kind)
 {
     ble_cmd_reply_error(-1, kind == FRAME_ERR_TIMEOUT ? "FRAME_TIMEOUT"

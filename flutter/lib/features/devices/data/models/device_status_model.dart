@@ -1,7 +1,7 @@
 import '../../../../core/ai/ai_choice.dart';
 import '../../domain/entities/device_status.dart';
 
-/// 펌웨어 `device_info.c`의 `/status` JSON → DeviceStatus
+/// `/status` JSON from the firmware's `device_info.c` → DeviceStatus
 class DeviceStatusModel {
   static DeviceStatus fromJson(Map<String, dynamic> j) {
     final tg = j['telegram'] as Map<String, dynamic>? ?? const {};
@@ -22,7 +22,7 @@ class DeviceStatusModel {
     );
   }
 
-  /// `/media/now`, WS `media_state` (event 키는 무시)
+  /// `/media/now`, WS `media_state` (the event key is ignored)
   static MediaNow mediaFromJson(Map<String, dynamic> j) => MediaNow(
         source: j['source'] as String? ?? 'none',
         state: j['state'] as String? ?? 'stopped',

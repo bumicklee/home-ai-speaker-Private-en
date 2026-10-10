@@ -6,7 +6,7 @@ import '../../../../core/widgets/app_widgets.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../devices/presentation/bloc/devices_cubit.dart';
 
-/// 스피커 고르기 (여러 대 등록했을 때)
+/// Choose a speaker (when more than one is registered)
 Future<void> showDevicePicker(BuildContext context) {
   final cubit = context.read<DevicesCubit>();
   return showModalBottomSheet<void>(

@@ -1,5 +1,5 @@
-# 앱 아이콘 (디자인 "앱 아이콘"). 이미지는 tool/gen_brand_assets.py가 만든다
-# 적용: dart run flutter_launcher_icons
+# App icon (design "App icon"). The images are made by tool/gen_brand_assets.py
+# Apply: dart run flutter_launcher_icons
 flutter_launcher_icons:
   image_path: "assets/brand/icon.png"
   android: "launcher_icon"

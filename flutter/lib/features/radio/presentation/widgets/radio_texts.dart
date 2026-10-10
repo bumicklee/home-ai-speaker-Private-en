@@ -3,7 +3,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/radio_rules.dart';
 
-/// 라디오 화면 공통 문구
+/// Shared text for the radio screens
 extension RadioTexts on AppLocalizations {
   String presetErrorText(PresetError e) => switch (e) {
         PresetError.tooMany => radioErrTooMany(RadioLimits.maxPresets),
@@ -23,7 +23,7 @@ extension RadioTexts on AppLocalizations {
         PresetGroup.other => radioGroupOther,
       };
 
-  /// 409 NOT_PLAYING은 공통 키가 없어 여기서 고른다 (공통은 "바빠요"로 보인다)
+  /// 409 NOT_PLAYING has no shared key, so pick it here (the shared one shows as "바빠요" (Busy))
   String radioFailureText(Failure f) =>
       f is DeviceFailure && f.code == 'NOT_PLAYING' ? radioNotPlaying : errorText(f);
 }

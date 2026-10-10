@@ -1,10 +1,10 @@
 /**
  * @file saver_voice.h
- * @brief live_voice.c ↔ saver_voice.c 전용 내부 계약 (docs/design-voice-saver-mode.md 11.5·11.6)
+ * @brief Private internal contract between live_voice.c and saver_voice.c (docs/design-voice-saver-mode.md 11.5, 11.6)
  *
- * components/live_voice 안에서만 보인다 (CMakeLists의 PRIV_INCLUDE_DIRS "."). 다른 컴포넌트는 이 파일을
- * 모른다. live_voice.c가 세션 공유 상태(바쁨·상태·준비·문구·세대·정지 요청)를 들고 있고, saver_voice.c는
- * 그 상태를 이 작은 전달 함수들로만 건드린다. 실시간(openai.live) 경로의 기존 static 변수는 그대로 둔다.
+ * Visible only inside components/live_voice (PRIV_INCLUDE_DIRS "." in CMakeLists). Other components don't know
+ * this file. live_voice.c holds the shared session state (busy, state, ready, status, generation, stop request), and saver_voice.c
+ * touches it only through these small pass-through functions. The existing static variables of the Live (openai.live) path stay as they are.
  */
 #pragma once
 
@@ -19,40 +19,40 @@
 extern "C" {
 #endif
 
-/* ── live_voice.c가 구현, saver_voice.c가 부른다 ─────────────── */
+/* ── implemented by live_voice.c, called by saver_voice.c ─────────────── */
 
 void     voice_shared_set_state(voice_state_t state);
 void     voice_shared_set_ready(bool ready);
-/** 고정 문자열만 (내용·키는 절대 안 됨) */
+/** Fixed strings only (never content or keys) */
 void     voice_shared_set_status(const char *text);
 bool     voice_shared_stopping(void);
-/** 세션 마무리 공통부: ready=false, (실패 아니면 status="Ready"), busy=false, VOICE_IDLE */
+/** Common session wrap-up: ready=false, (status="Ready" unless failed), busy=false, VOICE_IDLE */
 void     voice_shared_end(bool had_error);
-/** 실시간 엔진이 맡아 둔 내부 RAM 자리(약 12KB)를 대화 동안 풀고, 끝나면 다시 맡는다 */
+/** Releases the internal RAM spot (about 12KB) the Live engine reserved for the conversation, and reserves it again afterward */
 void     voice_shared_reserve_release(void);
 void     voice_shared_reserve_take(void);
-/** 등록된 핸들러(assistant_init이 live_voice_set_handlers로 넣어 둔 것). 세션 시작 전에 고정됨 */
+/** Registered handlers (set by assistant_init via live_voice_set_handlers). Fixed before the session starts */
 const live_voice_handlers_t *voice_shared_handlers(void);
-/** live_voice_set_next_limits()로 들어온 값(0이면 기본값 적용은 호출한 쪽 몫)을 한 번 꺼낸다 */
+/** Takes the values set by live_voice_set_next_limits() once (if 0, applying the default is up to the caller) */
 void     voice_shared_take_next_limits(uint32_t *max_ms, uint32_t *idle_ms);
 
-/* ── saver_voice.c가 구현, live_voice.c가 부른다 ─────────────── */
+/* ── implemented by saver_voice.c, called by live_voice.c ─────────────── */
 
-/** 부팅 때 한 번: 세션 태스크를 만든다 (스택 PSRAM) */
+/** Once at boot: create the session task (stack in PSRAM) */
 esp_err_t saver_voice_init(void);
-/** live_voice_start()가 세션 태스크를 깨울 때 쓰는 태스크 진입점 (ulTaskNotifyTake 루프) */
+/** Task entry point used when live_voice_start() wakes the session task (ulTaskNotifyTake loop) */
 void      saver_voice_task_entry(void *arg);
-/** Key2 짧게: 지금 재생만 멈추고 듣기로. 절약 세션이 없으면 아무 일도 안 함 */
+/** Key2 short press: stop current playback only and go back to listening. Does nothing without a Saver session */
 void      saver_voice_barge_in(void);
 /**
- * live_voice_text()가 saver 세션이 active일 때 넘기는 글(지금은 알림 문장만, 11.7절). AI 없이 그대로
- * 합성만 하고 다시 듣기로 돌아간다. live_voice_ready()가 true가 아니면 ESP_ERR_INVALID_STATE
+ * Text passed by live_voice_text() while a saver session is active (currently reminder sentences only, Section 11.7). Synthesized
+ * as is without the AI, then back to listening. ESP_ERR_INVALID_STATE unless live_voice_ready() is true
  */
 esp_err_t saver_voice_text(const char *text);
 
 /**
- * 비서 설정의 목소리 이름을 Gemini TTS/Live의 prebuilt 목소리 이름으로 바꾼다(겹치는 이름 있으면 그대로,
- * 없으면 "Kore"). saver_voice.c(절약 모드 합성)와 gemini_live.c(3단계, speechConfig) 둘 다 쓴다.
+ * Maps the voice name from assistant settings to a Gemini TTS/Live prebuilt voice name (same name if it exists,
+ * otherwise "Kore"). Used by both saver_voice.c (Saver mode synthesis) and gemini_live.c (stage 3, speechConfig).
  */
 const char *gemini_tts_voice(const char *voice);
 

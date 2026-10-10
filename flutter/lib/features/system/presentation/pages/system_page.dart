@@ -13,7 +13,7 @@ import '../system_format.dart';
 import 'app_settings_page.dart';
 import 'keys_page.dart';
 
-/// 시스템 (디자인 "시스템"): 기기 정보, 등록된 휴대폰, 키·앱 설정, 다시 시작, 공장 초기화 안내, 휴대폰에서 지우기
+/// System (design "System"): device info, registered phones, keys and app settings, restart, factory reset guide, remove from this phone
 class SystemPage extends StatelessWidget {
   const SystemPage({super.key});
 
@@ -116,7 +116,7 @@ class _SystemView extends StatelessWidget {
     if (!await confirm(context, title: l.sysRebootTitle, body: l.sysRebootBody, action: l.sysRebootAction)) return;
     final f = await cubit.reboot();
     if (!context.mounted) return;
-    // 409 VOICE_ACTIVE → "대화 중에는 할 수 없어요"
+    // 409 VOICE_ACTIVE → "대화 중에는 할 수 없어요" (Can't do this during a conversation)
     f == null ? showMessage(context, l.sysRebooting) : showFailure(context, f);
   }
 
@@ -131,7 +131,7 @@ class _SystemView extends StatelessWidget {
         title: l.sysForgetTitle, body: l.sysForgetBody, action: l.sysForgetAction, destructive: true)) {
       return;
     }
-    await cubit.revokeSelf(); // 연결이 안 되면 그냥 넘어간다
+    await cubit.revokeSelf(); // if it can't connect, just move on
     await devices.remove(id);
     navigator.popUntil((r) => r.isFirst);
   }
@@ -147,7 +147,7 @@ class _Chevron extends StatelessWidget {
       );
 }
 
-/// 이름 + 값 두 칸 줄 (디자인의 dl)
+/// Two-column name + value row (the design's dl)
 class _InfoLine extends StatelessWidget {
   const _InfoLine(this.label, this.value);
 
@@ -273,7 +273,7 @@ class _PhonesSection extends StatelessWidget {
   }
 }
 
-/// 접힌 "진단": 빌드, 시작 이유, 메모리, 최근 실패
+/// Collapsed "Diagnostics": build, start reason, memory, recent failures
 class _Diagnostics extends StatelessWidget {
   const _Diagnostics({required this.status});
 

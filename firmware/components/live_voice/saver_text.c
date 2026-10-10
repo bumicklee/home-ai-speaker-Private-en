@@ -8,7 +8,7 @@ static bool is_ascii_space(unsigned char c)
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-/* 의미 없다고 치는 ASCII 구두점(공백 포함). 한글 자모·글자는 모두 "의미 있음"으로 센다 */
+/* ASCII punctuation (including space) treated as meaningless. All Hangul jamo and syllables count as "meaningful" */
 static bool is_ascii_filler_char(unsigned char c)
 {
     return is_ascii_space(c) || strchr(".,!?~'\"-", (char)c) != NULL;
@@ -29,12 +29,15 @@ static const char *trim(const char *s, size_t *len)
     return s + start;
 }
 
-/* 잡음성 문구 (docs/design-voice-saver-mode.md 11.6). 끝의 ASCII 구두점·앞뒤 공백을 떼고, ASCII만 소문자로
- * 바꿔 비교한다(한글은 대소문자가 없다). 256바이트보다 길면 애초에 이런 짧은 문구가 아니라고 본다 */
+/* Noise phrases (docs/design-voice-saver-mode.md 11.6). Strip trailing ASCII punctuation and surrounding spaces, lowercase
+ * ASCII only, then compare (Hangul has no case). Anything longer than 256 bytes is not such a short phrase to begin with */
 static const char *const FILLERS[] = {
     "감사합니다",
     "시청해 주셔서 감사합니다",
     "thank you",
+    "thank you for watching",
+    "thanks for watching",
+    "bye",
 };
 #define FILLER_COUNT (sizeof(FILLERS) / sizeof(FILLERS[0]))
 
@@ -46,11 +49,11 @@ static bool matches_filler(const char *text, size_t len)
     char buf[256];
     memcpy(buf, text, len);
     buf[len] = '\0';
-    /* 끝의 ASCII 구두점(마침표 등) 떼기 */
+    /* Strip trailing ASCII punctuation (periods etc.) */
     while (len > 0 && strchr(".,!?~ \t", buf[len - 1])) {
         buf[--len] = '\0';
     }
-    /* ASCII만 소문자로 */
+    /* Lowercase ASCII only */
     for (size_t i = 0; i < len; i++) {
         if ((unsigned char)buf[i] < 0x80) {
             buf[i] = (char)tolower((unsigned char)buf[i]);
@@ -77,13 +80,13 @@ bool saver_text_is_noise(const char *text)
     if (matches_filler(trimmed, len)) {
         return true;
     }
-    /* 의미 있는 글자(공백·ASCII 구두점이 아닌 UTF-8 코드포인트) 수를 센다. UTF-8 이어지는 바이트
-     * (10xxxxxx)는 건너뛰어 코드포인트 하나로 센다 */
+    /* Count meaningful characters (UTF-8 code points that are not space or ASCII punctuation). UTF-8 continuation
+     * bytes (10xxxxxx) are skipped so each code point counts once */
     unsigned meaningful = 0;
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)trimmed[i];
         if ((c & 0xC0) == 0x80) {
-            continue;   /* UTF-8 이어지는 바이트: 앞 코드포인트의 일부 */
+            continue;   /* UTF-8 continuation byte: part of the previous code point */
         }
         if (c < 0x80 && is_ascii_filler_char(c)) {
             continue;
@@ -104,8 +107,8 @@ void saver_text_split_sentences(const char *text, saver_sentence_cb_t cb, void *
         if (!boundary) {
             continue;
         }
-        size_t end = i < n ? i + 1 : i;   /* 마침표류는 문장에 포함 */
-        /* 앞뒤 공백을 건너뛴다 */
+        size_t end = i < n ? i + 1 : i;   /* sentence-ending punctuation stays in the sentence */
+        /* Skip leading and trailing spaces */
         size_t s = start;
         while (s < end && is_ascii_space((unsigned char)text[s])) {
             s++;
@@ -121,7 +124,7 @@ void saver_text_split_sentences(const char *text, saver_sentence_cb_t cb, void *
     }
 }
 
-/* ── 셀프테스트 ───────────────────────────────────────────── */
+/* ── Self-test ───────────────────────────────────────────── */
 
 typedef struct {
     unsigned count;
@@ -149,15 +152,22 @@ bool saver_text_selftest(void)
 
     ok &= saver_text_is_noise("");
     ok &= saver_text_is_noise("   ");
-    ok &= saver_text_is_noise("네");          /* 1글자 */
-    ok &= saver_text_is_noise("응응");        /* 2글자 */
+    ok &= saver_text_is_noise("네");          /* 1 character */
+    ok &= saver_text_is_noise("응응");        /* 2 characters */
     ok &= saver_text_is_noise("감사합니다");
     ok &= saver_text_is_noise("감사합니다.");
     ok &= saver_text_is_noise("  Thank you.  ");
     ok &= saver_text_is_noise("시청해 주셔서 감사합니다");
-    ok &= !saver_text_is_noise("내일 날씨 어때?");      /* 의미 있는 질문 */
-    ok &= !saver_text_is_noise("고마워요");             /* 3글자, 목록에 없음 */
-    ok &= saver_text_is_noise(NULL);                     /* NULL은 잡음 취급 */
+    ok &= saver_text_is_noise("Thank you for watching.");
+    ok &= saver_text_is_noise("Thanks for watching!");
+    ok &= saver_text_is_noise("Thank you.");
+    ok &= saver_text_is_noise("Bye.");
+    ok &= !saver_text_is_noise("Thank you for watching the oven");  /* whole utterance only, never a substring */
+    ok &= !saver_text_is_noise("Bye computer");                     /* hang-up phrase, not noise */
+    ok &= !saver_text_is_noise("What's the weather tomorrow?");    /* meaningful question */
+    ok &= !saver_text_is_noise("내일 날씨 어때?");      /* meaningful question */
+    ok &= !saver_text_is_noise("고마워요");             /* 3 characters, not in the list */
+    ok &= saver_text_is_noise(NULL);                     /* NULL counts as noise */
 
     split_capture_t c = {0};
     saver_text_split_sentences("오늘은 맑아요. 내일은 비가 와요! 우산 챙기세요?", capture_cb, &c);
@@ -166,11 +176,11 @@ bool saver_text_selftest(void)
 
     split_capture_t c2 = {0};
     saver_text_split_sentences("  ", capture_cb, &c2);
-    ok &= c2.count == 0;      /* 빈 조각은 건너뛴다 */
+    ok &= c2.count == 0;      /* empty chunks are skipped */
 
     split_capture_t c3 = {0};
     saver_text_split_sentences("한 줄에 끝 문장 (마침표 없음)", capture_cb, &c3);
-    ok &= c3.count == 1;      /* 끝에 마침표가 없어도 마지막 조각은 나온다 */
+    ok &= c3.count == 1;      /* the last chunk comes out even without a final period */
 
     return ok;
 }

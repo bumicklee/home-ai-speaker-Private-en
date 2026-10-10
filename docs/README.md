@@ -1,18 +1,18 @@
 # docs/
 
-이 스피커를 만들 때 쓴 기능표·설계서와 앱 화면 그림이다. 독자는 책 2장에서 자기 문서를 직접 만들고, 막히면 여기 있는 완성본 문서와 비교한다.
+These are the feature table, design documents and app screen drawings used while building this speaker. You write your own documents in Chapter 2 of the book, and when you get stuck you compare them with the finished documents here.
 
-| 파일 | 책 | 내용 |
+| File | Book | Contents |
 |:--|:--|:--|
-| `01-plan/ai-speaker.features.md` | 2장 | 기능표. 코드 주석·설계서·책의 기능 ID(`VOI-03`, `TLG-08` 등)는 이 표에서 찾는다 |
-| `design.md` | 2장 이후 전체 | 설계서: 핀표, 컴포넌트, BLE·LAN 규격, 파티션, sdkconfig. 코드 주석의 "설계서 N.N절"은 이 문서다 |
-| `design-voice-saver-mode.md` | 17·18장 | 절약 모드와 AI 고르기 설계 |
-| `design-notes-schedule.md` | 16장 | 메모·일정·알림 설계 |
-| `dev-environment.md` | 1장 | 개발 환경(버전표, 설치 명령, 자주 나는 문제) |
-| `AI-PA 앱 화면.pdf` | 11장, 부록 F | 완성된 앱 화면 25개 (한 쪽에 화면 하나) |
-| `Jarvis 스피커 앱 디자인.html` | 11장 | 처음 디자인 캔버스를 내보낸 파일 (화면 11개) |
+| `01-plan/ai-speaker.features.md` | Chapter 2 | The feature table. Feature IDs used in code comments, the design document and the book (`VOI-03`, `TLG-08`, etc.) are looked up in this table |
+| `design.md` | Chapter 2 onward | The design document: pin table, components, BLE and LAN specifications, partitions, sdkconfig. "Design document Section N.N" in code comments refers to this document |
+| `design-voice-saver-mode.md` | Chapters 17 and 18 | Design for Saver mode and choosing an AI |
+| `design-notes-schedule.md` | Chapter 16 | Design for notes, schedule, and reminders |
+| `dev-environment.md` | Chapter 1 | The development environment (version table, install commands, common problems) |
+| `AI-PA 앱 화면.pdf` | Chapter 11, Appendix F | The 25 screens of the finished app (one screen per page) |
+| `Jarvis 스피커 앱 디자인.html` | Chapter 11 | The first design canvas, exported (11 screens) |
 
-- 날짜와 "Phase N" 표기는 만들 때의 기록을 그대로 둔 것이다. 책에서는 "N장"으로 부른다.
-- 기획서, 단계별 작업 일지, 원인 분석(RCA) 문서는 넣지 않았다. 같은 내용은 책의 해당 장에 있고, 코드 주석도 책의 장·절을 가리킨다.
-- `HANDOFF.md`(인수인계)는 넣지 않았다. 다음 Claude Code 세션이 지금 상태로 읽는 문서라, 2장에서 내 저장소에 직접 만든다.
-- 문서 양식은 `.claude/skills/speaker-method/templates.md`에 있다(`/speaker-method plan`, `design`, `handoff`, `rca`).
+- Dates and "Phase N" labels are kept as they were recorded during the build. The book calls them "Chapter N."
+- The plan document, step-by-step work logs and root cause analysis (RCA) documents are not included. The same content is in the matching chapters of the book, and the code comments also point to the book's chapters and sections.
+- `HANDOFF.md` (the handoff document) is not included. It is a document the next Claude Code session reads to learn the current state, so you create it directly in your repository in Chapter 2.
+- The document templates are in `.claude/skills/speaker-method/templates.md` (`/speaker-method plan`, `design`, `handoff`, `rca`).

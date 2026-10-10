@@ -1,4 +1,4 @@
-## 시작 버전은 실기기에서 빌드된 두 프로젝트의 dependencies.lock을 따른다 (설계서 2.1절)
+## Starting versions follow the dependencies.lock of the two projects built on real hardware (design document Section 2.1)
 dependencies:
   idf: ">=5.5"
   espressif/esp_websocket_client: "1.8.0"
@@ -10,4 +10,4 @@ dependencies:
   espressif/esp_audio_codec: "2.3.0"
   espressif/esp_audio_effects: "1.1.0"
   espressif/mdns: "1.14.0"
-  joltwallet/littlefs: "1.22.3"     # storage 파티션 (라디오 프리셋, 2.9절)
+  joltwallet/littlefs: "1.22.3"     # storage partition (radio presets, Section 2.9)

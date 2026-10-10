@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 
-/// 외부 API용 (Radio-Browser, Telegram getMe). 기기 토큰을 붙이지 않는다.
+/// For external APIs (Radio-Browser, Telegram getMe). Doesn't attach the device token.
 Dio createExternalHttp() => Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 8),
       receiveTimeout: const Duration(seconds: 15),
-      // Radio-Browser는 User-Agent를 요구한다
+      // Radio-Browser requires a User-Agent
       headers: {'User-Agent': 'AISpeakerApp/1.0'},
     ));

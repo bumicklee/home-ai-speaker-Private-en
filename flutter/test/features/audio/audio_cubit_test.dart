@@ -88,7 +88,7 @@ void main() {
     final c = build();
     await c.load();
 
-    c.preview(wake: wake.copyWith(sensitivity: 30)); // 끄는 중
+    c.preview(wake: wake.copyWith(sensitivity: 30)); // while dragging
     expect(c.state.wake?.sensitivity, 30);
     await c.setSensitivity(30);
     verify(() => repo.updateWake({'sensitivity': 30})).called(1);
@@ -128,7 +128,7 @@ void main() {
     await c.startWakeTest();
     expect(c.state.wakeTest, const WakeTest(remaining: 60));
 
-    // 펌웨어의 detections는 부팅 후 누적이므로 값이 아니라 이벤트 수를 센다
+    // The firmware's detections is cumulative since boot, so count events, not the value
     stream.add(const DeviceEvent('wake_test', {'detections': 7}));
     stream.add(const DeviceEvent('wake_test', {'detections': 8}));
     await pump();
@@ -139,7 +139,7 @@ void main() {
     expect(c.state.wakeTest?.remaining, 0);
     expect(c.state.wakeTest?.running, isFalse);
 
-    // 끝난 뒤 이벤트는 세지 않는다
+    // events after it ends are not counted
     stream.add(const DeviceEvent('wake_test', {'detections': 9}));
     await pump();
     expect(c.state.wakeTest?.detections, 2);

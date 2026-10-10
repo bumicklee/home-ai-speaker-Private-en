@@ -1,9 +1,9 @@
 /*
- * Radio-Browser(https://www.radio-browser.info) 방송 검색 (RAD-02).
- * "재즈 라디오 틀어 줘" → 프리셋에 재즈가 없으면 여기서 tag=jazz로 찾는다.
- * 인기 순(clickcount)으로 이 재생기가 틀 수 있어 보이는 것(MP3·AAC 직접 스트림)을 최대 3개 고른다.
- * 주소만 봐서는 HLS인지 모를 때가 있어(재생목록 안이 HLS), 재생기가 실패하면 다음 후보로 넘어간다.
- * 응답 내용은 외부 데이터라 로그에 남기지 않는다(방송 이름만).
+ * Station search via Radio-Browser (https://www.radio-browser.info) (RAD-02).
+ * "재즈 라디오 틀어 줘" (play jazz radio) → if no preset has jazz, search here with tag=jazz.
+ * Picks up to 3 stations, by popularity (clickcount), that look playable by this player (direct MP3/AAC streams).
+ * The URL alone doesn't always reveal HLS (a playlist that contains HLS), so if the player fails it moves to the next candidate.
+ * The response is external data, so it is not logged (station names only).
  */
 #include <ctype.h>
 #include <stdio.h>
@@ -64,7 +64,7 @@ static bool playable(const cJSON *s)
     }
     const char *u = url->valuestring;
     bool http = !strncmp(u, "http://", 7) || !strncmp(u, "https://", 8);
-    /* Radio-Browser가 HLS로 표시한 것도 뺀다 (주소에 .m3u8이 없어도 HLS인 방송이 있다, 2026-10-03 실기기) */
+    /* Also drop what Radio-Browser marks as HLS (some stations are HLS without .m3u8 in the URL, real board 2026-10-03) */
     const cJSON *hls_flag = cJSON_GetObjectItem(s, "hls");
     bool hls = strstr(u, ".m3u8") != NULL || (cJSON_IsNumber(hls_flag) && hls_flag->valueint != 0);
     bool codec_ok = !strcmp(codec->valuestring, "MP3") || !strncmp(codec->valuestring, "AAC", 3);

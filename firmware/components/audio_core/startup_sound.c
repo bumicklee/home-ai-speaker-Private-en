@@ -1,7 +1,7 @@
 /*
- * 펌웨어에 넣은 짧은 안내음(16kHz 모노 MP3)을 esp_audio_codec으로 PSRAM에 한 번 해독해 두고 재생 태스크에 넘긴다.
- * - startup.mp3: 부팅음 (약 11KB)
- * - ready.mp3: 준비 안내 (약 7KB, 사용자가 준 WAV를 16kHz 모노로 변환. 2026-10-03)
+ * Decodes the short sounds embedded in the firmware (16kHz mono MP3) once into PSRAM with esp_audio_codec and hands them to the playback task.
+ * - startup.mp3: boot sound (about 11KB)
+ * - ready.mp3: ready announcement (about 7KB, a user-supplied WAV converted to 16kHz mono. 2026-10-03)
  */
 #include "audio_core.h"
 
@@ -26,13 +26,13 @@ extern const uint8_t ready_mp3_end[] asm("_binary_ready_mp3_end");
 void audio_core_play_clip(const int16_t *pcm, size_t samples);
 
 #define MAX_SECONDS   4
-#define WAIT_QUIET_MS 15000     /* 다른 소리(부팅음 등)가 끝나기를 기다리는 최대 시간 */
+#define WAIT_QUIET_MS 15000     /* max time to wait for other sound (boot sound etc.) to finish */
 
 typedef struct {
     const char *name;
     const uint8_t *mp3;
     const uint8_t *mp3_end;
-    bool wait_quiet;            /* 재생 중인 소리를 끊지 않고 끝날 때까지 기다린다 */
+    bool wait_quiet;            /* wait for the current sound to finish instead of cutting it off */
     int16_t *pcm;
     size_t samples;
 } clip_t;
@@ -50,7 +50,7 @@ static esp_err_t decode(clip_t *c)
 
     const size_t capacity = AUDIO_SAMPLE_RATE * MAX_SECONDS;
     c->pcm = heap_caps_malloc(capacity * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    uint32_t out_size = 4608;   /* MP3 한 프레임(1152 샘플 × 2채널 × 2바이트) */
+    uint32_t out_size = 4608;   /* one MP3 frame (1152 samples × 2 channels × 2 bytes) */
     uint8_t *out_buf = malloc(out_size);
     esp_err_t result = (c->pcm && out_buf) ? ESP_OK : ESP_ERR_NO_MEM;
 
@@ -87,7 +87,7 @@ static esp_err_t decode(clip_t *c)
         esp_audio_simple_dec_info_t info = {0};
         esp_audio_simple_dec_get_info(dec, &info);
         if (info.sample_rate != AUDIO_SAMPLE_RATE || info.bits_per_sample != 16) {
-            /* 리샘플러는 Phase 3. 지금은 16kHz 파일만 재생한다 */
+            /* The resampler comes in Phase 3. For now only 16kHz files play */
             ESP_LOGW(TAG, "unsupported format %lu Hz / %u bit", (unsigned long)info.sample_rate, info.bits_per_sample);
             result = ESP_ERR_NOT_SUPPORTED;
             break;
@@ -100,7 +100,7 @@ static esp_err_t decode(clip_t *c)
             raw.len = 0;
         }
         for (size_t i = 0; i < frames; i++) {
-            /* 스테레오면 모노로 합친다 */
+            /* Mix stereo down to mono */
             c->pcm[c->samples++] = info.channel == 2 ? (int16_t)((pcm[2 * i] + pcm[2 * i + 1]) / 2) : pcm[i];
         }
     }
@@ -122,12 +122,12 @@ static void clip_task(void *arg)
             free(c->pcm);
             c->pcm = NULL;
             c->samples = 0;
-            vTaskDeleteWithCaps(NULL);     /* WithCaps로 만든 태스크 */
+            vTaskDeleteWithCaps(NULL);     /* task created WithCaps */
             return;
         }
         ESP_LOGI(TAG, "%s: decoded %u ms", c->name, (unsigned)(c->samples * 1000 / AUDIO_SAMPLE_RATE));
     }
-    /* audio_core_play_clip은 재생 중인 안내음을 바꿔 버리므로, 필요하면 조용해질 때까지 기다린다 */
+    /* audio_core_play_clip replaces the clip that is playing, so wait for quiet when needed */
     for (int waited = 0; c->wait_quiet && audio_core_is_playing() && waited < WAIT_QUIET_MS; waited += 100) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }

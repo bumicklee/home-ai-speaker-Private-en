@@ -1,12 +1,12 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * 개발용 콘솔. BLE 프로비저닝(Phase 2) 전까지 USB로 Wi-Fi·API 키를 넣고 대화를 시험한다.
+ * Development console. Until BLE provisioning (Phase 2), enter Wi-Fi and API keys over USB and test conversations.
  *
- * 기본 콘솔은 UART0이고 USB-Serial-JTAG는 로그 출력용 보조 콘솔이라 IDF REPL을 쓸 수 없다.
- * 그래서 기존 펌웨어처럼 USB-Serial-JTAG 드라이버로 직접 한 줄씩 읽어 esp_console_run()에 넘긴다.
+ * The primary console is UART0 and USB-Serial-JTAG is a secondary console for log output, so the IDF REPL can't be used.
+ * So, like the original firmware, read one line at a time directly with the USB-Serial-JTAG driver and pass it to esp_console_run().
  *
- * 비밀값은 저장만 하고 다시 출력하지 않는다. 터미널 화면에는 입력한 글자가 남으므로
- * 화면 기록을 공유하지 않는다.
+ * Secrets are only stored, never printed back. What you type stays on the terminal screen,
+ * so don't share screen recordings.
  */
 #include "dev_console.h"
 
@@ -160,10 +160,10 @@ static int cmd_volume(int argc, char **argv)
     return 0;
 }
 
-/* 하드웨어 마이크 게인 (ES7210, 0–36 dB, 3dB 단위, 33 없음). 저장된다 */
+/* Hardware mic gain (ES7210, 0–36 dB, 3dB steps, no 33). Saved */
 /*
- * 숫자 인자 확인. 로그가 입력 중간에 찍히면 두 줄이 한 줄로 붙어 들어오는 일이 있어서
- * (2026-10-03 실기기: "wake on jarviwake on jarvis 70" → 감도 0), atoi처럼 아무 글자나 0으로 받지 않는다.
+ * Number argument check. When a log line prints in the middle of typing, two lines can arrive glued into one
+ * (real board 2026-10-03: "wake on jarviwake on jarvis 70" → sensitivity 0), so don't accept any text as 0 the way atoi does.
  */
 static bool parse_uint(const char *text, int max, int *out)
 {
@@ -282,7 +282,7 @@ static int cmd_lang(int argc, char **argv)
     return 0;
 }
 
-/* 비서 설정 하나를 바꾼다 (앱 PUT settings/assistant와 같은 검증) */
+/* Changes one assistant setting (same validation as the app's PUT settings/assistant) */
 static int set_assistant_field(const char *field, const char *value)
 {
     cJSON *s = assistant_settings();
@@ -300,7 +300,7 @@ static int cmd_location(int argc, char **argv)
         reply("location \"%s\"  timezone %s", cJSON_GetObjectItem(s, "location")->valuestring,
               cJSON_GetObjectItem(s, "timezone")->valuestring);
         cJSON_Delete(s);
-        reply("usage: location <town, e.g. 서울 강남구 역삼동> | location clear");
+        reply("usage: location <town, e.g. Seoul Gangnam-gu Yeoksam-dong> | location clear");
         return 0;
     }
     char text[97] = {0};
@@ -394,7 +394,7 @@ static void register_commands(void)
         {.command = "wakesrc", .help = "Wake word input: wakesrc auto|aec|raw (test, not saved)", .func = cmd_wakesrc},
         {.command = "wakegain", .help = "Wake word input gain: wakegain <0-24 dB>", .func = cmd_wakegain},
         {.command = "lang", .help = "Assistant language: lang ko|en", .func = cmd_lang},
-        {.command = "location", .help = "Home location: location 서울 강남구 역삼동 | clear", .func = cmd_location},
+        {.command = "location", .help = "Home location: location Seoul Gangnam-gu Yeoksam-dong | clear", .func = cmd_location},
         {.command = "timezone", .help = "Time zone (IANA): timezone Asia/Seoul", .func = cmd_timezone},
         {.command = "selftest", .help = "Run pure-logic self tests", .func = cmd_selftest},
         {.command = "tone", .help = "Play test tone", .func = cmd_tone},
@@ -428,7 +428,7 @@ static void console_task(void *arg)
             if (err == ESP_ERR_NOT_FOUND) {
                 reply("unknown command (try 'help')");
             }
-            memset(line, 0, sizeof(line));      /* 비밀값이 남지 않게 */
+            memset(line, 0, sizeof(line));      /* so no secret is left behind */
             used = 0;
         } else if (c == 0x08 || c == 0x7F) {
             if (used) {

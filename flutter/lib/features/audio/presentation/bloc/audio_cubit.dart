@@ -8,11 +8,11 @@ import '../../../../core/services/device_event_service.dart';
 import '../../data/repositories/audio_repository.dart';
 import '../../domain/entities/audio_settings.dart';
 
-/// 호출어 감지 테스트 진행 상황
+/// Progress of the wake word detection test
 class WakeTest extends Equatable {
   const WakeTest({required this.remaining, this.detections = 0});
 
-  /// 남은 초. 0이면 끝남 (결과 표시)
+  /// Seconds left. 0 means finished (show the result)
   final int remaining;
   final int detections;
 
@@ -41,10 +41,10 @@ class AudioState extends Equatable {
   final int? ledBrightness;
   final bool loading;
 
-  /// 불러오기 실패 (화면 전체를 실패 화면으로)
+  /// Loading failed (the whole screen becomes the failure screen)
   final Failure? failure;
 
-  /// 저장·테스트 실패 (스낵바로 한 번 보여준다)
+  /// Save or test failed (shown once in a snackbar)
   final ActionError? error;
   final WakeTest? wakeTest;
 
@@ -73,9 +73,9 @@ class AudioState extends Equatable {
   List<Object?> get props => [audio, wake, ledBrightness, loading, failure, error, wakeTest];
 }
 
-/// 오디오·호출어 화면: 설정 그룹 audio·wake·led + WS `volume`·`wake_test` (설계서 3.2절)
-/// 슬라이더는 끄는 동안 [preview]로 화면만 바꾸고, 놓으면 바뀐 키 하나만 PUT 한다.
-/// 저장이 실패하면 마지막으로 기기가 돌려준 값으로 되돌린다.
+/// Audio & Wake Word screen: settings groups audio, wake, led + WS `volume` and `wake_test` (design document, Section 3.2)
+/// While a slider is dragged, [preview] changes only the screen; on release, only the one changed key is PUT.
+/// If saving fails, revert to the values the device last returned.
 class AudioCubit extends Cubit<AudioState> {
   AudioCubit(this._repo, this._events, {Duration tick = const Duration(seconds: 1)})
       : _tick = tick,
@@ -91,12 +91,12 @@ class AudioCubit extends Cubit<AudioState> {
   late final StreamSubscription<DeviceEvent> _wakeSub;
   Timer? _timer;
 
-  /// 기기가 마지막으로 확인해 준 값 (실패 시 되돌릴 곳)
+  /// Values the device last confirmed (what to revert to on failure)
   AudioSettings? _audio;
   WakeSettings? _wake;
   int? _led;
 
-  /// 펌웨어 wake.c TEST_MS
+  /// Firmware wake.c TEST_MS
   static const wakeTestSeconds = 60;
 
   Future<void> load() async {
@@ -114,7 +114,7 @@ class AudioCubit extends Cubit<AudioState> {
     emit(state.copyWith(audio: _audio, wake: _wake, ledBrightness: _led, loading: false));
   }
 
-  /// 슬라이더를 끄는 중: 화면만 바꾼다
+  /// While a slider is being dragged: change only the screen
   void preview({AudioSettings? audio, WakeSettings? wake, int? ledBrightness}) =>
       emit(state.copyWith(audio: audio, wake: wake, ledBrightness: ledBrightness));
 
@@ -154,8 +154,8 @@ class AudioCubit extends Cubit<AudioState> {
     r.fold((f) => emit(state.copyWith(error: () => ActionError(f))), (_) {});
   }
 
-  /// 60초 감지 테스트. 횟수는 `wake_test` 이벤트를 센다
-  /// (이벤트의 `detections`는 부팅 후 누적이라 테스트 시작 기준이 아니다, wake.c)
+  /// 60-second detection test. The count is the number of `wake_test` events
+  /// (the event's `detections` is cumulative since boot, not counted from the test start, wake.c)
   Future<void> startWakeTest() async {
     if (state.wakeTest?.running ?? false) return;
     emit(state.copyWith(error: () => null));
@@ -199,7 +199,7 @@ class AudioCubit extends Cubit<AudioState> {
     );
   }
 
-  /// 버튼·음성으로 볼륨이 바뀌었을 때
+  /// When the volume was changed by a button or by voice
   void _onVolume(DeviceEvent e) {
     final v = (e.data['value'] as num?)?.toInt();
     final a = _audio;
@@ -211,7 +211,7 @@ class AudioCubit extends Cubit<AudioState> {
   void _onWakeTest(DeviceEvent e) {
     final t = state.wakeTest;
     if (t == null || !t.running) return;
-    // 설계서는 remaining_s도 보낸다고 하지만 지금 펌웨어는 detections만 보낸다. 오면 맞춘다
+    // The design document says remaining_s is sent too, but the current firmware sends only detections. Use it if it arrives
     final remaining = (e.data['remaining_s'] as num?)?.toInt();
     emit(state.copyWith(wakeTest: () => t.copyWith(detections: t.detections + 1, remaining: remaining)));
   }
@@ -225,7 +225,7 @@ class AudioCubit extends Cubit<AudioState> {
   }
 }
 
-/// 한 번 보여줄 실패. 같은 Failure가 연달아 나도 매번 새 값이라 리스너가 다시 울린다
+/// A failure shown once. Even if the same Failure repeats, each is a new value, so the listener fires again
 class ActionError {
   ActionError(this.failure);
   final Failure failure;

@@ -1,5 +1,5 @@
-/// 0xFF81(요청)/0xFF82(응답) JSON 명령 채널.
-/// 연결당 요청 1개씩 (기기는 동시 요청에 BUSY), 요청당 10초 (설계서 2.13절).
+/// The 0xFF81 (request) / 0xFF82 (response) JSON command channel.
+/// One request at a time per connection (the device answers BUSY to concurrent requests), 10 seconds per request (design document Section 2.13).
 library;
 
 import 'dart:async';
@@ -9,15 +9,15 @@ import '../constants/ble_protocol.dart';
 import '../errors/exceptions.dart';
 import 'ble_frame.dart';
 
-/// 채널이 쓰는 BLE 연결 (실제 구현은 `BleLink`, 테스트는 가짜)
+/// The BLE connection the channel uses (the real implementation is `BleLink`; tests use a fake)
 abstract interface class BleCommandTransport {
-  /// 조각 payload 크기 = 지금 MTU − 5
+  /// Frame payload size = current MTU − 5
   int get payloadSize;
 
-  /// 0xFF82 알림 (구독은 연결 시 이미 켜져 있어야 한다)
+  /// 0xFF82 notifications (the subscription must already be on at connect time)
   Stream<List<int>> get responses;
 
-  /// 0xFF81에 응답 있는 쓰기
+  /// Write with response to 0xFF81
   Future<void> writeFrame(List<int> frame);
 }
 
@@ -36,7 +36,7 @@ class BleCommandChannel {
   Completer<Map<String, dynamic>>? _pending;
   int? _pendingId;
 
-  /// [op] 요청을 보내고 `ok: true` 응답을 돌려준다. `ok: false`면 [BleCommandException]
+  /// Sends an [op] request and returns the `ok: true` response. `ok: false` throws [BleCommandException]
   Future<Map<String, dynamic>> request(String op, [Map<String, Object?> fields = const {}]) {
     final result = _queue.then((_) => _send(op, fields));
     _queue = result.then((_) {}, onError: (_) {});
@@ -78,7 +78,7 @@ class BleCommandChannel {
       if (decoded is! Map<String, dynamic>) {
         throw const BleException(BleErrorCode.protocol, 'response is not an object');
       }
-      // 이전 요청(시간 초과로 포기한 것)의 늦은 응답은 버린다
+      // Discard late responses to an earlier request (one we gave up on after a timeout)
       if (decoded['id'] == _pendingId) {
         _pending?.complete(decoded);
       }
@@ -96,7 +96,7 @@ class BleCommandChannel {
     }
   }
 
-  /// 연결이 끊겼을 때: 기다리는 요청을 실패시키고 구독을 정리한다
+  /// When the connection drops: fail the pending request and clean up the subscription
   Future<void> close() async {
     _fail(const BleException(BleErrorCode.disconnected));
     await _sub.cancel();

@@ -7,7 +7,7 @@
 static const char *TAG = "SECRET";
 static const char *NAMESPACE = "sec";
 
-/* secret_id_t 순서와 같다. NVS 키는 15자 이하 */
+/* Same order as secret_id_t. NVS keys are 15 characters or fewer */
 static const char *const KEYS[SECRET_COUNT] = {
     [SECRET_OPENAI_KEY]      = "openai_key",
     [SECRET_TG_BOT_TOKEN]    = "tg_bot_token",

@@ -45,11 +45,11 @@
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
-		<!-- 설계서 3.6절 -->
+		<!-- Design document Section 3.6 -->
 		<key>NSBluetoothAlwaysUsageDescription</key>
-		<string>스피커를 처음 설정하고 Wi-Fi·키를 안전하게 보내기 위해 Bluetooth를 사용합니다.</string>
+		<string>Bluetooth is used to set up the speaker the first time and to send Wi-Fi details and keys securely.</string>
 		<key>NSLocalNetworkUsageDescription</key>
-		<string>같은 Wi-Fi에 있는 스피커를 찾고 제어하기 위해 로컬 네트워크를 사용합니다.</string>
+		<string>The local network is used to find and control the speaker on the same Wi-Fi.</string>
 		<key>NSBonjourServices</key>
 		<array>
 			<string>_aispeaker._tcp</string>
@@ -59,10 +59,10 @@
 			<key>NSAllowsLocalNetworking</key>
 			<true/>
 		</dict>
-		<!-- 설계서 3.0절: 동네 이름만 스피커로 보낸다 -->
+		<!-- Design document Section 3.0: only the neighborhood name goes to the speaker -->
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>비서가 날씨와 근처 정보를 알려 줄 수 있게 사는 동네 이름을 정하는 데 사용합니다. 좌표는 스피커로 보내지 않습니다.</string>
-		<!-- Spotify PKCE 리다이렉트 (flutter_appauth) -->
+		<string>Your location is used to set the name of your neighborhood so the assistant can tell you the weather and local information. Coordinates are never sent to the speaker.</string>
+		<!-- Spotify PKCE redirect (flutter_appauth) -->
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>

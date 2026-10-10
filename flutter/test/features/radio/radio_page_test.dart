@@ -39,7 +39,7 @@ void main() {
     await tester.pump();
     expect(find.text('뉴스·경제'), findsOneWidget);
     expect(find.text('한국 음악'), findsOneWidget);
-    expect(find.text('CNN'), findsNWidgets(2)); // 머리 카드 + 목록
+    expect(find.text('CNN'), findsNWidgets(2)); // header card + list
     expect(find.byTooltip('일시정지'), findsOneWidget);
     expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
     await tester.runAsync(cubit.close);

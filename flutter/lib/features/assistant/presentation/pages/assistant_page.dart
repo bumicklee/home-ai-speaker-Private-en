@@ -11,7 +11,7 @@ import '../bloc/assistant_cubit.dart';
 import '../widgets/assistant_editors.dart';
 import 'memories_page.dart';
 
-/// 비서 설정 (디자인 "비서"): 이름·언어·목소리, 사는 곳, 검색·기억. 고친 뒤 저장하면 바뀐 키만 보낸다
+/// Assistant settings (design "비서"): name, language, voice, location, search, memory. Saving after edits sends only the changed keys
 class AssistantPage extends StatelessWidget {
   const AssistantPage({super.key});
 
@@ -73,7 +73,7 @@ class _Form extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        // 맨 위: 지금 쓰는 AI·방식 (설계 docs/design-voice-saver-mode.md 11.8). 그 화면에서 바로 저장한다
+        // Top: the AI and mode in use now (design docs/design-voice-saver-mode.md 11.8). That screen saves directly
         ListGroup(children: [
           _ValueRow(
             title: l.aiModeTitle,
@@ -199,7 +199,7 @@ String _unitsName(AppLocalizations l, String units) => switch (units) {
       _ => units,
     };
 
-/// 제목 … 값 >
+/// Title … value >
 class _ValueRow extends StatelessWidget {
   const _ValueRow({required this.title, required this.value, this.subtitle, this.onTap, this.muted = false});
 
@@ -243,7 +243,7 @@ class _Chevron extends StatelessWidget {
       );
 }
 
-/// 사는 곳: 동네 입력칸 + 현재 위치로 + 시간대 (설계서 3.0절)
+/// Location: neighborhood field + "Set to current location" + time zone (design document Section 3.0)
 class _PlaceCard extends StatefulWidget {
   const _PlaceCard({required this.state, required this.draft});
 
@@ -260,7 +260,7 @@ class _PlaceCardState extends State<_PlaceCard> {
   @override
   void didUpdateWidget(covariant _PlaceCard old) {
     super.didUpdateWidget(old);
-    // "현재 위치로"·되돌리기·저장으로 바뀐 값을 입력칸에 반영 (입력 중인 값과 같으면 그대로)
+    // Reflect values changed by "Set to current location", revert or save in the field (leave it if it equals what is being typed)
     if (widget.draft.location != _text.text && widget.draft.location.trim() != _text.text.trim()) {
       _text.text = widget.draft.location;
     }
@@ -384,7 +384,7 @@ class _PlaceCardState extends State<_PlaceCard> {
   }
 }
 
-/// 고친 것이 있을 때만 보이는 저장 버튼
+/// Save button shown only when there are edits
 class _SaveBar extends StatelessWidget {
   const _SaveBar({required this.state});
 

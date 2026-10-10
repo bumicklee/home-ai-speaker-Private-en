@@ -8,20 +8,20 @@ import '../entities/device_status.dart';
 abstract interface class DevicesRepository {
   Future<Either<Failure, List<Device>>> devices();
 
-  /// 선택된 기기 id (없으면 첫 기기)
+  /// Selected device id (the first device if none)
   Future<Either<Failure, String?>> selectedId();
   Future<Either<Failure, Unit>> select(String id);
 
-  /// 등록·재등록: 목록에 넣거나 바꾸고 토큰을 저장한다. 프로비저닝은 이것 하나만 부른다 (설계서 3.2)
+  /// Register or re-register: add or replace it in the list and save the token. Provisioning calls only this (design document 3.2)
   Future<Either<Failure, Unit>> addOrUpdate(Device device, String token);
 
-  /// 휴대폰에서만 지운다 (스피커 쪽 등록 해지는 system 기능)
+  /// Removes it from the phone only (unregistering on the speaker side is the system feature)
   Future<Either<Failure, Unit>> remove(String id);
 
-  /// LAN 주소. 토큰이나 주소가 없으면 null
+  /// LAN address. null if there is no token or address
   Future<Either<Failure, DeviceEndpoint?>> endpoint(String id);
 
-  /// 주소를 모르거나 바뀌었으면 mDNS로 다시 찾아 저장
+  /// If the address is unknown or has changed, find it again via mDNS and save it
   Future<Either<Failure, Device>> rediscover(Device device);
 
   Future<Either<Failure, DeviceStatus>> status(DeviceEndpoint endpoint);

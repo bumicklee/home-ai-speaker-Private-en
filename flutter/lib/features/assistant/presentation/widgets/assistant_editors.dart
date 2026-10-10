@@ -1,4 +1,4 @@
-/// 비서 화면의 입력 부품: 바이트 제한 입력, 글 고치기 대화상자, 하나 고르기 시트
+/// Input parts for the assistant screens: byte-limited input, text edit dialog, single-choice sheet
 library;
 
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/entities/assistant_settings.dart';
 
-/// UTF-8 바이트 수로 자른다 (펌웨어 제한은 글자 수가 아니라 바이트 수)
+/// Truncates by UTF-8 byte count (the firmware limit is in bytes, not characters)
 class Utf8LengthLimitingFormatter extends TextInputFormatter {
   Utf8LengthLimitingFormatter(this.maxBytes);
 
@@ -16,17 +16,17 @@ class Utf8LengthLimitingFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     if (utf8Bytes(newValue.text) <= maxBytes) return newValue;
-    // 한글 조합 중이면 막지 않는다 (조합이 끝나면 다시 검사된다)
+    // Don't block while Hangul is being composed (it is checked again when composition ends)
     if (newValue.composing.isValid) return newValue;
     return oldValue;
   }
 }
 
-/// 바이트 세는 글자 수 표시 + 넘치면 오류 문구
+/// Byte-counting character counter + error text when over
 String? byteError(AppLocalizations l, String text, int max) =>
     utf8Bytes(text) > max ? l.asstTooLong(max) : null;
 
-/// 글 한 칸 고치기. 취소면 null
+/// Edit one text field. null if cancelled
 Future<String?> editText(
   BuildContext context, {
   required String title,
@@ -119,7 +119,7 @@ class _TextDialogState extends State<_TextDialog> {
   }
 }
 
-/// 목록에서 하나 고르기 (선택된 것에 체크). 취소면 null
+/// Pick one from a list (checkmark on the selected one). null if cancelled
 Future<T?> pickOne<T>(
   BuildContext context, {
   required String title,

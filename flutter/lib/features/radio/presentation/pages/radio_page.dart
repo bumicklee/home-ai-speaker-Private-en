@@ -11,7 +11,7 @@ import '../widgets/radio_texts.dart';
 import 'preset_edit_page.dart';
 import 'radio_search_page.dart';
 
-/// 라디오 (디자인 "라디오"): 지금 재생(어두운 카드), 묶음별 프리셋, 방송 찾기·편집
+/// Radio (design "Radio"): now playing (dark card), presets by group, station search and editing
 class RadioPage extends StatelessWidget {
   const RadioPage({super.key});
 
@@ -24,7 +24,7 @@ class RadioPage extends StatelessWidget {
   }
 }
 
-/// 실패·검증 오류를 스낵바로 (라디오 화면들이 같이 쓴다)
+/// Failures and validation errors as a snackbar (shared by the radio screens)
 class RadioMessages extends StatelessWidget {
   const RadioMessages({super.key, required this.child});
 
@@ -150,7 +150,7 @@ class _PresetRow extends StatelessWidget {
   }
 }
 
-/// 지금 재생 (어두운 카드). 라디오가 아니어도(Spotify) 보여 주고 제어한다
+/// Now playing (dark card). Shown and controllable even when it isn't the radio (Spotify)
 class NowPlayingHeader extends StatelessWidget {
   const NowPlayingHeader({super.key, required this.state});
 

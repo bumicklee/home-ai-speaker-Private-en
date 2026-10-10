@@ -12,7 +12,7 @@ import '../features/telegram/telegram_feature.dart';
 import '../l10n/app_localizations.dart';
 import 'routes.dart';
 
-/// 경로 → 화면
+/// Route → screen
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   final Widget page = switch (settings.name) {
     AppRoutes.home => const HomePage(),

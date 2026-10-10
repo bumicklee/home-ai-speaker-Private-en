@@ -21,7 +21,7 @@ class MediaNow extends Equatable {
   List<Object?> get props => [source, state, title, artist, station];
 }
 
-/// `/api/v1/status` 중 홈 화면에 쓰는 것
+/// The parts of `/api/v1/status` used on the home screen
 class DeviceStatus extends Equatable {
   const DeviceStatus({
     required this.firmware,
@@ -52,7 +52,7 @@ class DeviceStatus extends Equatable {
   final int telegramUnread;
   final String spotifyState;
 
-  /// 지금 쓰는 AI·방식 (홈 카드에 "OpenAI · 절약 모드")
+  /// The AI and mode in use (shown on the home card as "OpenAI · Saver mode")
   final AiStatus ai;
 
   bool get hasOpenAiKey => secrets['openai_key'] ?? false;

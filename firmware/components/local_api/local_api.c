@@ -1,13 +1,13 @@
 /*
- * LAN REST API (설계서 2.14절 엔드포인트 표). Phase 2 범위:
- *   status, settings/{group}, voices, memories, keys/{key} 삭제, spotify 로그아웃,
+ * LAN REST API (endpoint table in design document Section 2.14). Phase 2 scope:
+ *   status, settings/{group}, voices, memories, keys/{key} delete, spotify logout,
  *   voice/{start|stop}, audio/test-tone, wake/test, system/reboot, system/phones, events(WebSocket)
  * Phase 3: radio/presets, media/play, media/{pause|resume|stop|next|previous}, media/now
  * Phase 4: telegram/chats, telegram/chats/{id}, telegram/pair, telegram/options
- * Phase 5: GET/DELETE spotify, media 제어·now는 라디오가 꺼져 있으면 Spotify로
- * 나중에: ota(6)
+ * Phase 5: GET/DELETE spotify; media control and now go to Spotify when the radio is off
+ * Later: ota(6)
  *
- * 공장 초기화는 LAN으로 하지 않는다. 비밀값 쓰기도 LAN에서 받지 않는다(D6, BLE 전용).
+ * Factory reset is not done over LAN. Writing secrets is not accepted over LAN either (D6, BLE only).
  */
 #include "local_api.h"
 
@@ -34,12 +34,12 @@
 
 static const char *TAG = "API";
 
-#define BODY_MAX 8192     /* 프리셋 20개 */
+#define BODY_MAX 8192     /* 20 presets */
 #define PREFIX   "/api/v1/"
 
 static httpd_handle_t s_server;
 
-/* "/api/v1/settings/audio" → "audio" (질의 문자열 제외). 비어 있으면 NULL */
+/* "/api/v1/settings/audio" → "audio" (query string excluded). NULL if empty */
 static const char *path_tail(httpd_req_t *req, const char *base, char *out, size_t out_len)
 {
     size_t n = strlen(base);
@@ -80,7 +80,7 @@ static cJSON *read_json(httpd_req_t *req)
     return j;
 }
 
-/* ── 영어 선생님 ───────────────────────────────────────────── */
+/* ── English Tutor ─────────────────────────────────────────── */
 
 static esp_err_t get_lesson(httpd_req_t *req)
 {
@@ -133,7 +133,7 @@ static esp_err_t post_lesson(httpd_req_t *req)
     return api_send_json(req, "200 OK", lesson_json());
 }
 
-/* ── 상태·설정 ────────────────────────────────────────────── */
+/* ── Status and settings ──────────────────────────────────── */
 
 static esp_err_t get_status(httpd_req_t *req)
 {
@@ -170,7 +170,7 @@ static esp_err_t put_settings(httpd_req_t *req)
         return api_send_error(req, "400 Bad Request", "INVALID_ARG");
     }
     if (err == ESP_ERR_NOT_ALLOWED) {
-        /* assistant 그룹: ai_provider를 키가 없는 회사로 바꾸려 함 (docs/design-voice-saver-mode.md 11.1) */
+        /* assistant group: trying to switch ai_provider to a provider with no key (docs/design-voice-saver-mode.md 11.1) */
         return api_send_error(req, "409 Conflict", "NO_API_KEY");
     }
     if (err != ESP_OK) {
@@ -189,7 +189,7 @@ static esp_err_t get_voices(httpd_req_t *req)
     return api_send_json(req, "200 OK", j);
 }
 
-/* ── 기억 ─────────────────────────────────────────────────── */
+/* ── Memories ─────────────────────────────────────────────── */
 
 static esp_err_t get_memories(httpd_req_t *req)
 {
@@ -210,7 +210,7 @@ static esp_err_t delete_memory(httpd_req_t *req)
     return err == ESP_OK ? api_send_ok(req) : api_send_error(req, "400 Bad Request", "INVALID_ARG");
 }
 
-/* ── 비밀값 삭제 (쓰기는 BLE만) ───────────────────────────── */
+/* ── Deleting secrets (writes over BLE only) ──────────────── */
 
 static void secrets_changed(void)
 {
@@ -240,7 +240,7 @@ static esp_err_t delete_spotify(httpd_req_t *req)
     if (!api_authorize(req, NULL)) {
         return ESP_OK;
     }
-    /* 로그아웃은 비밀을 드러내지 않으므로 LAN에서도 허용 (D6). 로그인은 BLE spotify.link만 */
+    /* Logout reveals no secret, so it is allowed over LAN too (D6). Login is only via BLE spotify.link */
     return spotify_logout() == ESP_OK ? api_send_ok(req) : api_send_error(req, "500 Internal Server Error", "STORAGE_FAIL");
 }
 
@@ -252,7 +252,7 @@ static esp_err_t get_spotify(httpd_req_t *req)
     return api_send_json(req, "200 OK", spotify_status_json());
 }
 
-/* ── 동작 ─────────────────────────────────────────────────── */
+/* ── Actions ──────────────────────────────────────────────── */
 
 static esp_err_t post_voice(httpd_req_t *req)
 {
@@ -311,7 +311,7 @@ static esp_err_t post_reboot(httpd_req_t *req)
     if (live_voice_active()) {
         return api_send_error(req, "409 Conflict", "VOICE_ACTIVE");
     }
-    /* 응답을 보낸 뒤 재부팅한다 */
+    /* Reboot after sending the response */
     const esp_timer_create_args_t args = {.callback = reboot_cb, .name = "reboot"};
     esp_timer_handle_t t;
     if (esp_timer_create(&args, &t) == ESP_OK) {
@@ -320,7 +320,7 @@ static esp_err_t post_reboot(httpd_req_t *req)
     return api_send_ok(req);
 }
 
-/* ── 라디오·음악 (Phase 3) ────────────────────────────────── */
+/* ── Radio and music (Phase 3) ────────────────────────────── */
 
 static esp_err_t get_presets_body(httpd_req_t *req)
 {
@@ -373,14 +373,14 @@ static esp_err_t post_media_play(httpd_req_t *req)
     return err == ESP_OK ? api_send_ok(req) : api_send_error(req, "503 Service Unavailable", "BUSY");
 }
 
-/* 웹 서버 태스크는 하나뿐이라, Spotify HTTPS(최대 수십 초)를 여기서 하면 LAN API 전체가 멈춘다.
- * 툴 워커로 넘기고 바로 202를 돌려준다. 결과는 media_state 이벤트로 */
+/* There is only one web server task, so doing Spotify HTTPS (up to tens of seconds) here would stall the whole LAN API.
+ * Hand it to the tool worker and return 202 right away. The result arrives as a media_state event */
 static void spotify_control_job(void *arg)
 {
     char *action = arg;
     spotify_control(action);
     free(action);
-    cJSON *now = spotify_now_json();    /* 캐시 갱신 */
+    cJSON *now = spotify_now_json();    /* refresh the cache */
     const cJSON *state = cJSON_GetObjectItem(now, "state");
     const char *st = cJSON_IsString(state) ? state->valuestring : "stopped";
     app_media_event_t evt = {
@@ -443,7 +443,7 @@ static esp_err_t get_media_now(httpd_req_t *req)
     if (!api_authorize(req, NULL)) {
         return ESP_OK;
     }
-    /* 라디오가 우선. 꺼져 있으면 Spotify의 마지막 상태를 바로 주고, 새 상태는 뒤에서 받아 둔다 */
+    /* Radio comes first. If it is off, return Spotify's last state right away and fetch the new state in the background */
     if (radio_is_active() || !spotify_linked()) {
         return api_send_json(req, "200 OK", radio_now_json());
     }
@@ -521,7 +521,7 @@ static esp_err_t post_tg_pair(httpd_req_t *req)
     cJSON *j = cJSON_CreateObject();
     cJSON_AddStringToObject(j, "code", code);
     cJSON_AddNumberToObject(j, "expires_s", 300);
-    cJSON_AddStringToObject(j, "bot", telegram_bot_username());     /* 그룹에서는 /pair@봇이름 코드 */
+    cJSON_AddStringToObject(j, "bot", telegram_bot_username());     /* in a group, the code is /pair@botname */
     return api_send_json(req, "200 OK", j);
 }
 
@@ -548,10 +548,10 @@ static esp_err_t put_tg_options(httpd_req_t *req)
                          : api_send_error(req, "500 Internal Server Error", "STORAGE_FAIL");
 }
 
-/* ── 메모·일정 (notes, docs/design-notes-schedule.md 2판 6절) ─────────────── */
+/* ── Notes and schedule (notes, docs/design-notes-schedule.md 2nd edition, Section 6) ─ */
 
-/* GET ?since=<rev>: rev 오름차순, 지운 기록 포함. 큰 배열이 될 수 있어 cJSON 트리를 거치지 않는다
- * (notes_api_since_text가 PSRAM 버퍼로 직접 돌려준다, 내부 RAM 보호) */
+/* GET ?since=<rev>: rev ascending, deleted records included. It can be a large array, so it skips the cJSON tree
+ * (notes_api_since_text returns a PSRAM buffer directly, protecting internal RAM) */
 static esp_err_t get_notes(httpd_req_t *req)
 {
     if (!api_authorize(req, NULL)) {
@@ -605,7 +605,7 @@ static esp_err_t put_notes_item(httpd_req_t *req)
         return api_send_error(req, "404 Not Found", "NOT_FOUND");
     }
     if (err == ESP_ERR_INVALID_STATE) {
-        /* 409: api_send_error와 같은 {"error":...} 모양에 최신 항목을 더한다 */
+        /* 409: add the latest item to the same {"error":...} shape as api_send_error */
         cJSON *j = cJSON_CreateObject();
         cJSON_AddStringToObject(j, "error", "CONFLICT");
         cJSON_AddItemToObject(j, "note", conflict);
@@ -626,7 +626,7 @@ static esp_err_t delete_notes_item(httpd_req_t *req)
     return err == ESP_OK ? api_send_json(req, "200 OK", result) : api_send_error(req, "404 Not Found", "NOT_FOUND");
 }
 
-/* POST /notes/{id}/restore (다른 POST notes/{wildcard} 핸들러는 없다) */
+/* POST /notes/{id}/restore (there is no other POST notes/{wildcard} handler) */
 static esp_err_t post_notes_item(httpd_req_t *req)
 {
     if (!api_authorize(req, NULL)) {
@@ -669,7 +669,7 @@ static esp_err_t put_notes_settings(httpd_req_t *req)
     return api_send_json(req, "200 OK", notes_settings_get());
 }
 
-/* ── 휴대폰 ───────────────────────────────────────────────── */
+/* ── Phones ───────────────────────────────────────────────── */
 
 static esp_err_t get_phones(httpd_req_t *req)
 {
@@ -693,12 +693,12 @@ static esp_err_t delete_phone(httpd_req_t *req)
     return err == ESP_OK ? api_send_ok(req) : api_send_error(req, "404 Not Found", "NOT_FOUND");
 }
 
-/* ── 서버 ─────────────────────────────────────────────────── */
+/* ── Server ───────────────────────────────────────────────── */
 
 static void on_close(httpd_handle_t hd, int sockfd)
 {
     api_events_on_close(sockfd);
-    close(sockfd);      /* close_fn을 지정하면 소켓은 직접 닫아야 한다 */
+    close(sockfd);      /* when close_fn is set, we must close the socket ourselves */
 }
 
 esp_err_t local_api_start(void)
@@ -707,11 +707,11 @@ esp_err_t local_api_start(void)
     cfg.server_port = APP_HTTP_PORT;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.max_uri_handlers = 36;
-    /* 소켓 예산: httpd 7 + TLS 3(OpenAI·Telegram·Spotify) + mDNS 등 ≤ LWIP_MAX_SOCKETS(16) */
+    /* Socket budget: httpd 7 + TLS 3 (OpenAI, Telegram, Spotify) + mDNS etc. ≤ LWIP_MAX_SOCKETS(16) */
     cfg.max_open_sockets = 7;
     cfg.lru_purge_enable = true;
     cfg.stack_size = 8192;
-    cfg.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;   /* 스택을 PSRAM에 (책 7장 7.3절) */
+    cfg.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;   /* stack in PSRAM (Chapter 7, Section 7.3) */
     cfg.core_id = 0;
     cfg.close_fn = on_close;
 
@@ -751,8 +751,8 @@ esp_err_t local_api_start(void)
         {.uri = PREFIX "notes", .method = HTTP_GET, .handler = get_notes},
         {.uri = PREFIX "notes", .method = HTTP_POST, .handler = post_notes},
         {.uri = PREFIX "notes/settings", .method = HTTP_GET, .handler = get_notes_settings},
-        /* "notes/settings"을 먼저 등록한다: httpd_find_uri_handler는 등록 순서대로 첫 일치를 쓰므로
-         * 뒤의 와일드카드 패턴이 PUT에서 이 경로를 가로채지 않게 한다 */
+        /* Register "notes/settings" first: httpd_find_uri_handler uses the first match in registration order, so
+         * this keeps the later wildcard pattern from capturing this route on PUT */
         {.uri = PREFIX "notes/settings", .method = HTTP_PUT, .handler = put_notes_settings},
         {.uri = PREFIX "notes/*", .method = HTTP_PUT, .handler = put_notes_item},
         {.uri = PREFIX "notes/*", .method = HTTP_DELETE, .handler = delete_notes_item},

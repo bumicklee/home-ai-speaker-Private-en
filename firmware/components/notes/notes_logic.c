@@ -1,10 +1,10 @@
-/* 설명은 notes_logic.h. cJSON조차 쓰지 않는다 (Mac에서 cc로 시험) */
+/* See notes_logic.h for details. Doesn't even use cJSON (tested with cc on a Mac) */
 #include "notes_logic.h"
 
 #include <stdio.h>
 #include <string.h>
 
-/* ── 달력 ─────────────────────────────────────────────────────────────── */
+/* ── Calendar ─────────────────────────────────────────────────────────── */
 
 long notes_days_from_civil(int y, int m, int d)
 {
@@ -51,11 +51,11 @@ bool notes_valid_calendar_date(int y, int m, int d)
 int notes_weekday(int y, int m, int d)
 {
     long days = notes_days_from_civil(y, m, d);
-    long wd = (days % 7 + 11) % 7;   /* 1970-01-01(0일)은 목요일(4) */
+    long wd = (days % 7 + 11) % 7;   /* 1970-01-01 (day 0) is a Thursday (4) */
     return (int)wd;
 }
 
-/* ── start/end 문자열 ─────────────────────────────────────────────────── */
+/* ── start/end strings ────────────────────────────────────────────────── */
 
 static bool digits_n(const char *s, int n)
 {
@@ -176,7 +176,7 @@ void notes_utf8_truncate(const char *s, size_t max, char *out)
     out[cut] = '\0';
 }
 
-/* ── 검색 ─────────────────────────────────────────────────────────────── */
+/* ── Search ───────────────────────────────────────────────────────────── */
 
 static void normalize(const char *in, char *out, size_t cap)
 {
@@ -205,7 +205,7 @@ bool notes_search_match(const char *haystack, const char *needle)
     return n[0] != '\0' && strstr(h, n) != NULL;
 }
 
-/* ── id·문구 ──────────────────────────────────────────────────────────── */
+/* ── id and phrases ───────────────────────────────────────────────────── */
 
 void notes_id_from_random(uint32_t r, char out[11])
 {
@@ -255,18 +255,18 @@ void notes_remind_phrase(int minutes, char *out, size_t cap)
     }
 }
 
-/* ── 셀프테스트 ───────────────────────────────────────────────────────── */
+/* ── Self-test ────────────────────────────────────────────────────────── */
 
 bool notes_selftest(void)
 {
     bool ok = true;
 
-    /* 달력: 윤년, 월 경계 */
-    ok &= notes_valid_calendar_date(2024, 2, 29);          /* 2024는 윤년 */
-    ok &= !notes_valid_calendar_date(2025, 2, 29);         /* 2025는 평년 */
-    ok &= !notes_valid_calendar_date(2026, 4, 31);         /* 4월은 30일 */
-    ok &= notes_valid_calendar_date(2000, 2, 29);          /* 400의 배수: 윤년 */
-    ok &= !notes_valid_calendar_date(1900, 2, 29);         /* 100의 배수(400 아님): 평년 */
+    /* Calendar: leap years, month boundaries */
+    ok &= notes_valid_calendar_date(2024, 2, 29);          /* 2024 is a leap year */
+    ok &= !notes_valid_calendar_date(2025, 2, 29);         /* 2025 is a common year */
+    ok &= !notes_valid_calendar_date(2026, 4, 31);         /* April has 30 days */
+    ok &= notes_valid_calendar_date(2000, 2, 29);          /* multiple of 400: leap year */
+    ok &= !notes_valid_calendar_date(1900, 2, 29);         /* multiple of 100 (not 400): common year */
     ok &= notes_days_from_civil(1970, 1, 1) == 0;
     ok &= notes_days_from_civil(2026, 10, 5) - notes_days_from_civil(2026, 10, 4) == 1;
     {
@@ -274,49 +274,49 @@ bool notes_selftest(void)
         notes_civil_from_days(notes_days_from_civil(2026, 10, 5), &y, &m, &d);
         ok &= y == 2026 && m == 10 && d == 5;
     }
-    ok &= notes_weekday(2026, 10, 4) == 0;   /* 2026-10-04는 일요일 */
-    ok &= notes_weekday(1970, 1, 1) == 4;    /* 목요일 */
+    ok &= notes_weekday(2026, 10, 4) == 0;   /* 2026-10-04 is a Sunday */
+    ok &= notes_weekday(1970, 1, 1) == 4;    /* Thursday */
 
-    /* start 문자열 파싱 */
+    /* parsing start strings */
     {
         int y, m, d, hh, mm;
         bool all_day;
         ok &= notes_parse_start("2026-10-05", &y, &m, &d, &hh, &mm, &all_day) && all_day && y == 2026 && m == 10 &&
               d == 5 && hh == 0 && mm == 0;
         ok &= notes_parse_start("2026-10-05T15:00", &y, &m, &d, &hh, &mm, &all_day) && !all_day && hh == 15 && mm == 0;
-        ok &= !notes_parse_start("2026-10-05T15:00:00", &y, &m, &d, &hh, &mm, &all_day);   /* 초는 지원 안 함 */
-        ok &= !notes_parse_start("2026-2-5", &y, &m, &d, &hh, &mm, &all_day);              /* 자릿수 고정 */
-        ok &= !notes_parse_start("2026-13-01", &y, &m, &d, &hh, &mm, &all_day);             /* 13월 없음 */
-        ok &= !notes_parse_start("2026-04-31", &y, &m, &d, &hh, &mm, &all_day);             /* 4월 31일 없음 */
-        ok &= !notes_parse_start("2026-10-05T24:00", &y, &m, &d, &hh, &mm, &all_day);        /* 24시 없음 */
+        ok &= !notes_parse_start("2026-10-05T15:00:00", &y, &m, &d, &hh, &mm, &all_day);   /* seconds not supported */
+        ok &= !notes_parse_start("2026-2-5", &y, &m, &d, &hh, &mm, &all_day);              /* fixed digit counts */
+        ok &= !notes_parse_start("2026-13-01", &y, &m, &d, &hh, &mm, &all_day);             /* no month 13 */
+        ok &= !notes_parse_start("2026-04-31", &y, &m, &d, &hh, &mm, &all_day);             /* no April 31 */
+        ok &= !notes_parse_start("2026-10-05T24:00", &y, &m, &d, &hh, &mm, &all_day);        /* no hour 24 */
         ok &= !notes_parse_start(NULL, &y, &m, &d, &hh, &mm, &all_day);
     }
 
-    /* 기준 시각: 시각 있는 일정 vs 하루 종일, 1440분(하루 전) 오프셋이 월 경계를 넘는 경우 */
+    /* Base time: timed event vs all-day, and a 1440-minute (one day before) offset crossing a month boundary */
     {
-        /* 2026-11-01 09:00 일정, 하루 전(1440분) 알림 == 2026-10-31 09:00 */
+        /* event at 2026-11-01 09:00, reminder one day before (1440 min) == 2026-10-31 09:00 */
         int64_t base = notes_base_minutes(2026, 11, 1, 9, 0, false, 0, 0);
-        int64_t due = base - 1440;   /* 분 단위 오프셋 */
+        int64_t due = base - 1440;   /* offset in minutes */
         int64_t expect = notes_base_minutes(2026, 10, 31, 9, 0, false, 0, 0);
         ok &= due == expect;
 
-        /* 하루 종일 일정(all_day_time 09:00 기준), 정각(0) == 당일 09:00, 하루 전 == 전날 09:00 */
+        /* all-day event (all_day_time 09:00 as base), on time (0) == 09:00 that day, one day before == 09:00 the day before */
         int64_t ad_base = notes_base_minutes(2026, 3, 1, 0, 0, true, 9, 0);
         ok &= ad_base == notes_base_minutes(2026, 3, 1, 9, 0, false, 0, 0);
         int64_t ad_due_1d = ad_base - 1440;
-        ok &= ad_due_1d == notes_base_minutes(2026, 2, 28, 9, 0, false, 0, 0);   /* 2026은 평년 */
+        ok &= ad_due_1d == notes_base_minutes(2026, 2, 28, 9, 0, false, 0, 0);   /* 2026 is a common year */
     }
 
     /* UTF-8 */
     ok &= notes_utf8_valid("hello", 5);
     ok &= notes_utf8_valid("우유 사기", strlen("우유 사기"));
     ok &= !notes_utf8_valid("\xC0\x80", 2);          /* overlong */
-    ok &= !notes_utf8_valid("\xE0\x80", 2);          /* 잘림 */
-    ok &= !notes_utf8_valid("\xED\xA0\x80", 3);      /* UTF-16 서로게이트 범위 */
+    ok &= !notes_utf8_valid("\xE0\x80", 2);          /* truncated */
+    ok &= !notes_utf8_valid("\xED\xA0\x80", 3);      /* UTF-16 surrogate range */
     {
         char out[16];
-        notes_utf8_truncate("우유 사기 우유 사기", 5, out);   /* "우유" 2글자=6바이트라 5에서 "우유"만 자르면 3바이트(한 글자) */
-        /* "우"=3바이트. 5바이트 한도면 "우유"(6바이트)는 안 들어가고 "우"(3바이트)만 */
+        notes_utf8_truncate("우유 사기 우유 사기", 5, out);   /* "우유" is 2 chars = 6 bytes, so cutting it at 5 leaves 3 bytes (one char) */
+        /* "우" = 3 bytes. With a 5-byte limit, "우유" (6 bytes) doesn't fit; only "우" (3 bytes) does */
         ok &= strlen(out) == 3;
         notes_utf8_truncate("hello", 3, out);
         ok &= !strcmp(out, "hel");
@@ -324,12 +324,12 @@ bool notes_selftest(void)
         ok &= !strcmp(out, "hi");
     }
 
-    /* 검색 */
+    /* search */
     ok &= notes_search_match("병원 (정형외과) 예약", "정형외과");
-    ok &= notes_search_match("Milk and Eggs", "milkandeggs");      /* 대소문자·공백 무시 */
-    ok &= notes_search_match("우유 사기", "우 유");                  /* 공백 무시(양쪽 다) */
+    ok &= notes_search_match("Milk and Eggs", "milkandeggs");      /* ignores case and spaces */
+    ok &= notes_search_match("우유 사기", "우 유");                  /* ignores spaces (on both sides) */
     ok &= !notes_search_match("우유 사기", "계란");
-    ok &= notes_search_match("아무거나", "");                       /* 빈 질의는 통과 */
+    ok &= notes_search_match("아무거나", "");                       /* an empty query passes */
 
     /* id */
     {
@@ -337,9 +337,9 @@ bool notes_selftest(void)
         notes_id_from_random(0x7f3a9c21, id);
         ok &= !strcmp(id, "n_7f3a9c21");
         ok &= notes_id_looks_valid(id);
-        ok &= !notes_id_looks_valid("n_7F3A9C21");   /* 대문자 불가 */
+        ok &= !notes_id_looks_valid("n_7F3A9C21");   /* no uppercase */
         ok &= !notes_id_looks_valid("x_7f3a9c21");
-        ok &= !notes_id_looks_valid("n_7f3a9c2");    /* 길이 */
+        ok &= !notes_id_looks_valid("n_7f3a9c2");    /* length */
     }
 
     return ok;

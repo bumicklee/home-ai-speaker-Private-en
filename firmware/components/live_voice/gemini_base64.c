@@ -1,4 +1,4 @@
-/* 설명은 gemini_base64.h. ESP-IDF 의존 없음 (Mac에서 바로 시험) */
+/* See gemini_base64.h. No ESP-IDF dependency (test it directly on the Mac) */
 #include "gemini_base64.h"
 
 #include <string.h>
@@ -63,7 +63,7 @@ size_t gemini_base64_decode(const char *in, size_t in_len, uint8_t *out, size_t 
             continue;
         }
         if (c == '=') {
-            break;      /* 패딩: 여기서 끝 */
+            break;      /* padding: stop here */
         }
         int v = dec_value(c);
         if (v < 0) {
@@ -92,7 +92,7 @@ size_t gemini_base64_decode(const char *in, size_t in_len, uint8_t *out, size_t 
         out[oi++] = (uint8_t)((vals[0] << 2) | (vals[1] >> 4));
         out[oi++] = (uint8_t)((vals[1] << 4) | (vals[2] >> 2));
     } else if (n == 1) {
-        return (size_t)-1;     /* 홀로 남은 글자 하나는 잘못된 base64 */
+        return (size_t)-1;     /* a single leftover character is invalid base64 */
     }
     return oi;
 }
@@ -102,7 +102,7 @@ bool gemini_base64_selftest(void)
     bool ok = true;
     char buf[64];
 
-    /* RFC 4648 표준 테스트 벡터 */
+    /* RFC 4648 standard test vectors */
     ok &= gemini_base64_encode((const uint8_t *)"", 0, buf, sizeof(buf)) == 0;
     size_t n = gemini_base64_encode((const uint8_t *)"f", 1, buf, sizeof(buf));
     ok &= n == 4 && !memcmp(buf, "Zg==", 4);
@@ -121,15 +121,15 @@ bool gemini_base64_selftest(void)
     dn = gemini_base64_decode("Zm8=", 4, dec, sizeof(dec));
     ok &= dn == 2 && !memcmp(dec, "fo", 2);
 
-    /* 줄바꿈·공백은 건너뛴다 */
+    /* newlines and spaces are skipped */
     dn = gemini_base64_decode("Zm9v\nYmFy", 9, dec, sizeof(dec));
     ok &= dn == 6 && !memcmp(dec, "foobar", 6);
 
-    /* 잘못된 글자는 실패 */
+    /* invalid characters fail */
     dn = gemini_base64_decode("Zg!=", 4, dec, sizeof(dec));
     ok &= dn == (size_t)-1;
 
-    /* 왕복: 임의 바이트 */
+    /* round trip: arbitrary bytes */
     uint8_t raw[37];
     for (unsigned i = 0; i < sizeof(raw); i++) {
         raw[i] = (uint8_t)(i * 7 + 3);
@@ -141,7 +141,7 @@ bool gemini_base64_selftest(void)
     size_t back_n = gemini_base64_decode(enc, enc_n, back, sizeof(back));
     ok &= back_n == sizeof(raw) && !memcmp(raw, back, sizeof(raw));
 
-    /* 그릇이 모자라면 실패 */
+    /* fails if the buffer is too small */
     char tiny[2];
     ok &= gemini_base64_encode((const uint8_t *)"foo", 3, tiny, sizeof(tiny)) == 0;
     ok &= gemini_base64_decode("Zm9vYmFy", 8, back, 3) == (size_t)-1;

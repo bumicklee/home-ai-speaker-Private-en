@@ -7,7 +7,7 @@ import '../../../../core/network/device_token_storage.dart';
 import '../../domain/entities/device.dart';
 import '../models/device_model.dart';
 
-/// 기기 목록(SharedPreferences) + 기기별 토큰(보안 저장소)
+/// Device list (SharedPreferences) + per-device tokens (secure storage)
 class DevicesLocalDataSource {
   DevicesLocalDataSource(this._prefs, this._tokens);
 

@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 앱 전역 설정: 테마, 언어 (led-app 방식). 기본 언어는 시스템 언어, 지원하지 않으면 ko.
+/// App-wide settings: theme and language (the led-app way). The default language is the system language, or ko if it isn't supported.
 class SettingsState extends Equatable {
   const SettingsState({this.themeMode = ThemeMode.system, this.locale});
 
   final ThemeMode themeMode;
 
-  /// null = 시스템 언어
+  /// null = system language
   final Locale? locale;
 
   SettingsState copyWith({ThemeMode? themeMode, Locale? Function()? locale}) =>
@@ -38,7 +38,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     emit(state.copyWith(themeMode: mode));
   }
 
-  /// null = 시스템 언어
+  /// null = system language
   Future<void> setLanguage(String? languageCode) async {
     if (languageCode == null) {
       await _prefs.remove(_localeKey);
@@ -49,7 +49,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     }
   }
 
-  /// 시스템 언어가 지원 목록에 없으면 ko
+  /// If the system language isn't in the supported list, use ko
   static Locale resolve(Locale? device, Iterable<Locale> supported) {
     for (final l in supported) {
       if (l.languageCode == device?.languageCode) return l;

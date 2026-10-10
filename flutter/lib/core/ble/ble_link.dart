@@ -1,5 +1,5 @@
-/// 스피커 BLE 연결 하나 (설계서 2.13, 3.4절).
-/// 검색(withServices FF50 + advName 접두어) → 연결 → MTU → 특성 탐색(Guid 비교) → **알림 먼저 구독** → 0xFF61 읽기.
+/// One BLE connection to the speaker (design document Sections 2.13, 3.4).
+/// Scan (withServices FF50 + advName prefix) → connect → MTU → discover characteristics (Guid comparison) → **subscribe to notifications first** → read 0xFF61.
 library;
 
 import 'dart:async';
@@ -13,22 +13,22 @@ import '../errors/exceptions.dart';
 import 'ble_command_channel.dart';
 import 'wifi_scan.dart';
 
-/// 검색으로 찾은 스피커
+/// A speaker found by scanning
 class DiscoveredSpeaker {
   const DiscoveredSpeaker({required this.device, required this.name, required this.rssi});
 
   final BluetoothDevice device;
 
-  /// 광고 이름 `JARVIS_XXXXXX` (iOS가 캐시하는 platformName은 쓰지 않는다)
+  /// Advertising name `JARVIS_XXXXXX` (we don't use platformName, which iOS caches)
   final String name;
   final int rssi;
 
-  /// 광고 이름 뒤 6자리 = STA MAC 뒤 6자리
+  /// Last 6 characters of the advertising name = last 6 of the STA MAC
   String get shortId => name.substring(BleProtocol.namePrefix.length);
 }
 
 class BleScanner {
-  /// BLE가 켜질 때까지 기다린다. 꺼져 있으면 [BleException] adapterOff
+  /// Waits until BLE is on. If it's off, throws [BleException] adapterOff
   static Future<void> ensureOn({Duration wait = const Duration(seconds: 3)}) async {
     if (!await FlutterBluePlus.isSupported) {
       throw const BleException(BleErrorCode.adapterOff, 'BLE not supported');
@@ -42,12 +42,12 @@ class BleScanner {
     }
   }
 
-  /// 주변 스피커 목록 (신호 센 순). [timeout]이 지나면 스트림이 끝난다.
+  /// Nearby speakers (strongest signal first). The stream ends after [timeout].
   ///
-  /// 스캔 시작·정지는 휴대폰 전체에 하나뿐이다. 그래서 정지는 **이 스캔을 시작한 구독이 취소될 때만**,
-  /// 그리고 그 사이 다른 스캔이 시작되지 않았을 때만 한다 (2026-10-03 실기기: 닫힌 화면에 남은 스캔이
-  /// 새 화면의 스캔을 곧바로 멈춰 스피커를 못 찾음).
-  /// Android는 30초에 5번 넘게 시작하면 조용히 거절한다(status=6) → [_waitForScanSlot]으로 미리 기다린다.
+  /// There is only one scan start/stop for the whole phone. So stop **only when the subscription that started this scan is cancelled**,
+  /// and only if no other scan started in the meantime (2026-10-03, real board: a scan left over from a closed screen
+  /// immediately stopped the new screen's scan, so the speaker was never found).
+  /// Android silently refuses more than 5 starts in 30 seconds (status=6) → wait ahead of time with [_waitForScanSlot].
   static Stream<List<DiscoveredSpeaker>> scan({Duration timeout = const Duration(seconds: 30)}) {
     final owner = Object();
     StreamSubscription<List<ScanResult>>? results;
@@ -79,7 +79,7 @@ class BleScanner {
             if (on) {
               started = true;
             } else if (started) {
-              finish(); // 시간이 다 됐거나 OS가 멈춤
+              finish(); // Time ran out or the OS stopped it
             }
           });
           _owner = owner;
@@ -108,7 +108,7 @@ class BleScanner {
   static Object? _owner;
   static final _starts = <DateTime>[];
 
-  /// 최근 30초 안에 시작이 4번이면 가장 오래된 것이 30초를 넘길 때까지 기다린다
+  /// If 4 scans started within the last 30 seconds, wait until the oldest one is more than 30 seconds old
   static Future<void> _waitForScanSlot() async {
     const window = Duration(seconds: 30);
     final now = DateTime.now();
@@ -127,7 +127,7 @@ class BleLink implements BleCommandTransport {
   late final BluetoothCharacteristic _ssid, _password, _status, _scan, _mac, _firmware, _cmdRx, _cmdTx, _provDone;
   late final BleCommandChannel commands;
 
-  /// 기기 식별자: 0xFF61 STA MAC (12자 대문자 16진수). iOS remoteId는 MAC이 아니라 쓰지 않는다
+  /// Device identifier: 0xFF61 STA MAC (12 uppercase hex characters). iOS remoteId is not a MAC, so we don't use it
   late final String mac;
   late final String firmware;
 
@@ -137,10 +137,10 @@ class BleLink implements BleCommandTransport {
   final _disconnected = Completer<void>();
   bool _bondRetried = false;
 
-  /// 0xFF53 상태 알림
+  /// 0xFF53 status notifications
   Stream<WifiProvStatus> get wifiStatus => _statusController.stream;
 
-  /// 연결이 끊기면 완료된다
+  /// Completes when the connection drops
   Future<void> get disconnected => _disconnected.future;
 
   static Future<BleLink> connect(BluetoothDevice device, {Duration timeout = const Duration(seconds: 15)}) async {
@@ -163,7 +163,7 @@ class BleLink implements BleCommandTransport {
       if (s == BluetoothConnectionState.disconnected) _onDisconnected();
     }));
     if (Platform.isAndroid) {
-      await device.requestMtu(BleProtocol.androidMtuRequest); // iOS는 OS가 정한 값
+      await device.requestMtu(BleProtocol.androidMtuRequest); // On iOS the OS decides
     }
     final services = await device.discoverServices();
     BluetoothCharacteristic find(Guid svc, Guid chr) {
@@ -186,7 +186,7 @@ class BleLink implements BleCommandTransport {
     _cmdTx = find(BleProtocol.svcConfig, BleProtocol.chrCmdTx);
     _provDone = find(BleProtocol.svcConfig, BleProtocol.chrProvDone);
 
-    // 쓰기 전에 알림부터 켠다 (led-app은 나중에 켜서 초기 상태를 놓쳤다)
+    // Turn on notifications before writing (led-app turned them on later and missed the initial status)
     _subs.add(_status.onValueReceived.listen((v) {
       final s = v.isEmpty ? null : WifiProvStatus.fromCode(v[0]);
       if (s != null) _statusController.add(s);
@@ -214,7 +214,7 @@ class BleLink implements BleCommandTransport {
 
   // ── Wi-Fi ──
 
-  /// 기기가 주변 Wi-Fi를 스캔한다 (기기 스캔이라 iOS도 된다)
+  /// The device scans nearby Wi-Fi (a device-side scan, so it works on iOS too)
   Future<List<WifiNetwork>> scanWifi({Duration timeout = const Duration(seconds: 15)}) async {
     final collector = WifiScanCollector();
     final done = Completer<List<WifiNetwork>>();
@@ -235,10 +235,10 @@ class BleLink implements BleCommandTransport {
     }
   }
 
-  /// SSID → 비밀번호를 쓰고 첫 종료 상태(2–5)를 결과로 준다. 기기 제한 20초 + 여유
+  /// Writes SSID → password and returns the first terminal status (2–5). Device limit of 20 seconds + margin
   Future<WifiProvStatus> provisionWifi(String ssid, String password,
       {Duration timeout = const Duration(seconds: 30)}) async {
-    final ssidBytes = utf8.encode(ssid); // led-app은 UTF-16 codeUnits라 한글 SSID가 깨졌다
+    final ssidBytes = utf8.encode(ssid); // led-app used UTF-16 codeUnits, which broke Korean SSIDs
     final pwBytes = utf8.encode(password);
     if (ssidBytes.isEmpty || ssidBytes.length > BleProtocol.ssidMaxBytes || pwBytes.length > BleProtocol.passwordMaxBytes) {
       throw const BleException(BleErrorCode.tooLarge, 'ssid/password length');
@@ -246,14 +246,14 @@ class BleLink implements BleCommandTransport {
     final result = wifiStatus.firstWhere((s) => s.isFinal).timeout(timeout,
         onTimeout: () => throw const BleException(BleErrorCode.timeout, 'wifi status'));
     await _write(_ssid, ssidBytes);
-    await _write(_password, pwBytes); // 쓰면 연결 시도 시작. 개방형은 길이 0
+    await _write(_password, pwBytes); // Writing starts the connection attempt. Length 0 for open networks
     return result;
   }
 
-  /// 0xFF88: Wi-Fi를 바꿨으면 저장 후 재부팅, 아니면 prov.close와 같다
+  /// 0xFF88: if Wi-Fi was changed, save and reboot; otherwise the same as prov.close
   Future<void> provisioningDone() => _write(_provDone, const [BleProtocol.provDoneValue]);
 
-  // ── 공통 ──
+  // ── Common ──
 
   Future<void> _write(BluetoothCharacteristic c, List<int> value) async {
     try {
@@ -262,7 +262,7 @@ class BleLink implements BleCommandTransport {
       if (!_isAuthError(e)) {
         throw BleException(BleErrorCode.protocol, e.description);
       }
-      // 예전 본딩이 남아 암호화 쓰기 실패 (설계서 3.4 "페어링 실패 처리")
+      // A leftover old bond makes the encrypted write fail (design document 3.4 "Pairing failure handling")
       if (Platform.isAndroid && !_bondRetried) {
         _bondRetried = true;
         await device.removeBond();

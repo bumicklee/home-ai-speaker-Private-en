@@ -1,8 +1,8 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// 휴대폰에 기억해 두는 비밀값 (2026-10-03 사용자 요청: 한 번 넣은 OpenAI·Gemini 키·텔레그램 봇 토큰을 기억).
-/// iOS Keychain / Android Keystore로 암호화된 보안 저장소. 앱을 지웠다 깔면 InstallState가 비운다.
-/// 스피커로는 BLE로만 보낸다 (LAN으로 보내지 않음, D6).
+/// Secrets remembered on the phone (2026-10-03 user request: remember the OpenAI and Gemini keys and Telegram bot token, once entered).
+/// Encrypted secure storage via iOS Keychain / Android Keystore. Emptied by InstallState on uninstall and reinstall.
+/// Sent to the speaker only over BLE (never over LAN, D6).
 class KeyVault {
   KeyVault(this._storage);
 

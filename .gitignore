@@ -1,26 +1,26 @@
 # macOS
 .DS_Store
 
-# 비밀값: OTA 서명 키는 절대 커밋하지 않는다 (책 1.4.9절). 폴더는 .gitkeep으로 남긴다
+# Secrets: never commit the OTA signing key (Section 1.4.9 of the book). The folder stays via .gitkeep
 certificates/*.pem
 *.pem
 
-# ESP-IDF 빌드 결과
+# ESP-IDF build output
 firmware/build/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/managed_components/
 
-# Flutter 빌드 결과 (그 밖의 항목은 flutter/.gitignore)
+# Flutter build output (other entries are in flutter/.gitignore)
 flutter/build/
 
-# 릴리즈 빌드 결과물 (scripts/build-flutter-release.sh)
+# Release build artifacts (scripts/build-flutter-release.sh)
 releases/
 
-# 도구 상태
+# Tool state
 .bkit/
 
-# 개인 설정: 저장소에 넣지 않는다 (책 2장)
+# Personal settings: keep them out of the repository (Chapter 2 of the book)
 .claude/settings.local.json
 .claude/worktrees/
 .vscode/
@@ -28,12 +28,12 @@ releases/
 *.swp
 Thumbs.db
 
-# Android 서명·로컬 설정 (스토어 배포용 키를 만들었을 때 대비)
+# Android signing and local settings (in case you create a key for store release)
 flutter/android/key.properties
 flutter/android/local.properties
 *.jks
 *.keystore
 
-# 환경 변수·비밀값 파일
+# Environment variable and secret files
 .env
 .env.*

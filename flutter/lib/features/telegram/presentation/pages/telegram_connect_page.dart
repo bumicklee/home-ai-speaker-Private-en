@@ -12,12 +12,12 @@ import '../bloc/telegram_connect_cubit.dart';
 import '../widgets/telegram_widgets.dart';
 
 enum TelegramConnectMode {
-  setup, // 처음: 봇 → 토큰 → 저장하면 바로 등록 코드
-  replaceToken, // 토큰만 바꾸기 (대화방은 그대로. 코드는 원할 때)
-  addChat, // 대화방 하나 더 (코드만)
+  setup, // first time: bot → token → pairing code right after saving
+  replaceToken, // replace only the token (chats stay. code when wanted)
+  addChat, // one more chat (code only)
 }
 
-/// 디자인 "텔레그램 연결" (대화방 화면에서 토큰 바꾸기·추가로 열 때). 끝나면 true로 닫힌다
+/// Design "Connect Telegram" (opened from the chats screen to replace the token or add a chat). Closes with true when done
 class TelegramConnectPage extends StatelessWidget {
   const TelegramConnectPage({super.key, required this.mode});
 
@@ -39,7 +39,7 @@ class TelegramConnectPage extends StatelessWidget {
   }
 }
 
-/// 연결 단계 본문. TelegramPage는 토큰이 없을 때 이것을 바로 보인다
+/// Body of the connection steps. TelegramPage shows this directly when there is no token
 class TelegramConnectView extends StatelessWidget {
   const TelegramConnectView({super.key, required this.mode, required this.onDone});
 
@@ -139,7 +139,7 @@ class _TokenCardState extends State<_TokenCard> {
   @override
   void didUpdateWidget(covariant _TokenCard old) {
     super.didUpdateWidget(old);
-    // 기억해 둔 토큰을 늦게 읽어 온 경우
+    // The remembered token was read in late
     if (_controller.text.isEmpty && widget.state.token.isNotEmpty) _controller.text = widget.state.token;
   }
 
@@ -242,7 +242,7 @@ class _PairingCard extends StatelessWidget {
   final int number;
   final TelegramConnectState state;
 
-  /// 토큰을 아직 스피커에 저장하지 않음
+  /// Token not yet saved to the speaker
   final bool locked;
   final VoidCallback onDone;
 
@@ -305,7 +305,7 @@ class _PairingCard extends StatelessWidget {
   }
 }
 
-/// 큰 코드, `/pair 코드`, 남은 시간, 복사·텔레그램 열기
+/// Large code, `/pair code`, time left, copy and open Telegram
 class _CodeBox extends StatelessWidget {
   const _CodeBox({required this.state});
 

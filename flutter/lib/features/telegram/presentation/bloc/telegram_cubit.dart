@@ -21,13 +21,13 @@ class TelegramViewState extends Equatable {
   final TelegramOverview? overview;
   final TelegramOptions options;
 
-  /// 불러오기 실패 (전체 화면 오류)
+  /// Loading failed (full-screen error)
   final Failure? failure;
 
-  /// 별칭·삭제·옵션 저장 실패 (스낵바). 동작을 시작할 때 비운다
+  /// Saving an alias, delete, or option failed (snackbar). Cleared when an action starts
   final Failure? actionFailure;
 
-  /// 스피커에 토큰이 없으면 연결 화면을 보인다
+  /// If the speaker has no token, show the connection screen
   bool get needsSetup => overview != null && !overview!.hasToken;
 
   TelegramViewState copyWith({
@@ -49,7 +49,7 @@ class TelegramViewState extends Equatable {
   List<Object?> get props => [loading, overview, options, failure, actionFailure];
 }
 
-/// 텔레그램 화면: 상태·대화방·알림 옵션. WS `tg_status`·`tg_message`·`tg_paired`를 반영한다
+/// Telegram screen: state, chats, notification options. Reflects WS `tg_status`, `tg_message`, and `tg_paired`
 class TelegramCubit extends Cubit<TelegramViewState> {
   TelegramCubit(this._repo) : super(const TelegramViewState()) {
     _subs = [
@@ -73,13 +73,13 @@ class TelegramCubit extends Cubit<TelegramViewState> {
       (o) => emit(state.copyWith(
         loading: false,
         overview: () => o,
-        // 옵션을 못 읽어도 대화방은 보인다 (기본값 22–7)
+        // Show the chats even if the options can't be read (default 22–7)
         options: options.fold((_) => state.options, (v) => v),
       )),
     );
   }
 
-  /// 화면은 먼저 바꾸고, 실패하면 되돌린다
+  /// Update the screen first, and roll back on failure
   Future<bool> rename(int chatId, String alias) async {
     final before = state.overview;
     if (before == null) return false;
@@ -125,7 +125,7 @@ class TelegramCubit extends Cubit<TelegramViewState> {
   void _onStatus(String s) {
     final o = state.overview;
     if (o == null) return;
-    // 토큰이 생기거나 지워졌으면 봇 이름·토큰 유무가 바뀌므로 다시 불러온다
+    // If a token was added or removed, the bot name and token presence change, so reload
     if ((s == TelegramState.off) != (o.state == TelegramState.off) || (s == TelegramState.ok && o.bot.isEmpty)) {
       load();
     } else {

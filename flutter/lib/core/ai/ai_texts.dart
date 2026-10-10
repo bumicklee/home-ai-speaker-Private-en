@@ -1,4 +1,4 @@
-/// AI·대화 방식 문구 (첫 설정, 비서 > AI · 대화 방식, 홈, 영어 선생님이 같이 쓴다)
+/// AI and conversation mode text (shared by first-time setup, Assistant > AI & Conversation Mode, Home, and English Tutor)
 library;
 
 import '../../l10n/app_localizations.dart';
@@ -7,10 +7,10 @@ import 'ai_choice.dart';
 extension AiTexts on AppLocalizations {
   String aiModeName(AiMode m) => m == AiMode.saver ? aiModeSaver : aiModeLive;
 
-  /// "OpenAI · 절약 모드"
+  /// "OpenAI · Saver mode"
   String aiChoiceLabel(AiProvider p, AiMode m) => aiLabel(p.displayName, aiModeName(m));
 
-  /// 첫 설정 카드 한 줄: "월 약 1.5만 원 · 대답 1~2초 늦음"
+  /// One line on the first-time setup card: "about ₩15,000 a month · answers 1–2 seconds slower"
   String aiShortSub(AiProvider p, AiMode m) {
     final price = switch ((p, m)) {
       (AiProvider.openai, AiMode.saver) => aiPriceShortOpenAiSaver,
@@ -21,7 +21,7 @@ extension AiTexts on AppLocalizations {
     return '$price · ${m == AiMode.saver ? aiShortSaverNote : aiShortLiveNote}';
   }
 
-  /// 한 달 예상 (하루 1시간)
+  /// Monthly estimate (1 hour a day)
   String aiPrice(AiProvider p, AiMode m) => switch ((p, m)) {
         (AiProvider.openai, AiMode.saver) => aiPriceOpenAiSaver,
         (AiProvider.openai, AiMode.live) => aiPriceOpenAiLive,

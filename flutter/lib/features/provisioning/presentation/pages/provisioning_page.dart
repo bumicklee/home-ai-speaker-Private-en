@@ -13,7 +13,7 @@ import '../../../devices/presentation/bloc/devices_cubit.dart';
 import '../../domain/entities/provisioning_input.dart';
 import '../bloc/provisioning_cubit.dart';
 
-/// 첫 설정·휴대폰 추가·재등록 (디자인 "첫 설정" 1–4)
+/// First-time setup, adding a phone, re-registration (design "First-time setup" 1–4)
 class ProvisioningPage extends StatelessWidget {
   const ProvisioningPage({super.key});
 
@@ -82,7 +82,7 @@ class _ProvisioningView extends StatelessWidget {
   }
 }
 
-/// 제목 + 본문 + 아래 고정 버튼
+/// Title + body + fixed button at the bottom
 class _StepScaffold extends StatelessWidget {
   const _StepScaffold({required this.title, this.body, required this.children, this.footer});
 
@@ -132,7 +132,7 @@ class _Busy extends StatelessWidget {
       );
 }
 
-// ── 1. AI · 키 · 방식 ─────────────────────────────────
+// ── 1. AI · key · mode ─────────────────────────────────
 
 class _KeysStep extends StatefulWidget {
   const _KeysStep({required this.state});
@@ -169,7 +169,7 @@ class _KeysStepState extends State<_KeysStep> {
   @override
   void didUpdateWidget(_KeysStep old) {
     super.didUpdateWidget(old);
-    // init()이 기억해 둔 값을 늦게 채운다
+    // init() fills in the remembered values late
     final input = widget.state.input;
     if (old.state.input.provider != input.provider) _provider = input.provider;
     for (final p in AiProvider.values) {
@@ -283,7 +283,7 @@ class _KeysStepState extends State<_KeysStep> {
               ),
             ],
           ]),
-          // 연결 전에는 이 스피커가 무엇을 할 수 있는지 모른다 (연결 뒤 device.info.ai로 확인)
+          // Before connecting, we don't know what this speaker can do (checked after connecting via device.info.ai)
           if (_provider == AiProvider.gemini) ...[
             const SizedBox(height: 6),
             Text(l.provMaybeNotReady, style: theme.textTheme.bodySmall),
@@ -371,7 +371,7 @@ class _KeysStepState extends State<_KeysStep> {
   }
 }
 
-/// 둘 중 하나 고르는 카드 (AI, 대화 방식)
+/// Card for picking one of two (AI, conversation mode)
 class _ChoiceTile extends StatelessWidget {
   const _ChoiceTile({
     required this.title,
@@ -427,7 +427,7 @@ class _ChoiceTile extends StatelessWidget {
   }
 }
 
-// ── 2. 스피커 찾기 ──────────────────────────────────────
+// ── 2. Find speaker ──────────────────────────────────────
 
 class _ScanStep extends StatelessWidget {
   const _ScanStep({required this.state});
@@ -441,7 +441,7 @@ class _ScanStep extends StatelessWidget {
     return _StepScaffold(
       title: l.provScanTitle,
       footer: OutlinedButton(
-        // 찾는 중에는 누를 수 없다 (다시 시작하면 Android 스캔 횟수 제한에 걸린다)
+        // Can't be tapped while searching (restarting hits Android's scan count limit)
         onPressed: state.searching ? null : cubit.scan,
         style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56)),
         child: Text(l.provScanAgain),
@@ -669,7 +669,7 @@ class _WifiPasswordSheetState extends State<_WifiPasswordSheet> {
   }
 }
 
-// ── 휴대폰 칸이 가득 참 ────────────────────────────────
+// ── Phone slots full ────────────────────────────────
 
 class _PhonesFullStep extends StatefulWidget {
   const _PhonesFullStep({required this.state});
@@ -707,7 +707,7 @@ class _PhonesFullStepState extends State<_PhonesFullStep> {
   }
 }
 
-// ── 4. 완료 ────────────────────────────────────────────
+// ── 4. Done ────────────────────────────────────────────
 
 class _DoneStep extends StatelessWidget {
   const _DoneStep({required this.state});

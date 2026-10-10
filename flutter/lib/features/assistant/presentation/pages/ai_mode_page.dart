@@ -11,7 +11,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../provisioning/domain/entities/provisioning_input.dart';
 import '../bloc/ai_mode_cubit.dart';
 
-/// 비서 > AI · 대화 방식 (디자인 "AI · 대화 방식"): ① AI(키 없음·준비 중 잠금) → ② 그 AI의 실시간 / 절약
+/// Assistant > AI · Conversation mode (design "AI · 대화 방식"): ① AI (locked if no key or coming soon) → ② that AI's Live / Saver
 class AiModePage extends StatelessWidget {
   const AiModePage({super.key});
 
@@ -110,7 +110,7 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// 바꾼 결과 알리기 (키가 없다는 거절은 쉬운 말로)
+/// Report the result of a change (a no-key rejection in plain words)
 void _report(BuildContext context, Failure? f, AiProvider provider, bool changed) {
   final l = AppLocalizations.of(context);
   if (f == null) {

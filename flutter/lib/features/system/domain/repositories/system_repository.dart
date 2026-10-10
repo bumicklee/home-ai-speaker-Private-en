@@ -3,26 +3,26 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/errors/failures.dart';
 import '../entities/system_status.dart';
 
-/// 시스템 화면: 상태, 등록된 휴대폰, 재시작, 스피커의 키 (설계서 2.13–2.14절)
+/// System screen: status, registered phones, restart, the speaker's keys (design document, Sections 2.13–2.14)
 abstract interface class SystemRepository {
-  /// 선택된 스피커의 기기 ID (없으면 null)
+  /// Device ID of the selected speaker (null if none)
   String? get deviceId;
 
-  /// IP 주소 (화면 표시용)
+  /// IP address (for display)
   String? get host;
 
   Future<Either<Failure, SystemStatus>> status();
   Future<Either<Failure, List<RegisteredPhone>>> phones();
 
-  /// 404 = 이미 없음
+  /// 404 = already gone
   Future<Either<Failure, Unit>> revokePhone(String phoneId);
 
-  /// 409 VOICE_ACTIVE = 대화 중
+  /// 409 VOICE_ACTIVE = in a conversation
   Future<Either<Failure, Unit>> reboot();
 
-  /// 스피커에서 키 지우기 (LAN, 비밀값이 오가지 않으므로 허용)
+  /// Delete a key on the speaker (LAN; allowed because no secret is sent)
   Future<Either<Failure, Unit>> deleteSpeakerKey(String key);
 
-  /// 스피커 키 바꾸기. 비밀값은 BLE로만 보낸다 (D6). 사용자가 Key2를 3초 눌러 BLE 창을 연 뒤에 부른다
+  /// Change a speaker key. Secrets go over BLE only (D6). Call after the user holds Key2 for 3 seconds to open the BLE window
   Future<Either<Failure, Unit>> sendKeyOverBle(String key, String value);
 }

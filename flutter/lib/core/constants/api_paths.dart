@@ -1,15 +1,15 @@
-/// LAN API 경로 (설계서 2.14절). 기기 쪽은 `local_api.c`.
+/// LAN API paths (design document Section 2.14). The device side is `local_api.c`.
 library;
 
 class LanDiscovery {
   LanDiscovery._();
 
-  /// mDNS 서비스 (iOS Info.plist `NSBonjourServices`와 같아야 한다)
+  /// mDNS service (must match iOS Info.plist `NSBonjourServices`)
   static const serviceType = '_aispeaker._tcp';
   static const hostPrefix = 'jarvis-';
   static const port = 80;
 
-  /// TXT 레코드 키
+  /// TXT record keys
   static const txtId = 'id';
   static const txtProtocol = 'pv';
 }
@@ -48,7 +48,7 @@ class ApiPaths {
   static const events = '$base/events';
 }
 
-/// `/settings/{group}`의 group
+/// The group in `/settings/{group}`
 class SettingsGroup {
   SettingsGroup._();
   static const audio = 'audio';

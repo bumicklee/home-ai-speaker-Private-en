@@ -62,7 +62,7 @@ void main() {
     expect(c.state.failure, isNull);
     verifyNever(() => repo.settings());
 
-    // 다시 닿으면 풀린다
+    // touching it again releases it
     when(() => repo.sync()).thenAnswer((_) async => const Right(cache));
     await c.sync();
     expect(c.state.offline, isFalse);

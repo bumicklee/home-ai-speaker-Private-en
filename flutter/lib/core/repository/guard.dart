@@ -6,7 +6,7 @@ import '../errors/error_keys.dart';
 import '../errors/exceptions.dart';
 import '../errors/failures.dart';
 
-/// 레포지토리 공통: 예외 → Failure (메서드마다 try/catch를 반복하지 않는다. 설계서 3.3절)
+/// Shared by repositories: exception → Failure (no try/catch repeated in every method; design document Section 3.3)
 Future<Either<Failure, T>> guard<T>(Future<T> Function() run) async {
   try {
     return Right(await run());

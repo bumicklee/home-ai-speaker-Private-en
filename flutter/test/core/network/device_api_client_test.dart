@@ -7,7 +7,7 @@ import 'package:aispeaker/core/network/device_endpoint.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 주소별로 응답을 정하는 가짜 HTTP
+/// Fake HTTP that decides the response per address
 class FakeAdapter implements HttpClientAdapter {
   FakeAdapter(this.handler);
 

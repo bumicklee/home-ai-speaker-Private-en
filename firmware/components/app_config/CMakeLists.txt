@@ -1,2 +1,2 @@
-# 헤더만 있는 컴포넌트: 모든 모듈이 공유하는 상수 (설계서 2.0, 2.2절)
+# Header-only component: constants shared by every module (design document, Sections 2.0 and 2.2)
 idf_component_register(INCLUDE_DIRS "include")

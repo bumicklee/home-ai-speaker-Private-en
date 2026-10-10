@@ -1,5 +1,5 @@
-/// 0xFF54 Wi-Fi 스캔 알림 해석 (설계서 2.13절).
-/// 순서: 개수 1바이트(0–20, 0xFF = 실패) → AP마다 34바이트 [SSID 32B(0 채움)][RSSI+128][보안].
+/// Parses the 0xFF54 Wi-Fi scan notifications (design document Section 2.13).
+/// Order: a 1-byte count (0–20, 0xFF = failure) → 34 bytes per AP [SSID 32B (zero-padded)][RSSI+128][security].
 library;
 
 import 'dart:convert';
@@ -16,7 +16,7 @@ class WifiNetwork extends Equatable {
   final int rssi;
   final WifiSecurity security;
 
-  /// 신호 막대 0–4
+  /// Signal bars 0–4
   int get bars => rssi >= -55
       ? 4
       : rssi >= -67
@@ -46,12 +46,12 @@ class WifiNetwork extends Equatable {
   List<Object?> get props => [ssid, rssi, security];
 }
 
-/// 알림을 차례로 넣으면 목록이 다 모였을 때 결과를 준다.
+/// Feed the notifications in one by one; it returns the result once the whole list has arrived.
 class WifiScanCollector {
   int? _expected;
   final _networks = <WifiNetwork>[];
 
-  /// 다 모이면 신호 센 순으로 정렬한 목록, 아직이면 null
+  /// Once complete, the list sorted strongest signal first; otherwise null
   List<WifiNetwork>? add(List<int> notification) {
     if (_expected == null) {
       if (notification.length != 1) {

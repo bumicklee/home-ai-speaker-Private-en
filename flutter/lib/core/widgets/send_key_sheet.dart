@@ -1,5 +1,5 @@
-/// 키 입력 → "Key2를 3초 누르세요" → BLE로 보내기 (시스템 > 키, 비서 > AI · 대화 방식이 같이 쓴다).
-/// 비밀값은 BLE로만 보낸다 (D6). 보내는 일은 [onSend]가 한다.
+/// Enter key → "Hold Key2 for 3 seconds" → send over BLE (shared by System > Keys and Assistant > AI & Conversation Mode).
+/// Secrets are sent only over BLE (D6). [onSend] does the sending.
 library;
 
 import 'package:flutter/material.dart';
@@ -10,7 +10,7 @@ import '../errors/failures.dart';
 import '../../l10n/app_localizations.dart';
 import 'app_widgets.dart';
 
-/// 보냈으면 true
+/// true if sent
 Future<bool> showSendKeySheet(
   BuildContext context, {
   required String label,
@@ -41,12 +41,12 @@ class SendKeySheet extends StatefulWidget {
 
   final String label;
 
-  /// 휴대폰에 기억해 둔 값
+  /// The value remembered on the phone
   final String initial;
   final RegExp pattern;
   final String invalidText;
 
-  /// 실패하면 Failure (시트에 보인다)
+  /// Failure if it fails (shown in the sheet)
   final Future<Failure?> Function(String value) onSend;
 
   @override

@@ -13,7 +13,7 @@ class MockRepo extends Mock implements AssistantRepository {}
 
 class MockLocation extends Mock implements LocationService {}
 
-/// 펌웨어 DEFAULTS와 같은 값
+/// Same values as the firmware DEFAULTS
 const saved = AssistantSettings(
   name: 'Jarvis',
   purpose: 'A helpful family home assistant.',
@@ -80,7 +80,7 @@ void main() {
     c.edit((d) => d.copyWith(name: '자비스'));
     c.edit((d) => d.copyWith(autoMemory: true));
     c.edit((d) => d.copyWith(units: 'imperial'));
-    c.edit((d) => d.copyWith(units: 'metric')); // 되돌린 값은 보내지 않는다
+    c.edit((d) => d.copyWith(units: 'metric')); // a value changed back is not sent
     expect(c.state.dirty, isTrue);
 
     expect(await c.save(), isNull);
@@ -129,7 +129,7 @@ void main() {
     });
 
     test('동네는 96바이트까지', () {
-      expect(saved.copyWith(location: '가' * 32).validate(), isEmpty); // 96바이트
+      expect(saved.copyWith(location: '가' * 32).validate(), isEmpty); // 96 bytes
       expect(saved.copyWith(location: '${'가' * 32}a').validate(), [AssistantFieldError.locationTooLong]);
     });
 

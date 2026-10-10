@@ -26,7 +26,7 @@ class TelegramRepositoryImpl implements TelegramRepository {
   Future<Either<Failure, TelegramOverview>> overview() => guard(() async {
         final j = await _remote.chats();
         var hasToken = true;
-        // off는 "토큰 없음"이지만, 켜진 직후(폴링 시작 전)에도 off일 수 있어 /status로 확인한다
+        // off means "no token", but it can also be off right after enabling (before polling starts), so check with /status
         if ((j['state'] as String? ?? TelegramState.off) == TelegramState.off) {
           hasToken = (await _remote.secrets())[SecretKey.telegramBot] == true;
         }
@@ -66,7 +66,7 @@ class TelegramRepositoryImpl implements TelegramRepository {
         final session = await _ble.connectById(id);
         try {
           await session.setSecret(SecretKey.telegramBot, token);
-          await session.closeWindow(); // 재부팅 없이 적용. 스피커가 새 토큰으로 다시 연결한다
+          await session.closeWindow(); // Applied without a reboot. The speaker reconnects with the new token
         } finally {
           try {
             await session.disconnect();

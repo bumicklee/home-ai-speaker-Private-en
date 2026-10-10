@@ -1,7 +1,7 @@
 {
   "name": "home-ai-speaker",
-  "displayName": "우리 집 AI 스피커 (책 실습용)",
-  "description": "『클로드 코드로 만드는 우리 집 AI 스피커』의 단계별 프롬프트와 작업 규칙: 펌웨어(ESP-IDF), 앱(Flutter), 작업 방식 스킬과 장별 검증 에이전트",
+  "displayName": "Home AI Speaker (Book Exercises)",
+  "description": "Step-by-step prompts and working rules from the home AI speaker book built with Claude Code: firmware (ESP-IDF), app (Flutter), a working-method skill, and a per-chapter verification agent",
   "version": "0.1.0",
   "author": { "name": "이범익" },
   "skills": ["./.claude/skills/"],

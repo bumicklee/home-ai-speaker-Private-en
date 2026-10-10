@@ -1,7 +1,7 @@
 /*
- * NimBLE GATT 서버와 GAP (설계서 2.13절).
- * led-app의 FF50/FF60 규격을 바탕으로 FF80(설정 명령)을 더하고, 쓰기를 모두 암호화했다.
- * 콜백은 NimBLE 호스트 태스크에서 불린다: 값을 복사하고 작업 태스크에 넘기기만 한다.
+ * NimBLE GATT server and GAP (design document, Section 2.13).
+ * Built on led-app's FF50/FF60 spec, with FF80 (settings commands) added and every write encrypted.
+ * Callbacks are called from the NimBLE host task: they only copy the value and hand it to the worker task.
  */
 #include <string.h>
 #include "app_config.h"
@@ -19,10 +19,10 @@
 
 static const char *TAG = "BLE_GATT";
 
-/* NimBLE 예제와 같이 직접 선언한다 (공개 헤더에 없음) */
+/* declared here directly, as in the NimBLE examples (not in the public headers) */
 void ble_store_config_init(void);
 
-#define ATT_ERR_CCCD_IMPROPER 0xFD      /* 0xFF82 알림을 안 켜고 0xFF81에 쓰면 (2.13절) */
+#define ATT_ERR_CCCD_IMPROPER 0xFD      /* writing 0xFF81 without turning on 0xFF82 notifications (Section 2.13) */
 
 ble_state_t g_ble = {.conn_handle = BLE_HS_CONN_HANDLE_NONE};
 
@@ -32,7 +32,7 @@ static volatile bool s_stack_running;
 
 static void start_advertising(void);
 
-/* ── 쓰기 값 복사 ─────────────────────────────────────────── */
+/* ── Copying write values ─────────────────────────────────────────── */
 
 static int copy_write(struct ble_gatt_access_ctxt *ctxt, void *dst, size_t max, size_t *out_len)
 {
@@ -52,7 +52,7 @@ static int append_read(struct ble_gatt_access_ctxt *ctxt, const void *data, size
     return os_mbuf_append(ctxt->om, data, len) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
-/* ── 특성 콜백 ────────────────────────────────────────────── */
+/* ── Characteristic callbacks ────────────────────────────────────────────── */
 
 static int on_wifi(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -73,7 +73,7 @@ static int on_wifi(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ct
     }
     case APP_BLE_CHR_PASSWORD: {
         char pw[65] = {0};
-        rc = copy_write(ctxt, pw, 64, &len);     /* 개방형 네트워크는 길이 0 */
+        rc = copy_write(ctxt, pw, 64, &len);     /* length 0 for an open network */
         if (rc == 0) {
             memcpy(g_ble.password, pw, sizeof(pw));
             memset(pw, 0, sizeof(pw));
@@ -86,7 +86,7 @@ static int on_wifi(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *ct
         return append_read(ctxt, &status, 1);
     }
     case APP_BLE_CHR_SCAN:
-        /* 아무 값이나 쓰면 스캔. 스캔은 작업 태스크에서 (GATT 콜백 안에서 막지 않음) */
+        /* any write starts a scan. The scan runs in the worker task (never blocks inside the GATT callback) */
         ble_post_job(JOB_SCAN, 0, NULL, 0);
         return 0;
     default:
@@ -140,7 +140,7 @@ static int on_config(uint16_t conn, uint16_t attr, struct ble_gatt_access_ctxt *
     }
 }
 
-/* ── GATT 표 ──────────────────────────────────────────────── */
+/* ── GATT table ──────────────────────────────────────────────── */
 
 #define ENC_WRITE (BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC)
 
@@ -151,7 +151,7 @@ static const struct ble_gatt_svc_def s_services[] = {
         .characteristics = (struct ble_gatt_chr_def[]){
             {.uuid = BLE_UUID16_DECLARE(APP_BLE_CHR_SSID), .access_cb = on_wifi, .flags = ENC_WRITE},
             {.uuid = BLE_UUID16_DECLARE(APP_BLE_CHR_PASSWORD), .access_cb = on_wifi, .flags = ENC_WRITE},
-            /* 0xFF53·0xFF54는 암호화하지 않는다 (주변 Wi-Fi 이름이 보일 수 있음, 수용) */
+            /* 0xFF53 and 0xFF54 are not encrypted (nearby Wi-Fi names may be visible; accepted) */
             {.uuid = BLE_UUID16_DECLARE(APP_BLE_CHR_STATUS), .access_cb = on_wifi,
              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY, .val_handle = &g_ble.status_handle},
             {.uuid = BLE_UUID16_DECLARE(APP_BLE_CHR_SCAN), .access_cb = on_wifi,
@@ -217,7 +217,7 @@ static int on_gap(struct ble_gap_event *event, void *arg)
         ESP_LOGI(TAG, "encryption %s", event->enc_change.status == 0 ? "on" : "failed");
         return 0;
     case BLE_GAP_EVENT_REPEAT_PAIRING: {
-        /* 본딩을 저장하지 않으므로 보통 없지만, 남은 정보가 있으면 지우고 다시 페어링 */
+        /* bonds aren't stored, so usually there's none; if any is left over, delete it and pair again */
         struct ble_gap_conn_desc desc;
         if (ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc) == 0) {
             ble_store_util_delete_peer(&desc.peer_id_addr);
@@ -278,11 +278,11 @@ static void on_reset(int reason)
 
 static void host_task(void *arg)
 {
-    nimble_port_run();              /* nimble_port_stop()이 불릴 때까지 */
+    nimble_port_run();              /* until nimble_port_stop() is called */
     nimble_port_freertos_deinit();
 }
 
-/* ── 시작·정지 ────────────────────────────────────────────── */
+/* ── Start and stop ────────────────────────────────────────────── */
 
 esp_err_t ble_stack_start(const char *device_name)
 {
@@ -295,7 +295,7 @@ esp_err_t ble_stack_start(const char *device_name)
     ble_hs_cfg.sync_cb = on_sync;
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
-    /* LE Secure Connections, Just Works, 본딩 없음 (2.13절 보안) */
+    /* LE Secure Connections, Just Works, no bonding (Section 2.13, security) */
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
     ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_mitm = 0;
@@ -337,7 +337,7 @@ void ble_stack_stop(void)
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     ble_gap_adv_stop();
-    /* 호스트 태스크 밖(작업 태스크)에서 부른다. 컨트롤러 메모리를 영구 해제하지 않으므로 다시 열 수 있다 */
+    /* called outside the host task (from the worker task). Controller memory isn't released for good, so the window can open again */
     if (nimble_port_stop() == 0) {
         nimble_port_deinit();
     }
@@ -358,7 +358,7 @@ esp_err_t ble_notify(uint16_t handle, const void *data, size_t len)
         }
         struct os_mbuf *om = ble_hs_mbuf_from_flat(data, len);
         if (om) {
-            int rc = ble_gatts_notify_custom(g_ble.conn_handle, handle, om);    /* om 소유권을 넘김 */
+            int rc = ble_gatts_notify_custom(g_ble.conn_handle, handle, om);    /* hands over ownership of om */
             if (rc == 0) {
                 return ESP_OK;
             }
@@ -366,7 +366,7 @@ esp_err_t ble_notify(uint16_t handle, const void *data, size_t len)
                 return ESP_FAIL;
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(20));      /* 알림 버퍼 부족: 20ms 뒤 재시도 (2.13절) */
+        vTaskDelay(pdMS_TO_TICKS(20));      /* out of notification buffers: retry after 20ms (Section 2.13) */
     }
     return ESP_ERR_NO_MEM;
 }

@@ -1,4 +1,4 @@
-/// 화면 경로. 기능 화면은 lib/app/app_router.dart에서 연결한다
+/// Screen routes. Feature screens are wired up in lib/app/app_router.dart
 class AppRoutes {
   AppRoutes._();
   static const home = '/';

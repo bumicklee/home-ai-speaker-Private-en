@@ -7,7 +7,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/entities/audio_settings.dart';
 import '../bloc/audio_cubit.dart';
 
-/// 오디오·호출어 (디자인 "Audio"): 호출어 카드, 소리 카드, LED 밝기
+/// Audio & Wake Word (design "Audio"): wake word card, sound card, LED brightness
 class AudioPage extends StatelessWidget {
   const AudioPage({super.key});
 
@@ -126,7 +126,7 @@ class _WakeCard extends StatelessWidget {
                         value: wake.gainDb.toDouble(),
                         min: 0,
                         max: WakeSettings.maxGainDb.toDouble(),
-                        divisions: WakeSettings.maxGainDb ~/ 3, // 펌웨어는 3 dB 단위로 적용
+                        divisions: WakeSettings.maxGainDb ~/ 3, // the firmware applies it in 3 dB steps
                         valueText: l.audioWakeGainValue(wake.gainDb),
                         onChanged: (v) => cubit.preview(wake: wake.copyWith(gainDb: v.round())),
                         onChangeEnd: (v) => cubit.setWakeGain(v.round()),
@@ -148,7 +148,7 @@ class _WakeCard extends StatelessWidget {
   }
 }
 
-/// 호출어 선택 칸 (디자인: 높이 56, 고르면 청록 테두리)
+/// Wake word choice tile (design: height 56, teal border when selected)
 class _PhraseButton extends StatelessWidget {
   const _PhraseButton({required this.label, required this.selected, required this.onTap});
 
@@ -301,7 +301,7 @@ class _SoundCard extends StatelessWidget {
     );
   }
 
-  /// 기기가 받는 값만 고르게 한다 ([AudioSettings.micGainSteps])
+  /// Lets you pick only values the device accepts ([AudioSettings.micGainSteps])
   Future<void> _pickMicGain(BuildContext context, int current) async {
     final cubit = context.read<AudioCubit>();
     final picked = await showModalBottomSheet<int>(

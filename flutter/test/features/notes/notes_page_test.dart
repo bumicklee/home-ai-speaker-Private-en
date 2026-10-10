@@ -103,7 +103,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('최대 3개'), findsOneWidget);
     expect(find.text('스피커가 하루 전, 1시간 전, 10분 전에 말로 알려 줘요'), findsOneWidget);
-    await tester.tap(find.text('30분 전')); // 막혀 있음
+    await tester.tap(find.text('30분 전')); // disabled
     await tester.pumpAndSettle();
     expect(find.text('스피커가 하루 전, 1시간 전, 10분 전에 말로 알려 줘요'), findsOneWidget);
 

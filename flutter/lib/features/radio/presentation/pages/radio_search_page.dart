@@ -11,8 +11,8 @@ import '../bloc/radio_search_cubit.dart';
 import '../widgets/preset_form_sheet.dart';
 import 'radio_page.dart';
 
-/// 방송 찾기: Radio-Browser를 휴대폰에서 검색 → 프리셋에 추가 또는 지금 틀기.
-/// RadioCubit은 라디오 화면의 것을 그대로 받는다 (BlocProvider.value)
+/// Station search: search Radio-Browser from the phone → add to presets or play now.
+/// Takes the radio screen's RadioCubit as is (BlocProvider.value)
 class RadioSearchPage extends StatelessWidget {
   const RadioSearchPage({super.key});
 

@@ -1,9 +1,9 @@
 /*
- * Telegram 저장소: 등록 대화방, 옵션, 마지막 update_id (설계서 2.12절 telegram 네임스페이스).
- * - chats: JSON 문자열 [{chat_id, alias, title, type}] 최대 10개
- * - last_upd: i64. 바뀔 때 최대 30초에 한 번 저장한다(플래시 수명). 조금 오래된 값으로 재부팅해도
- *   Telegram이 이미 확인 처리한 메시지는 다시 오지 않는다(설계서 2.11절 4번)
- * - auto_read, quiet_s, quiet_e: 새 메시지 자동 읽기와 조용한 시간 (TLG-10)
+ * Telegram store: registered chats, options, last update_id (design document Section 2.12, telegram namespace).
+ * - chats: JSON string [{chat_id, alias, title, type}], up to 10
+ * - last_upd: i64. Saved at most once every 30 s when it changes (flash lifetime). Even after a reboot with a slightly stale value,
+ *   messages Telegram has already acknowledged don't come again (design document Section 2.11, item 4)
+ * - auto_read, quiet_s, quiet_e: auto-read of new messages and quiet hours (TLG-10)
  */
 #include <stdlib.h>
 #include <string.h>
@@ -98,7 +98,7 @@ void tg_save_last_update_id(int64_t id, bool force)
     }
 }
 
-/* ── 대화방 ───────────────────────────────────────────────── */
+/* ── Chats ─────────────────────────────────────────────────── */
 
 static cJSON *find_locked(int64_t chat_id)
 {
@@ -149,7 +149,7 @@ bool telegram_find_chat(const char *alias, int64_t *chat_id, char alias_out[TG_A
     }
     bool found = false;
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    /* 정확히 같은 별칭이 먼저, 없으면 부분 일치 */
+    /* exact alias match first, otherwise partial match */
     for (int pass = 0; pass < 2 && !found; pass++) {
         const cJSON *c;
         cJSON_ArrayForEach(c, s_chats) {
@@ -181,7 +181,7 @@ esp_err_t tg_chat_add(int64_t chat_id, const char *title, const char *type)
             cJSON_AddNumberToObject(c, "chat_id", (double)chat_id);
             char alias[TG_ALIAS_MAX + 1];
             strlcpy(alias, title && title[0] ? title : "Telegram", sizeof(alias));
-            cJSON_AddStringToObject(c, "alias", alias);    /* 처음 별칭은 대화방 이름. 앱에서 바꾼다 */
+            cJSON_AddStringToObject(c, "alias", alias);    /* initial alias is the chat title; changed in the app */
             cJSON_AddStringToObject(c, "title", title ? title : "");
             cJSON_AddStringToObject(c, "type", type ? type : "private");
             cJSON_AddItemToArray(s_chats, c);
@@ -243,7 +243,7 @@ esp_err_t telegram_chat_remove(int64_t chat_id)
     return err;
 }
 
-/* ── 옵션 ─────────────────────────────────────────────────── */
+/* ── Options ───────────────────────────────────────────────── */
 
 static uint8_t get_u8(const char *key, uint8_t def, uint8_t max)
 {
@@ -320,12 +320,12 @@ bool telegram_auto_read_now(void)
     int start = get_u8("quiet_s", 22, 23), end = get_u8("quiet_e", 7, 23);
     time_t now = time(NULL);
     if (start == end || now < APP_TIME_VALID_EPOCH) {
-        return true;    /* 조용한 시간 없음, 또는 시각을 몰라서 판단할 수 없음 */
+        return true;    /* no quiet hours, or the time is unknown so we can't tell */
     }
     struct tm local;
     localtime_r(&now, &local);
     int h = local.tm_hour;
-    bool quiet = start < end ? (h >= start && h < end) : (h >= start || h < end);   /* 22–7처럼 자정을 넘는 경우 */
+    bool quiet = start < end ? (h >= start && h < end) : (h >= start || h < end);   /* ranges that cross midnight, like 22–7 */
     if (quiet) {
         ESP_LOGI(TAG, "quiet hours %02d-%02d (now %02d:%02d): chime only", start, end, h, local.tm_min);
     }

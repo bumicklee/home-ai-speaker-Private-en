@@ -1,5 +1,5 @@
-/// 오디오·호출어 기능 (경로 `/audio`). injection_container에서 [registerAudioFeature]를,
-/// app_router에서 [AudioPage]를 연결한다.
+/// Audio and wake word feature (route `/audio`). Wires [registerAudioFeature] into injection_container
+/// and [AudioPage] into app_router.
 library;
 
 import 'package:get_it/get_it.dart';

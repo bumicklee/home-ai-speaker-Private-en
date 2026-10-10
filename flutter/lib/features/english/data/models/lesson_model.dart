@@ -1,6 +1,6 @@
 import '../../domain/entities/lesson.dart';
 
-/// 펌웨어 lesson_json() → Lesson
+/// Firmware lesson_json() → Lesson
 class LessonModel {
   static Lesson fromJson(Map<String, dynamic> j) {
     final minutes = (j['minutes'] as num?)?.toInt() ?? 5;

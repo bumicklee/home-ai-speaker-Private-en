@@ -1,4 +1,4 @@
-/* media_radio 내부 */
+/* media_radio internals */
 #pragma once
 
 #include "app_config.h"

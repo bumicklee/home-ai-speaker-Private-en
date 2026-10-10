@@ -1,9 +1,9 @@
-/// LAN API JSON ↔ 엔티티 (펌웨어 `local_api.c`의 telegram 핸들러, `tg_store.c`, `api_events.c`)
+/// LAN API JSON ↔ entities (firmware telegram handlers in `local_api.c`, `tg_store.c`, `api_events.c`)
 library;
 
 import '../../domain/entities/telegram.dart';
 
-/// chat_id는 cJSON 숫자(double)로 온다. 그룹은 음수(-100…)
+/// chat_id arrives as a cJSON number (double). Groups are negative (-100…)
 int _id(Object? v) => (v as num? ?? 0).toInt();
 
 class TelegramModels {

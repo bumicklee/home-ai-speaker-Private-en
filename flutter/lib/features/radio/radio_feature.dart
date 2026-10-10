@@ -1,4 +1,4 @@
-/// 라디오 기능 (`/radio`). injection_container에서 [registerRadioFeature]를, 라우터에서 [RadioPage]를 쓴다
+/// Radio feature (`/radio`). injection_container uses [registerRadioFeature]; the router uses [RadioPage]
 library;
 
 import 'package:dio/dio.dart';

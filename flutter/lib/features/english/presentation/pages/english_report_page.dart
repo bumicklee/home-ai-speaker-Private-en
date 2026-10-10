@@ -9,7 +9,7 @@ import '../../domain/entities/lesson.dart';
 import '../bloc/lesson_cubit.dart';
 import 'english_texts.dart';
 
-/// 수업 정리 (디자인 "수업 정리"). 정리가 끝날 때까지(summarizing) 기다렸다가 보여준다
+/// Lesson summary (design "Lesson Summary"). Waits until summarizing is done, then shows it
 class EnglishReportPage extends StatelessWidget {
   const EnglishReportPage({super.key, this.initial});
 
@@ -121,7 +121,7 @@ class _ReportView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 FilledButton(
-                  onPressed: () => Navigator.pop(context), // 코스 고르기로 돌아가 다시 시작
+                  onPressed: () => Navigator.pop(context), // back to choosing a course to start again
                   child: Text(l.engAgain),
                 ),
                 const SizedBox(height: 8),

@@ -5,7 +5,7 @@ import '../../domain/entities/radio_preset.dart';
 import '../../domain/radio_rules.dart';
 import 'radio_texts.dart';
 
-/// 이름 바꾸기 ([initial]만 주면 이름 칸만) 또는 주소로 직접 추가 ([full]). 펌웨어 한도로 바로 검사한다
+/// Rename (only the name field when just [initial] is given) or add directly by URL ([full]). Checked against the firmware limits right away
 Future<RadioPreset?> showPresetForm(BuildContext context, {RadioPreset? initial, bool full = false}) =>
     showModalBottomSheet<RadioPreset>(
       context: context,

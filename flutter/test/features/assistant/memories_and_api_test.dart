@@ -20,7 +20,7 @@ class MockCurrent extends Mock implements CurrentDevice {}
 
 class MockClient extends Mock implements DeviceApiClient {}
 
-/// 펌웨어 assistant.c DEFAULTS 그대로
+/// Exactly the firmware assistant.c DEFAULTS
 const firmwareDefaults = {
   'name': 'Jarvis',
   'purpose': 'A helpful family home assistant for conversation, cooking, everyday questions and current information.',

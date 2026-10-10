@@ -8,19 +8,19 @@ import '../../domain/repositories/assistant_repository.dart';
 class MemoriesState extends Equatable {
   const MemoriesState({this.memories, this.loading = false, this.failure, this.deleting = const {}});
 
-  /// null = 아직 못 불러옴
+  /// null = not loaded yet
   final List<AssistantMemory>? memories;
   final bool loading;
   final Failure? failure;
 
-  /// 지우는 중인 키
+  /// Key being deleted
   final Set<String> deleting;
 
   @override
   List<Object?> get props => [memories, loading, failure, deleting];
 }
 
-/// 비서 기억 목록과 지우기
+/// Assistant memory list and deletion
 class MemoriesCubit extends Cubit<MemoriesState> {
   MemoriesCubit(this._repo) : super(const MemoriesState());
 
@@ -36,7 +36,7 @@ class MemoriesCubit extends Cubit<MemoriesState> {
     );
   }
 
-  /// 성공하면 목록에서 뺀다. 실패하면 Failure
+  /// On success, removes it from the list. On failure, Failure
   Future<Failure?> forget(String key) async {
     emit(MemoriesState(memories: state.memories, deleting: {...state.deleting, key}));
     final r = await _repo.forget(key);

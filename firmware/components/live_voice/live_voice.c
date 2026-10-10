@@ -1,14 +1,14 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * gpt-live-1 음성 세션. 기존 펌웨어(waveshare-ai-speaker-assistant) live_voice.c를 옮겼다.
- * 그대로 둔 것: 외부 TLS 전송 + WebSocket(제어 프레임 전달), TCP_NODELAY, 업로드 64ms 묶음,
- *   응답 큐 백프레셔, 위임 이벤트 추적, 무응답 60초·최대 10분, session.close 후 사용량 대기 15초,
- *   종료 문구, 고정 실패 문구만 기록(외부 응답 본문·헤더는 남기지 않음).
- * 바뀐 것:
- *   - 툴 실행을 on_tool_calls 핸들러(assistant 툴 워커)로 넘긴다. 결과는 outbound 큐로 받는다
- *   - API 키는 secret_store, Wi-Fi는 net, 시각은 RTC 복원값을 먼저 쓴다
- *   - 상태를 APP_EVT_VOICE_STATE, 실패를 APP_EVT_ERROR로 알린다
- *   - 모델 이름은 app_config.h 기본값
+ * gpt-live-1 voice session. Ported from live_voice.c in the original firmware (waveshare-ai-speaker-assistant).
+ * Kept as is: external TLS transport + WebSocket (control frames passed through), TCP_NODELAY, 64ms upload batches,
+ *   response queue backpressure, delegation event tracking, 60-second idle timeout / 10 minutes max, 15-second usage wait after session.close,
+ *   hang-up phrases, logging fixed failure text only (external response bodies and headers are never logged).
+ * Changed:
+ *   - Tool execution is handed to the on_tool_calls handler (assistant tool worker). Results come back via the outbound queue
+ *   - API keys from secret_store, Wi-Fi from net, time from the RTC-restored value first
+ *   - State is reported with APP_EVT_VOICE_STATE, failures with APP_EVT_ERROR
+ *   - Model name is the app_config.h default
  */
 #include "live_voice.h"
 
@@ -60,7 +60,7 @@ typedef struct {
     int16_t samples[INPUT_FRAME_SAMPLES];
 } input_frame_t;
 
-/* 업로드 묶음: 최대 64ms(1,024샘플 = 2,048바이트) → base64 → JSON */
+/* Upload batch: up to 64ms (1,024 samples = 2,048 bytes) -> base64 -> JSON */
 typedef struct {
     uint8_t pcm[2048];
     char encoded[2733];
@@ -69,9 +69,9 @@ typedef struct {
 
 static live_voice_handlers_t s_handlers;
 static upload_batch_t *s_upload;
-static QueueHandle_t s_inputs;      /* 마이크 → 업로드 */
-static QueueHandle_t s_responses;   /* WebSocket 수신 → 해석 태스크 (char*) */
-static QueueHandle_t s_outbound;    /* 툴 결과·지시 → 세션 태스크 (cJSON*) */
+static QueueHandle_t s_inputs;      /* mic -> upload */
+static QueueHandle_t s_responses;   /* WebSocket receive -> parse task (char*) */
+static QueueHandle_t s_outbound;    /* tool results and instructions -> session task (cJSON*) */
 static SemaphoreHandle_t s_responses_idle;
 
 static atomic_bool s_busy, s_ready, s_stopping, s_connected, s_finalized, s_failed;
@@ -98,12 +98,12 @@ static void set_state(voice_state_t state)
 }
 
 /*
- * 절약 모드(saver_voice.c)도 이 파일의 s_busy·s_state·s_ready·s_status·s_generation·s_stopping을 함께 쓴다
- * (docs/design-voice-saver-mode.md 11.5: live_voice_start/stop/active/ready/state는 바깥에서 그대로).
- * saver_voice.c는 이 작은 전달 함수로만 건드린다 (saver_voice.h). 실시간 경로(run_session 등)는 그대로.
+ * Saver mode (saver_voice.c) also shares this file's s_busy, s_state, s_ready, s_status, s_generation, s_stopping
+ * (docs/design-voice-saver-mode.md 11.5: live_voice_start/stop/active/ready/state look the same from outside).
+ * saver_voice.c touches them only through these small pass-through functions (saver_voice.h). The Live path (run_session etc.) is unchanged.
  */
-static atomic_bool s_saver_active;        /* 지금 바쁜 세션이 saver 엔진인가 (live_voice_barge_in용) */
-static atomic_bool s_gemini_live_active;  /* 지금 바쁜 세션이 Gemini Live 엔진인가 (3단계, text/instruction 라우팅용) */
+static atomic_bool s_saver_active;        /* is the busy session the saver engine (for live_voice_barge_in) */
+static atomic_bool s_gemini_live_active;  /* is the busy session the Gemini Live engine (stage 3, for text/instruction routing) */
 
 void voice_shared_set_state(voice_state_t state) { set_state(state); }
 void voice_shared_set_ready(bool ready) { atomic_store(&s_ready, ready); }
@@ -112,7 +112,7 @@ bool voice_shared_stopping(void) { return atomic_load(&s_stopping); }
 
 void voice_shared_end(bool had_error)
 {
-    /* had_error=true면 호출한 쪽이 이미 voice_shared_set_status()로 끝난 이유를 정했다는 뜻(안 덮어씀) */
+    /* had_error=true means the caller already set the end reason with voice_shared_set_status() (not overwritten) */
     if (!had_error) {
         atomic_store(&s_status, "Ready");
     }
@@ -152,13 +152,13 @@ void live_voice_barge_in(void)
         return;
     }
     if (atomic_load(&s_saver_active)) {
-        saver_voice_barge_in();     /* 재생만 멈추고 계속 듣는다 (11.5절) */
+        saver_voice_barge_in();     /* stop playback only and keep listening (Section 11.5) */
         return;
     }
-    live_voice_stop();              /* 실시간(openai.live·gemini.live 둘 다): 지금처럼 대화를 끝낸다 */
+    live_voice_stop();              /* Live (both openai.live and gemini.live): end the conversation as before */
 }
 
-/* 고정 문구만 기록한다. 첫 실패만 남긴다 */
+/* Record fixed text only. Keep only the first failure */
 static void fail(const char *text, app_error_t code)
 {
     bool expected = false;
@@ -172,8 +172,8 @@ static void fail(const char *text, app_error_t code)
 }
 
 /*
- * 무응답 시간을 다시 세게 한 것 (진단, 2026-10-04 "30초 넘게 말이 없는데 대화가 안 끝남").
- * 내용은 남기지 않고 종류별 횟수만 센다.
+ * What restarted the idle timer (diagnostics, 2026-10-04 "no speech for over 30 s but the conversation didn't end").
+ * Counts per type only; no content is kept.
  */
 typedef enum { ACT_START, ACT_AUDIO, ACT_IN_TEXT, ACT_OUT_TEXT, ACT_EVENT, ACT_COUNT } activity_t;
 static const char *const ACT_NAMES[ACT_COUNT] = {"start", "speaker audio", "heard speech", "assistant text", "backend event"};
@@ -187,7 +187,7 @@ static void touch_activity(activity_t why)
     atomic_fetch_add(&s_act_count[why], 1);
 }
 
-/* ── 응답 해석 ────────────────────────────────────────────── */
+/* ── Response parsing ────────────────────────────────────────────── */
 
 static void handle_audio_delta(const cJSON *root)
 {
@@ -201,8 +201,8 @@ static void handle_audio_delta(const cJSON *root)
         decoded % 2) {
         fail("Invalid voice audio", APP_ERR_VOICE_INTERNAL);
     } else if (decoded) {
-        /* 전사가 음성보다 훨씬 먼저 올 수 있다. 긴 대답을 말하는 동안도 활동으로 본다.
-         * 단 무음 조각은 빼다 (서버가 말이 끝난 뒤에도 무음을 계속 보내 대화가 끝나지 않았다, 2026-10-04) */
+        /* The transcript can arrive well before the audio. Speaking a long reply also counts as activity.
+         * Silent chunks are excluded (the server kept sending silence after speech ended, so the conversation never ended, 2026-10-04) */
         const int16_t *pcm16 = (const int16_t *)pcm;
         for (size_t i = 0; i < decoded / 2; i++) {
             if (pcm16[i] > 200 || pcm16[i] < -200) {
@@ -243,7 +243,7 @@ static void parse_message(const char *text)
             if (s_handlers.on_transcript) {
                 s_handlers.on_transcript(!strcmp(t, "session.input_transcript.delta"), delta->valuestring);
             }
-            /* 전사 내용은 로그에 남기지 않는다 (2.2절) */
+            /* Transcript content is never logged (Section 2.2) */
             if (!strcmp(t, "session.input_transcript.delta") && live_voice_ready()) {
                 hangup_phrase_feed(&s_hangup, delta->valuestring, now_ms());
                 if (s_handlers.on_user_input) {
@@ -283,7 +283,7 @@ static void response_task(void *arg)
                 parse_message(text);
                 free(text);
             } else {
-                xSemaphoreGive(s_responses_idle);   /* 세션 종료 장벽 */
+                xSemaphoreGive(s_responses_idle);   /* session end barrier */
             }
         }
         if (live_voice_ready() && hangup_phrase_ready(&s_hangup, now_ms())) {
@@ -295,7 +295,7 @@ static void response_task(void *arg)
     }
 }
 
-/* ── WebSocket 이벤트 ─────────────────────────────────────── */
+/* ── WebSocket events ─────────────────────────────────────── */
 
 static void queue_message(void)
 {
@@ -306,7 +306,7 @@ static void queue_message(void)
         return;
     }
     memcpy(copy, s_message, s_message_used + 1);
-    /* 수신이 해석보다 빠를 때 바로 버리지 않고 잠깐 기다린다. 송신은 별도 잠금이라 업로드는 계속된다 */
+    /* When receiving outpaces parsing, wait briefly instead of dropping at once. Sending has its own lock, so uploads continue */
     if (xQueueSend(s_responses, &copy, 0) != pdTRUE &&
         xQueueSend(s_responses, &copy, pdMS_TO_TICKS(250)) != pdTRUE) {
         free(copy);
@@ -344,7 +344,7 @@ static void websocket_event(void *arg, esp_event_base_t base, int32_t id, void *
     if (id != WEBSOCKET_EVENT_DATA || (event->op_code != 1 && event->op_code != 0)) {
         return;
     }
-    /* 텍스트 메시지 조각을 이어 붙인다 */
+    /* Join text message fragments */
     if (event->payload_offset == 0 && event->op_code == 1) {
         s_message_used = 0;
         s_message_opcode = 1;
@@ -362,7 +362,7 @@ static void websocket_event(void *arg, esp_event_base_t base, int32_t id, void *
     }
 }
 
-/* ── 송신 ─────────────────────────────────────────────────── */
+/* ── Sending ─────────────────────────────────────────────────── */
 
 static bool send_json(esp_websocket_client_handle_t client, cJSON *event)
 {
@@ -377,12 +377,12 @@ static bool send_json(esp_websocket_client_handle_t client, cJSON *event)
     return ok;
 }
 
-/* outbound 항목: {"generation": n, "events": [...], "respond": bool} */
+/* outbound item: {"generation": n, "events": [...], "respond": bool} */
 static bool send_outbound(esp_websocket_client_handle_t client, cJSON *item)
 {
     const cJSON *generation = cJSON_GetObjectItem(item, "generation");
     if (!cJSON_IsNumber(generation) || (unsigned)generation->valuedouble != atomic_load(&s_generation)) {
-        return true;    /* 이전 세션 결과는 버린다 */
+        return true;    /* discard results from an earlier session */
     }
     cJSON *events = cJSON_DetachItemFromObject(item, "events");
     cJSON *event;
@@ -440,11 +440,11 @@ esp_err_t live_voice_submit_tool_outputs(cJSON *outputs, unsigned generation)
 esp_err_t live_voice_text(const char *text)
 {
     if (atomic_load(&s_saver_active)) {
-        /* 절약 모드: AI 없이 그대로 합성만 하고 다시 듣기로 (11.7절, 지금은 알림 문장만 이 길로 온다) */
+        /* Saver mode: synthesize as is without the AI, then back to listening (Section 11.7; only reminder sentences take this path for now) */
         return saver_voice_text(text);
     }
     if (atomic_load(&s_gemini_live_active)) {
-        /* Gemini Live(3단계): clientContent 사용자 차례로 보낸다 (요청 5, gemini_live_proto.h 머리말) */
+        /* Gemini Live (stage 3): send as a clientContent user turn (request 5, gemini_live_proto.h header) */
         return gemini_live_text(text);
     }
     if (!live_voice_ready() || !text || !text[0] || strlen(text) > 600) {
@@ -461,7 +461,7 @@ esp_err_t live_voice_text(const char *text)
     cJSON *events = cJSON_CreateArray();
     cJSON_AddItemToArray(events, event);
     if (s_handlers.on_user_input) {
-        s_handlers.on_user_input();     /* 글로 보낸 요청도 사용자 입력이다 */
+        s_handlers.on_user_input();     /* a request sent as text is user input too */
     }
     return push_outbound(events, true, atomic_load(&s_generation));
 }
@@ -469,7 +469,7 @@ esp_err_t live_voice_text(const char *text)
 bool live_voice_instruction(const char *text)
 {
     if (atomic_load(&s_gemini_live_active)) {
-        /* Gemini Live에는 "지시문에 덧붙이기" 전용 메시지가 없다(2026-10 확인) → 같은 길(clientContent) */
+        /* Gemini Live has no dedicated "append to instructions" message (checked 2026-10) -> same path (clientContent) */
         return gemini_live_text(text) == ESP_OK;
     }
     if (!live_voice_ready()) {
@@ -484,7 +484,7 @@ bool live_voice_instruction(const char *text)
     return push_outbound(events, false, atomic_load(&s_generation)) == ESP_OK;
 }
 
-/* 마이크 태스크에서 불린다. 막지 않고, 밀리면 오래된 소리를 버린다 */
+/* Called from the mic task. Never blocks; when backed up, drops the oldest audio */
 static void live_voice_feed(const int16_t *samples, size_t count)
 {
     if (!atomic_load(&s_ready) || atomic_load(&s_stopping)) {
@@ -504,7 +504,7 @@ static void live_voice_feed(const int16_t *samples, size_t count)
     }
 }
 
-/* ── 세션 ─────────────────────────────────────────────────── */
+/* ── Session ─────────────────────────────────────────────────── */
 
 static bool wait_flag(atomic_bool *flag, uint32_t timeout_ms)
 {
@@ -514,7 +514,7 @@ static bool wait_flag(atomic_bool *flag, uint32_t timeout_ms)
     return atomic_load(flag);
 }
 
-/* 64ms까지 묶어 보낸다 (16ms AEC 조각마다 TLS 전송하지 않게) */
+/* Batch up to 64ms before sending (so there's no TLS send for every 16ms AEC chunk) */
 static bool upload_audio(esp_websocket_client_handle_t client, input_frame_t *frame)
 {
     size_t bytes = frame->bytes, length = 0;
@@ -541,7 +541,7 @@ static bool upload_audio(esp_websocket_client_handle_t client, input_frame_t *fr
     return esp_websocket_client_send_text(client, s_upload->json, size, pdMS_TO_TICKS(1000)) == size;
 }
 
-/* 다음 세션 한 번에만 쓰는 시간 제한 (영어 수업: 수업 길이, 말이 끊겨도 2분). 0이면 기본값 */
+/* Time limits for the next session only (English lesson: lesson length, 2 minutes even with silence). 0 means the default */
 static atomic_uint s_next_max_ms, s_next_idle_ms;
 
 void live_voice_set_next_limits(uint32_t max_ms, uint32_t idle_ms)
@@ -572,12 +572,12 @@ static void reset_session_state(void)
 
 static TaskHandle_t s_session;
 
-/* 대화 한 번 (세션 태스크 안에서) */
+/* One conversation (inside the session task) */
 /*
- * OpenAI WebSocket 태스크 스택 자리 맡기 (책 7장 버그 3).
- * esp_websocket_client는 태스크를 xTaskCreatePinnedToCore로 만들어 스택(12KB)을 내부 RAM의 한 덩어리로 받는다.
- * 오래 켜 두거나 BLE 창을 열고 닫은 뒤에는 내부 RAM이 합쳐서 37KB여도 12KB 덩어리가 없어 대화가 시작되지 않았다.
- * 그래서 부팅 때 그 크기를 미리 잡아 두었다가 연결 직전에 풀어 주고, 대화가 끝나면 다시 잡는다.
+ * Reserving the spot for the OpenAI WebSocket task stack (Chapter 7, Bug 3).
+ * esp_websocket_client creates its task with xTaskCreatePinnedToCore, so its stack (12KB) must be one contiguous block of internal RAM.
+ * After a long uptime or opening and closing the BLE window, internal RAM had 37KB in total but no 12KB block, so conversations wouldn't start.
+ * So that size is reserved at boot, released right before connecting, and reserved again when the conversation ends.
  */
 #define WS_TASK_STACK    12288
 #define WS_STACK_RESERVE (WS_TASK_STACK + 512)
@@ -585,7 +585,7 @@ static void *s_ws_reserve;
 
 static void ws_stack_reserve(void)
 {
-    /* 끝난 웹소켓 태스크의 스택은 idle 태스크가 조금 뒤에 돌려준다 → 몇 번 기다리며 시도 */
+    /* The idle task returns a finished WebSocket task's stack a little later -> retry a few times with waits */
     for (int i = 0; !s_ws_reserve && i < 10; i++) {
         s_ws_reserve = heap_caps_malloc(WS_STACK_RESERVE, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (!s_ws_reserve) {
@@ -604,8 +604,8 @@ static void ws_stack_release(void)
     s_ws_reserve = NULL;
 }
 
-/* 절약 모드도 대화 동안 이 자리를 푼다: HTTPS(TLS)가 내부 RAM을 쓰기 때문 (2026-10-04 실기기:
- * 절약 모드 대화 중 텔레그램 TLS가 "esp-aes: Failed to allocate memory") */
+/* Saver mode also releases this spot during a conversation, because HTTPS (TLS) uses internal RAM (2026-10-04 on real hardware:
+ * Telegram TLS during a Saver mode conversation gave "esp-aes: Failed to allocate memory") */
 void voice_shared_reserve_release(void) { ws_stack_release(); }
 void voice_shared_reserve_take(void) { ws_stack_reserve(); }
 
@@ -620,18 +620,18 @@ static void run_session(void)
     reset_session_state();
     atomic_store(&s_status, "Connecting Wi-Fi");
 
-    /* 호출어 모델을 내려 TLS 연결에 쓸 내부 메모리를 확보한다 */
+    /* Unload the wake-word model to free internal memory for the TLS connection */
     if (!wake_pause()) {
         fail("Wake detector did not release memory", APP_ERR_VOICE_INTERNAL);
         goto cleanup;
     }
-    net_set_power_save(false);      /* 오디오 스트리밍은 Wi-Fi 절전을 싫어한다 */
+    net_set_power_save(false);      /* audio streaming doesn't get along with Wi-Fi power saving */
 
     if (!net_wait_connected(WIFI_WAIT_MS)) {
         fail("Wi-Fi unavailable", APP_ERR_WIFI);
         goto cleanup;
     }
-    /* RTC로 복원한 시각이 있으면 바로 TLS를 시작한다. 없으면 SNTP를 기다린다 */
+    /* If there's a time restored from the RTC, start TLS right away. Otherwise wait for SNTP */
     atomic_store(&s_status, "Checking clock");
     for (uint32_t w = 0; w < CLOCK_WAIT_MS && !net_time_valid() && !atomic_load(&s_stopping); w += 100) {
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -662,8 +662,8 @@ static void run_session(void)
         fail("Could not allocate voice transport", APP_ERR_VOICE_INTERNAL);
         goto cleanup;
     }
-    /* 외부 전송을 쓰면 클라이언트의 기본 설정을 거치지 않는다.
-     * PONG/CLOSE 프레임을 넘겨 줘야 하트비트·종료 처리가 동작한다 */
+    /* With an external transport, the client's default settings are bypassed.
+     * PONG/CLOSE frames must be passed through for heartbeat and close handling to work */
     const esp_transport_ws_config_t ws_cfg = {
         .ws_path = LIVE_PATH,
         .headers = headers,
@@ -691,7 +691,7 @@ static void run_session(void)
     }
     esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY, websocket_event, tls);
     atomic_store(&s_status, "Connecting to OpenAI");
-    ws_stack_release();     /* 맡아 둔 자리를 웹소켓 태스크 스택이 쓰게 한다 */
+    ws_stack_release();     /* let the WebSocket task stack use the reserved spot */
     if (esp_websocket_client_start(client) != ESP_OK || !wait_flag(&s_connected, CONNECT_TIMEOUT_MS)) {
         fail("OpenAI connection failed", APP_ERR_VOICE_CONNECT);
         goto cleanup;
@@ -726,14 +726,14 @@ static void run_session(void)
             break;
         }
         /*
-         * 무응답 시간은 "사람이 말하지 않은 시간"만 센다 (2026-10-04 사용자). 비서 음성 조각은 실제 말하는 속도보다
-         * 빨리 도착하므로, 조각이 아니라 스피커에서 비서 목소리가 실제로 나오는 동안을 활동으로 본다.
-         * 그래서 긴 대답 도중에 끝나지 않고, 비서 말이 끝난 뒤부터 세기 시작한다.
+         * The idle timer counts only "time the person hasn't spoken" (2026-10-04, user). Assistant audio chunks arrive faster than
+         * real speaking speed, so activity is the time the assistant's voice actually plays from the speaker, not the chunks.
+         * So it doesn't end in the middle of a long reply; counting starts after the assistant finishes speaking.
          */
         if (atomic_load(&s_ready) && audio_core_voice_playing()) {
             touch_activity(ACT_AUDIO);
         }
-        /* 진단: 10초마다 무응답 시간과 무엇이 시간을 다시 세게 했는지 (종류별 횟수, 내용 없음) */
+        /* Diagnostics: every 10 s, the idle time and what restarted it (counts per type, no content) */
         if (atomic_load(&s_ready) && now - act_log_ms >= 10000) {
             act_log_ms = now;
             int32_t quiet = (int32_t)(now - atomic_load(&s_activity_ms));
@@ -742,7 +742,7 @@ static void run_session(void)
                      atomic_exchange(&s_act_count[ACT_IN_TEXT], 0), atomic_exchange(&s_act_count[ACT_OUT_TEXT], 0),
                      atomic_exchange(&s_act_count[ACT_AUDIO], 0), atomic_exchange(&s_act_count[ACT_EVENT], 0));
         }
-        /* 응답 태스크가 now 이후에 활동 시각을 갱신할 수 있으므로 부호 있는 차이로 비교한다 */
+        /* The response task may update the activity time after now, so compare with a signed difference */
         if (now - began > max_ms) {
             limit_reason = "Conversation limit reached";
         } else if (atomic_load(&s_ready) && (int32_t)(now - atomic_load(&s_activity_ms)) > (int32_t)idle_ms) {
@@ -783,7 +783,7 @@ cleanup:
     atomic_store(&s_ready, false);
     audio_core_voice_clear();
     if (client) {
-        /* 사용량을 확정받으려고 session.close를 보내고 최대 15초 기다린다 */
+        /* Send session.close and wait up to 15 s to get the final usage */
         if (atomic_load(&s_connected) && !atomic_load(&s_finalized)) {
             const char *close = "{\"type\":\"session.close\"}";
             esp_websocket_client_send_text(client, close, strlen(close), pdMS_TO_TICKS(1000));
@@ -800,7 +800,7 @@ cleanup:
     if (tls) {
         esp_transport_destroy(tls);
     }
-    /* 해석 태스크가 남은 메시지를 다 처리할 때까지 기다린 뒤 다음 세션을 허용한다 */
+    /* Wait until the parse task has handled all remaining messages before allowing the next session */
     char *barrier = NULL;
     xQueueSend(s_responses, &barrier, portMAX_DELAY);
     xSemaphoreTake(s_responses_idle, portMAX_DELAY);
@@ -808,27 +808,27 @@ cleanup:
     while (xQueueReceive(s_outbound, &stale, 0) == pdTRUE) {
         cJSON_Delete(stale);
     }
-    /* 실패 문구는 다음 세션까지 남긴다 (reset이 실패 플래그를 지우기 전에 확인) */
+    /* Keep the failure text until the next session (checked before reset clears the failure flag) */
     bool failed = atomic_load(&s_failed);
     reset_session_state();
     memset(headers, 0, sizeof(headers));
     if (!failed && !limit_reason) {
         atomic_store(&s_status, "Ready");
     }
-    /* 연결 단계에서 실패해 루프까지 못 갔어도 다음 일반 대화에 수업 제한이 남지 않게 */
+    /* So lesson limits don't carry over to the next normal conversation even if the connect step failed before the loop */
     atomic_store(&s_next_max_ms, 0);
     atomic_store(&s_next_idle_ms, 0);
     ESP_LOGI(TAG, "session ended (usage %d s)", atomic_load(&s_usage_seconds));
     net_set_power_save(true);
-    ws_stack_reserve();     /* 호출어 모델을 다시 올리기 전에 자리를 맡는다 (조각나기 전에) */
+    ws_stack_reserve();     /* reserve the spot before reloading the wake-word model (before fragmentation) */
     wake_resume();
     atomic_store(&s_busy, false);
     set_state(VOICE_IDLE);
 }
 
 /*
- * 세션 태스크는 부팅 때 한 번 만들고 계속 둔다(스택 PSRAM). 대화마다 만들고 지우면
- * WithCaps 태스크의 자기 삭제가 내부 RAM에 정리용 태스크를 또 만들어야 해서 위험하다 (책 7장 7.3절)
+ * The session task is created once at boot and kept (stack in PSRAM). Creating and deleting it per conversation
+ * is risky, because a WithCaps task deleting itself needs another cleanup task in internal RAM (Chapter 7, Section 7.3)
  */
 static void session_task(void *arg)
 {
@@ -852,9 +852,9 @@ static void copy_str(char *dst, size_t dst_len, const char *src)
 }
 
 /*
- * ai_provider·mode_openai·mode_gemini를 NVS에서 직접 읽는다 (assistant 그룹의 같은 설정 문자열,
- * assistant.c의 캐시와는 별도의 읽기 전용 사본). live_voice는 assistant를 REQUIRES할 수 없다
- * (assistant가 live_voice를 REQUIRES하므로 거꾸로 하면 순환 의존). 못 읽으면 openai/live(안전한 기본값).
+ * Reads ai_provider, mode_openai, mode_gemini directly from NVS (the same setting strings in the assistant group,
+ * a read-only copy separate from assistant.c's cache). live_voice can't REQUIRE assistant
+ * (assistant REQUIRES live_voice, so the reverse would be a circular dependency). If unreadable, openai/live (safe default).
  */
 static void read_voice_choice(char *provider, size_t provider_len, char *mode, size_t mode_len)
 {
@@ -883,15 +883,15 @@ static void read_voice_choice(char *provider, size_t provider_len, char *mode, s
 }
 
 static TaskHandle_t s_saver_session;
-static TaskHandle_t s_gemini_live_session;   /* 3단계: Gemini Live (gemini_live.c) */
+static TaskHandle_t s_gemini_live_session;   /* stage 3: Gemini Live (gemini_live.c) */
 
 esp_err_t live_voice_start(void)
 {
     if (wake_is_testing() || audio_core_aec_suspended()) {
-        return ESP_ERR_INVALID_STATE;     /* 감지 시험 중, 또는 BLE 창 때문에 마이크 처리를 내려 둠 */
+        return ESP_ERR_INVALID_STATE;     /* during a detection test, or mic processing suspended for the BLE window */
     }
 
-    /* AI 고르기 · 실시간/절약 모드 (docs/design-voice-saver-mode.md 11.5) */
+    /* AI choice and Live/Saver mode (docs/design-voice-saver-mode.md 11.5) */
     bool force_live = s_handlers.force_openai_live && s_handlers.force_openai_live();
     char provider[8], mode[8];
     if (force_live) {
@@ -940,20 +940,20 @@ esp_err_t live_voice_init(void)
     }
     atomic_store(&s_usage_seconds, -1);
     ESP_ERROR_CHECK(audio_core_add_mic_sink(live_voice_feed));
-    ws_stack_reserve();     /* 부팅 초기, 내부 RAM이 아직 덜 조각났을 때 */
+    ws_stack_reserve();     /* early in boot, while internal RAM is still less fragmented */
     if (xTaskCreatePinnedToCoreWithCaps(session_task, "live_voice", 12288, NULL, 5, &s_session, 0,
                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    /* 응답 해석·재생 큐 넣기·위임 추적만 한다(플래시 접근 없음) → 스택을 PSRAM에 (책 7장 7.3절) */
+    /* Only parses responses, queues playback, and tracks delegation (no flash access) -> stack in PSRAM (Chapter 7, Section 7.3) */
     if (xTaskCreatePinnedToCoreWithCaps(response_task, "voice_rx", 8192, NULL, 5, NULL, 0,
                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     /*
-     * 절약 모드 세션 태스크 (docs/design-voice-saver-mode.md 11.6). esp_http_client는 esp_websocket_client와
-     * 달리 호출한 태스크 안에서 돈다(자기 태스크를 새로 만들지 않는다) → ws_stack_reserve 같은 내부 RAM
-     * 예약이 필요 없다. 스택은 PSRAM(이 태스크 전용), Core 0(통신/HTTP는 Core 0, 2.x절 규칙).
+     * Saver mode session task (docs/design-voice-saver-mode.md 11.6). Unlike esp_websocket_client, esp_http_client
+     * runs inside the calling task (it creates no task of its own) -> no internal RAM reservation like
+     * ws_stack_reserve is needed. Stack in PSRAM (this task only), Core 0 (networking/HTTP on Core 0, Section 2.x rule).
      */
     esp_err_t err = saver_voice_init();
     if (err != ESP_OK) {
@@ -964,9 +964,9 @@ esp_err_t live_voice_init(void)
         return ESP_ERR_NO_MEM;
     }
     /*
-     * Gemini Live 세션 태스크 (3단계, docs/design-voice-saver-mode.md 2.5·16.4절). 이 엔진도 esp_websocket_client를
-     * 쓰므로(gemini_live.c), live_voice 세션 태스크와 같은 크기(스택 PSRAM, Core 0)로 만든다. 세 엔진 중
-     * 하나만 동시에 돈다(s_busy로 보장) → ws_stack_reserve 자리를 그대로 나눠 쓴다.
+     * Gemini Live session task (stage 3, docs/design-voice-saver-mode.md 2.5, 16.4). This engine also uses esp_websocket_client
+     * (gemini_live.c), so it is created the same size as the live_voice session task (stack in PSRAM, Core 0). Only one of
+     * the three engines runs at a time (guaranteed by s_busy) -> they share the ws_stack_reserve spot.
      */
     err = gemini_live_init();
     if (err != ESP_OK) {

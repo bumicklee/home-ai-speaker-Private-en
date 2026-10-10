@@ -8,11 +8,11 @@ import '../../domain/entities/radio_preset.dart';
 class RadioSearchState extends Equatable {
   const RadioSearchState({this.byTag = false, this.query = '', this.results, this.loading = false, this.failure});
 
-  /// 장르 태그로 찾기 (아니면 이름)
+  /// Search by genre tag (otherwise by name)
   final bool byTag;
   final String query;
 
-  /// null = 아직 찾지 않음
+  /// null = not searched yet
   final List<RadioStation>? results;
   final bool loading;
   final Failure? failure;
@@ -36,7 +36,7 @@ class RadioSearchState extends Equatable {
   List<Object?> get props => [byTag, query, results, loading, failure];
 }
 
-/// 방송 찾기 (Radio-Browser). 스피커가 틀 수 있는 것만 보인다
+/// Station search (Radio-Browser). Shows only what the speaker can play
 class RadioSearchCubit extends Cubit<RadioSearchState> {
   RadioSearchCubit(this._repo) : super(const RadioSearchState());
 
@@ -54,7 +54,7 @@ class RadioSearchCubit extends Cubit<RadioSearchState> {
     final byTag = state.byTag;
     emit(state.copyWith(query: q, loading: true, failure: () => null));
     final r = await _repo.search(q, byTag: byTag);
-    // 늦게 온 이전 검색 결과는 버린다
+    // Drop results of an earlier search that arrive late
     if (isClosed || state.query != q || state.byTag != byTag) return;
     r.fold(
       (f) => emit(state.copyWith(loading: false, failure: () => f, results: () => null)),

@@ -1,9 +1,9 @@
 /*
- * led-app/firmware/main/wifi_manager.c 이식. 바뀐 점:
- * - ble_prov·mqtt 헤더를 include하지 않는다 (상위 모듈은 app_events로 알림 받음)
- * - Wi-Fi 정보는 settings 모듈에서 읽는다
- * - 끊김 사유 매핑에 IDF 5.x 2xx 계열(NO_AP_FOUND_W_COMPATIBLE_SECURITY 등)을 넣었다
- * - 로그에 SSID 대신 길이만 남긴다
+ * Ported from led-app/firmware/main/wifi_manager.c. Changes:
+ * - Does not include the ble_prov or mqtt headers (higher modules are notified through app_events)
+ * - Wi-Fi details are read from the settings module
+ * - The disconnect reason mapping adds the IDF 5.x 2xx codes (NO_AP_FOUND_W_COMPATIBLE_SECURITY, etc.)
+ * - Logs record only the SSID length, not the SSID
  */
 #include "net.h"
 
@@ -29,20 +29,20 @@ static TimerHandle_t s_reconnect_timer;
 static TimerHandle_t s_dhcp_timer;
 static volatile bool s_connected;
 static volatile bool s_started;
-static volatile int64_t s_assoc_since_us;   /* 0 = 연결 안 됨 */
+static volatile int64_t s_assoc_since_us;   /* 0 = not connected */
 static uint32_t s_retry_delay_ms = APP_WIFI_RETRY_MIN_MS;
 static uint8_t s_last_reason;
 static bool s_power_save = true;
 
-/* 프로비저닝 시험 연결 */
+/* Provisioning test connection */
 static volatile bool s_testing;
 static volatile bool s_test_reported;
 static net_test_cb_t s_test_cb;
 static TimerHandle_t s_test_timer;
 static int64_t s_test_started_us;
-/* 시험 상태는 Wi-Fi 이벤트 태스크와 ble_worker 태스크가 함께 만진다 */
+/* The test state is touched by both the Wi-Fi event task and the ble_worker task */
 static portMUX_TYPE s_test_lock = portMUX_INITIALIZER_UNLOCKED;
-#define TEST_SETTLE_US (500 * 1000)    /* 새 시도 직후 이 시간 안의 끊김은 이전 시도의 것으로 본다 */
+#define TEST_SETTLE_US (500 * 1000)    /* a disconnect within this time right after a new attempt is treated as belonging to the previous attempt */
 
 net_wifi_status_t net_status_from_reason(uint8_t reason)
 {
@@ -61,7 +61,7 @@ net_wifi_status_t net_status_from_reason(uint8_t reason)
         return NET_WIFI_AUTH_FAIL;
     case WIFI_REASON_UNSPECIFIED:
     case WIFI_REASON_ASSOC_LEAVE:
-        return NET_WIFI_CONNECTING;     /* 오류가 아니라 정상 흐름 */
+        return NET_WIFI_CONNECTING;     /* not an error; the normal flow */
     default:
         return NET_WIFI_TIMEOUT;
     }
@@ -103,7 +103,7 @@ bool net_is_testing(void)
     return s_testing;
 }
 
-/* 시도 한 번에 종료 상태는 한 번만 보낸다. 처음 정해진 사유가 우선한다 (led-app 결함 수정) */
+/* Send a terminal status only once per attempt. The first reason decided wins (fixes a led-app defect) */
 static void report_test(net_wifi_status_t status)
 {
     net_test_cb_t cb = NULL;
@@ -135,7 +135,7 @@ static void reconnect_cb(TimerHandle_t t)
     }
 }
 
-/* AP와 연결됐지만 DHCP가 늦어 IP가 안 오면 끊김 이벤트가 없어 재시도가 안 된다. 직접 끊는다 */
+/* Associated with the AP but DHCP is slow and no IP arrives: there is no disconnect event, so no retry happens. Disconnect directly */
 static void dhcp_watch_cb(TimerHandle_t t)
 {
     if (s_connected || s_assoc_since_us == 0) {
@@ -150,9 +150,9 @@ static void dhcp_watch_cb(TimerHandle_t t)
 }
 
 /*
- * 예비 DNS (2026-10-03 실기기: 공유기 DNS가 답하지 않아 api.telegram.org·SNTP 이름 조회가 계속 실패,
- * getaddrinfo() 202). 공유기 DNS를 먼저 쓰고, 답이 없으면 lwIP가 다음 서버(1.1.1.1 → 8.8.8.8)로 넘어간다.
- * DHCP가 예비 DNS를 주었으면 그대로 두고 마지막 칸만 채운다.
+ * Backup DNS (2026-10-03 real board: the router's DNS did not answer, so name lookups for api.telegram.org and SNTP kept failing,
+ * getaddrinfo() 202). The router's DNS is used first; if it does not answer, lwIP moves on to the next server (1.1.1.1 → 8.8.8.8).
+ * If DHCP provided a backup DNS, leave it and fill only the last slot.
  */
 static void add_backup_dns(esp_netif_t *netif)
 {
@@ -176,7 +176,7 @@ static void add_backup_dns(esp_netif_t *netif)
 static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
-        /* 첫 부팅 BLE 설정 중에는 SSID가 비어 있다. 스캔만 하도록 연결을 시도하지 않는다 */
+        /* During first-boot BLE setup the SSID is empty. Do not try to connect, so that only scanning happens */
         wifi_config_t cfg;
         if (esp_wifi_get_config(WIFI_IF_STA, &cfg) == ESP_OK && cfg.sta.ssid[0]) {
             esp_wifi_connect();
@@ -184,8 +184,8 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_CONNECTED) {
         s_assoc_since_us = esp_timer_get_time();
         /*
-         * IP를 받기 전에는 절전을 끈다. 절전 중에는 DTIM 간격으로만 깨어나 DHCP 응답(브로드캐스트)을
-         * 놓칠 수 있다. 실기기에서 "16초 동안 IP 없음"이 반복됐다 (책 부록 I.6절). IP를 받으면 원래대로
+         * Turn power save off until an IP arrives. In power save the radio wakes only at DTIM intervals and can miss the DHCP reply (broadcast).
+         * On real hardware "no IP for 16 seconds" kept repeating (Appendix I, Section I.6). Restored once an IP arrives
          */
         esp_wifi_set_ps(WIFI_PS_NONE);
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -201,7 +201,7 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
 
         net_wifi_status_t status = net_status_from_reason(evt->reason);
         if (s_testing) {
-            /* 시험 중에는 백오프 재시도를 하지 않는다. 정상 흐름(사유 1·8)이면 다시 붙어 본다 */
+            /* No backoff retries during a test. In the normal flow (reasons 1 and 8), try to reattach */
             if (status == NET_WIFI_CONNECTING && !s_test_reported) {
                 esp_wifi_connect();
             } else {
@@ -215,7 +215,7 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
             esp_wifi_connect();
             return;
         }
-        /* 재시도는 멈추지 않는다. 공유기 재부팅·일시 장애를 손대지 않고 복구한다 */
+        /* Retries never stop. This recovers from router reboots and temporary outages with no intervention */
         xTimerChangePeriod(s_reconnect_timer, pdMS_TO_TICKS(s_retry_delay_ms), 0);
         xTimerStart(s_reconnect_timer, 0);
         s_retry_delay_ms *= 2;
@@ -254,7 +254,7 @@ esp_err_t net_init(void)
     esp_netif_create_default_wifi_sta();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));   /* Wi-Fi 정보는 settings가 관리 */
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));   /* Wi-Fi details are managed by settings */
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi_event, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_wifi_event, NULL, NULL));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -266,7 +266,7 @@ static esp_err_t apply_config(const char *ssid, const char *password)
     wifi_config_t cfg = {0};
     strlcpy((char *)cfg.sta.ssid, ssid, sizeof(cfg.sta.ssid));
     strlcpy((char *)cfg.sta.password, password, sizeof(cfg.sta.password));
-    /* 개방형이 아니면 WPA2 이상만 받는다 */
+    /* If the network is not open, accept only WPA2 or better */
     cfg.sta.threshold.authmode = cfg.sta.password[0] ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
     cfg.sta.pmf_cfg.capable = true;
     esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
@@ -279,7 +279,7 @@ static esp_err_t ensure_started(void)
     if (s_started) {
         return ESP_OK;
     }
-    esp_err_t err = esp_wifi_start();      /* STA_START 이벤트에서 연결을 시작한다 */
+    esp_err_t err = esp_wifi_start();      /* the connection starts on the STA_START event */
     if (err == ESP_OK) {
         s_started = true;
         xTimerStart(s_dhcp_timer, 0);
@@ -360,7 +360,7 @@ void net_end_test(bool keep)
     if (keep && s_connected) {
         return;
     }
-    /* 저장된 Wi-Fi로 되돌린다. 저장된 것이 없으면 끊어 둔다 */
+    /* Go back to the saved Wi-Fi. If none is saved, stay disconnected */
     char ssid[33], password[65];
     esp_wifi_disconnect();
     if (settings_get_wifi(ssid, password) == ESP_OK && apply_config(ssid, password) == ESP_OK) {

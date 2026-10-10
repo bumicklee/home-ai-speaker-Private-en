@@ -3,7 +3,7 @@ import 'package:aispeaker/features/notes/data/models/note_model.dart';
 import 'package:aispeaker/features/notes/domain/entities/note.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 펌웨어 notes JSON 모양 (설계서 4절)
+/// Shape of the firmware notes JSON (design document, Section 4)
 Map<String, dynamic> eventJson({int rev = 42}) => {
       'id': 'n_7f3a9c21',
       'kind': 'event',

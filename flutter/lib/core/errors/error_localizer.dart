@@ -2,7 +2,7 @@ import '../../l10n/app_localizations.dart';
 import 'error_keys.dart';
 import 'failures.dart';
 
-/// Failure.errorKey → 현지화 문구
+/// Failure.errorKey → localized message
 extension ErrorLocalizer on AppLocalizations {
   String errorText(Failure failure) => errorKeyText(failure.errorKey);
 

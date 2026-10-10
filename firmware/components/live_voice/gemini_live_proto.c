@@ -1,4 +1,4 @@
-/* 설명은 gemini_live_proto.h. cJSON과 gemini_base64 말고는 아무것도 쓰지 않는다 (Mac에서 바로 시험) */
+/* See gemini_live_proto.h. Uses nothing but cJSON and gemini_base64 (test it directly on the Mac) */
 #include "gemini_live_proto.h"
 
 #include <stdio.h>
@@ -53,7 +53,7 @@ char *gemini_live_build_setup(const char *model, const char *voice, const char *
             cJSON_AddItemToArray(tools, entry);
         }
     }
-    /* 끝내는 말(hangup)·TLG-14 사용자 발화 신호·대화 기록에 받아쓴 글이 필요하다 (16.5절과 같은 이유) */
+    /* hang-up phrases, the TLG-14 user-utterance signal and the conversation log need the transcribed text (same reason as Section 16.5) */
     cJSON_AddObjectToObject(setup, "inputAudioTranscription");
     cJSON_AddObjectToObject(setup, "outputAudioTranscription");
     char *text = cJSON_PrintUnformatted(root);
@@ -179,13 +179,13 @@ bool gemini_live_is_goaway(const cJSON *root)
     return cJSON_HasObjectItem(root, "goAway");
 }
 
-/* ── 셀프테스트 ───────────────────────────────────────────── */
+/* ── Self-test ───────────────────────────────────────────── */
 
 bool gemini_live_proto_selftest(void)
 {
     bool ok = true;
 
-    /* setup: model에 "models/" 붙이기, voice 생략(빈 문자열), 도구+검색 둘 다 */
+    /* setup: prepend "models/" to model, omit voice (empty string), both tools and search */
     cJSON *decls = cJSON_Parse("[{\"name\":\"radio_play\",\"parameters\":{\"type\":\"OBJECT\",\"properties\":{}}}]");
     char *setup_text = gemini_live_build_setup("gemini-3.8-live", "Kore", "be brief", decls, true);
     cJSON *setup_json = cJSON_Parse(setup_text ? setup_text : "");
@@ -213,7 +213,7 @@ bool gemini_live_proto_selftest(void)
     cJSON_Delete(setup_json);
     free(setup_text);
 
-    /* model already "models/..." → 안 덧붙인다; voice NULL → speechConfig 없음; 도구 없음 → tools 없음 */
+    /* model already "models/..." → don't prepend; voice NULL → no speechConfig; no tools → no tools */
     char *setup2 = gemini_live_build_setup("models/gemini-3.8-live", NULL, "x", NULL, false);
     cJSON *setup2_json = cJSON_Parse(setup2 ? setup2 : "");
     cJSON *setup2_s = cJSON_GetObjectItemCaseSensitive(setup2_json, "setup");
@@ -223,7 +223,7 @@ bool gemini_live_proto_selftest(void)
     cJSON_Delete(setup2_json);
     free(setup2);
 
-    /* 오디오 조각: realtimeInput.audio.data가 base64(디코드하면 원래 PCM), mimeType 확인 */
+    /* audio chunk: realtimeInput.audio.data is base64 (decodes to the original PCM), check mimeType */
     int16_t pcm[4] = {1, -1, 1000, -1000};
     char *audio_text = gemini_live_build_audio_chunk(pcm, 4);
     cJSON *audio_json = cJSON_Parse(audio_text ? audio_text : "");
@@ -236,7 +236,7 @@ bool gemini_live_proto_selftest(void)
     cJSON_Delete(audio_json);
     free(audio_text);
 
-    /* 기기가 보내는 글 (clientContent) */
+    /* text sent by the device (clientContent) */
     char *ct_text = gemini_live_build_client_text("hello");
     cJSON *ct_json = cJSON_Parse(ct_text ? ct_text : "");
     cJSON *cc = cJSON_GetObjectItemCaseSensitive(ct_json, "clientContent");
@@ -248,14 +248,14 @@ bool gemini_live_proto_selftest(void)
     cJSON_Delete(ct_json);
     free(ct_text);
 
-    /* 도구 응답 */
+    /* tool response */
     cJSON *responses = cJSON_CreateArray();
     cJSON *resp_item = cJSON_CreateObject();
     cJSON_AddStringToObject(resp_item, "id", "call-1");
     cJSON_AddStringToObject(resp_item, "name", "radio_play");
     cJSON_AddItemToObject(resp_item, "response", cJSON_Parse("{\"ok\":true}"));
     cJSON_AddItemToArray(responses, resp_item);
-    char *tr_text = gemini_live_build_tool_response(responses);   /* 소유권을 가져간다 */
+    char *tr_text = gemini_live_build_tool_response(responses);   /* takes ownership */
     cJSON *tr_json = cJSON_Parse(tr_text ? tr_text : "");
     cJSON *frs = cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(tr_json, "toolResponse"),
                                                   "functionResponses");
@@ -264,7 +264,7 @@ bool gemini_live_proto_selftest(void)
     cJSON_Delete(tr_json);
     free(tr_text);
 
-    /* 서버 메시지 읽기: setupComplete, serverContent(오디오·전사·interrupted), toolCall, cancellation, goAway */
+    /* reading server messages: setupComplete, serverContent (audio, transcription, interrupted), toolCall, cancellation, goAway */
     cJSON *sc_msg = cJSON_Parse("{\"setupComplete\":{}}");
     ok &= gemini_live_is_setup_complete(sc_msg);
     ok &= !gemini_live_server_content(sc_msg);

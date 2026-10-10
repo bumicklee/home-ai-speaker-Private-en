@@ -21,10 +21,10 @@ class AssistantState extends Equatable {
     this.timezone,
   });
 
-  /// 기기에 저장된 값
+  /// Values saved on the device
   final AssistantSettings? original;
 
-  /// 화면에서 고친 값 (저장 전)
+  /// Values edited on screen (not saved yet)
   final AssistantSettings? draft;
   final List<String> voices;
   final int? memoryCount;
@@ -32,10 +32,10 @@ class AssistantState extends Equatable {
   final bool saving;
   final bool locating;
 
-  /// 불러오기 실패 (화면 전체를 실패로)
+  /// Load failed (the whole screen shows failure)
   final Failure? failure;
 
-  /// "현재 위치로" 뒤 휴대폰 시간대 판정. 스피커가 모르는 시간대면 화면이 후보를 보여준다
+  /// Phone time zone check after "Set to current location". If the speaker doesn't know the time zone, the screen shows candidates
   final TimezoneSuggestion? timezone;
 
   bool get dirty => original != null && draft != null && original != draft;
@@ -68,12 +68,12 @@ class AssistantState extends Equatable {
   List<Object?> get props => [original, draft, voices, memoryCount, loading, saving, locating, failure, timezone];
 }
 
-/// "현재 위치로" 결과 (화면이 안내 문구를 고른다)
+/// Result of "Set to current location" (the screen picks the message)
 enum LocateResult {
-  /// 동네와 (스피커가 아는) 휴대폰 시간대를 넣음
+  /// Filled in the neighborhood and the phone time zone (known to the speaker)
   filled,
 
-  /// 동네만 넣음. 시간대는 후보에서 골라야 한다
+  /// Filled in the neighborhood only. The time zone must be picked from the candidates
   filledTimezoneUnsupported,
   serviceOff,
   denied,
@@ -81,7 +81,7 @@ enum LocateResult {
   unavailable,
 }
 
-/// 비서 설정: 불러오기 → 고치기(draft) → 바뀐 키만 저장
+/// Assistant settings: load → edit (draft) → save only the changed keys
 class AssistantCubit extends Cubit<AssistantState> {
   AssistantCubit(this._repo, this._location) : super(const AssistantState());
 
@@ -98,7 +98,7 @@ class AssistantCubit extends Cubit<AssistantState> {
     await s.fold(
       (f) async => emit(state.copyWith(loading: false, failure: () => f)),
       (v) async {
-        // 보이스·기억 수는 없어도 화면을 쓸 수 있다 (보이스는 저장된 것만 보인다)
+        // The screen works even without voices or the memory count (voices show only the saved one)
         final names = (await voices).getOrElse(() => const []);
         final count = (await memories).fold((_) => null, (m) => m.length);
         if (isClosed) return;
@@ -107,14 +107,14 @@ class AssistantCubit extends Cubit<AssistantState> {
     );
   }
 
-  /// 기억 화면에서 돌아왔을 때
+  /// When returning from the memories screen
   Future<void> refreshMemoryCount() async {
     final r = await _repo.memories();
     if (isClosed) return;
     r.fold((_) {}, (m) => emit(state.copyWith(memoryCount: () => m.length)));
   }
 
-  /// AI · 대화 방식 화면에서 돌아왔을 때: 그 화면이 바로 저장한 AI 값만 다시 읽는다 (고치던 다른 값은 그대로)
+  /// When returning from the AI · Conversation mode screen: re-read only the AI values that screen saved directly (other edits in progress stay)
   Future<void> refreshAi() async {
     final r = await _repo.settings();
     if (isClosed) return;
@@ -139,13 +139,13 @@ class AssistantCubit extends Cubit<AssistantState> {
     emit(state.copyWith(timezone: () => null));
   }
 
-  /// 고친 것 버리기
+  /// Discard edits
   void discard() {
     final o = state.original;
     if (o != null) emit(state.copyWith(draft: o, timezone: () => null));
   }
 
-  /// 바뀐 키만 PUT. 저장할 게 없거나 값이 틀리면 보내지 않는다. 실패하면 Failure (고친 값은 남긴다)
+  /// PUT only the changed keys. Nothing is sent if there is nothing to save or a value is invalid. On failure, Failure (edits are kept)
   Future<Failure?> save() async {
     final o = state.original;
     final d = state.draft;
@@ -167,7 +167,7 @@ class AssistantCubit extends Cubit<AssistantState> {
     });
   }
 
-  /// 휴대폰 위치 → 동네 이름(+ 시간대)을 draft에 넣는다. 저장은 사용자가 한다
+  /// Phone location → put the neighborhood name (+ time zone) into the draft. The user saves
   Future<LocateResult> locate() async {
     if (state.draft == null || state.locating) return LocateResult.unavailable;
     emit(state.copyWith(locating: true));

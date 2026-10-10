@@ -58,7 +58,7 @@ class SystemRepositoryImpl implements SystemRepository {
         final session = await _ble.connectById(id);
         try {
           await session.setSecret(key, value);
-          await session.closeWindow(); // 적용하고 BLE 창 닫기 (재부팅 없음)
+          await session.closeWindow(); // apply and close the BLE window (no reboot)
         } finally {
           try {
             await session.disconnect();

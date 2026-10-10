@@ -7,8 +7,8 @@ import '../../../../core/repository/guard.dart';
 import '../../domain/entities/audio_settings.dart';
 import '../models/audio_settings_model.dart';
 
-/// 오디오·호출어·LED 설정 (설계서 2.14절). 선택된 기기로 보낸다.
-/// PUT은 바뀐 키만 보낸다 (기기는 없는 키를 그대로 두고, 저장 후 그룹 전체를 돌려준다)
+/// Audio, wake word, and LED settings (design document, Section 2.14). Sent to the selected device.
+/// PUT sends only the changed keys (the device leaves missing keys as they are, and after saving returns the whole group)
 class AudioRepository {
   AudioRepository(this._device);
 
@@ -23,11 +23,11 @@ class AudioRepository {
   Future<Either<Failure, int>> ledBrightness() =>
       guard(() async => AudioSettingsModel.ledFromJson(await _get(SettingsGroup.led)));
 
-  /// 키: volume, mic_gain, auto_gain, duck_db
+  /// Keys: volume, mic_gain, auto_gain, duck_db
   Future<Either<Failure, AudioSettings>> updateAudio(Map<String, Object> change) =>
       guard(() async => AudioSettingsModel.audioFromJson(await _put(SettingsGroup.audio, change)));
 
-  /// 키: enabled, phrase(0/1), sensitivity, gain_db
+  /// Keys: enabled, phrase(0/1), sensitivity, gain_db
   Future<Either<Failure, WakeSettings>> updateWake(Map<String, Object> change) =>
       guard(() async => AudioSettingsModel.wakeFromJson(await _put(SettingsGroup.wake, change)));
 
@@ -36,7 +36,7 @@ class AudioRepository {
 
   Future<Either<Failure, Unit>> testTone() => _post(ApiPaths.testTone);
 
-  /// 60초 감지 테스트 시작. 감지될 때마다 WS `wake_test`. 대화 중이면 409 VOICE_ACTIVE
+  /// Starts the 60-second detection test. WS `wake_test` on each detection. 409 VOICE_ACTIVE during a conversation
   Future<Either<Failure, Unit>> startWakeTest() => _post(ApiPaths.wakeTest);
 
   Future<Map<String, dynamic>> _get(String group) async =>

@@ -1,5 +1,5 @@
-# CONFIG_APP_SPOTIFY(main/Kconfig.projbuild, 기본 끔)가 꺼져 있으면 실제 코드 대신 대체 코드를 빌드한다.
-# 공개 API(media_spotify.h)는 같으므로 부르는 쪽은 바뀌지 않는다.
+# If CONFIG_APP_SPOTIFY (main/Kconfig.projbuild, off by default) is off, substitute code is built instead of the real code.
+# The public API (media_spotify.h) is the same, so callers do not change.
 if(CONFIG_APP_SPOTIFY)
     set(srcs "spotify_api.c")
 else()

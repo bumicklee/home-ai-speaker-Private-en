@@ -10,7 +10,7 @@ import '../widgets/preset_form_sheet.dart';
 import '../widgets/radio_texts.dart';
 import 'radio_page.dart';
 
-/// 프리셋 편집: 끌어서 순서, 이름 바꾸기, 삭제, 주소로 추가. 저장하면 PUT으로 목록 전체를 보낸다
+/// Preset editing: drag to reorder, rename, delete, add by URL. Saving sends the whole list with PUT
 class PresetEditPage extends StatefulWidget {
   const PresetEditPage({super.key});
 
@@ -21,7 +21,7 @@ class PresetEditPage extends StatefulWidget {
 class _PresetEditPageState extends State<PresetEditPage> {
   late List<RadioPreset> _items = List.of(context.read<RadioCubit>().state.presets);
 
-  /// 끌기용 키 (주소가 겹쳐도 줄마다 다르게)
+  /// Key for dragging (different per row even when URLs repeat)
   late List<int> _keys = List.generate(_items.length, (i) => i);
   late int _nextKey = _items.length;
 
@@ -147,7 +147,7 @@ class _PresetEditPageState extends State<PresetEditPage> {
   }
 }
 
-/// ReorderableListView의 onReorder: 아래로 옮기면 [to]가 하나 크게 온다
+/// onReorder of ReorderableListView: when moving down, [to] arrives one larger
 List<T> _moved<T>(List<T> list, int from, int to) {
   final out = List.of(list);
   final item = out.removeAt(from);

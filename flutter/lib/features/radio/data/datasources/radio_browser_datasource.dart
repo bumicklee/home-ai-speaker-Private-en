@@ -4,17 +4,17 @@ import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/radio_preset.dart';
 import '../../domain/radio_rules.dart';
 
-/// Radio-Browser 방송 검색 (휴대폰에서 바로, 설계서 6장 "라디오"). 외부 Dio를 쓴다 (User-Agent 필수)
+/// Radio-Browser station search (straight from the phone, design document Chapter 6 "Radio"). Uses the external Dio (User-Agent required)
 class RadioBrowserDataSource {
   RadioBrowserDataSource(this._dio);
 
   final Dio _dio;
 
-  /// 펌웨어 `radio_search.c`와 같은 서버
+  /// Same server as firmware `radio_search.c`
   static const host = 'https://de1.api.radio-browser.info';
   static const limit = 30;
 
-  /// 인기 순. 스피커가 틀 수 없는 방송(HLS, 다른 코덱)은 뺀다. 같은 주소는 한 번만
+  /// Most popular first. Leaves out stations the speaker can't play (HLS, other codecs). Each URL only once
   Future<List<RadioStation>> search(String query, {bool byTag = false}) async {
     try {
       final r = await _dio.get<List<dynamic>>(

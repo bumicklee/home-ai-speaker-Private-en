@@ -39,12 +39,12 @@ class DevicesRepositoryImpl implements DevicesRepository {
 
   @override
   Future<Either<Failure, Unit>> addOrUpdate(Device device, String token) => guard(() async {
-        // 토큰을 먼저 저장한다: 목록 저장이 실패해도 토큰을 잃으면 BLE로 다시 등록해야 한다
+        // Save the token first: even if saving the list fails, losing the token would mean registering again over BLE
         await _local.saveToken(device.id, token);
         final all = [..._local.readAll().where((d) => d.id != device.id), device];
         await _local.writeAll(all);
         await _local.setSelectedId(device.id);
-        _clients.remove(device.id); // 예전 토큰을 쓰던 클라이언트를 버린다
+        _clients.remove(device.id); // drop the client that used the old token
         return unit;
       });
 
@@ -81,7 +81,7 @@ class DevicesRepositoryImpl implements DevicesRepository {
         return DeviceStatusModel.fromJson(json);
       });
 
-  /// 클라이언트가 mDNS로 새 IP를 찾았을 때
+  /// When the client found a new IP via mDNS
   void _onEndpointChanged(DeviceEndpoint e) {
     final device = _local.readAll().where((d) => d.id == e.deviceId).firstOrNull;
     if (device != null) {

@@ -18,7 +18,7 @@ class HomeState extends Equatable {
   final DeviceStatus? status;
   final bool loading;
 
-  /// 마지막 불러오기·동작 실패. DeviceFailure.isUnauthorized면 재등록 안내
+  /// Last load or action failure. If DeviceFailure.isUnauthorized, prompt to register again
   final Failure? failure;
   final bool busy;
 
@@ -36,7 +36,7 @@ class HomeState extends Equatable {
   List<Object?> get props => [status, loading, failure, busy];
 }
 
-/// 홈: 선택된 스피커의 /status + 실시간 이벤트(설계서 3.2: voice_state·media_state·volume·tg_message)
+/// Home: the selected speaker's /status + real-time events (design document 3.2: voice_state, media_state, volume, tg_message)
 class HomeCubit extends Cubit<HomeState> {
   HomeCubit(this._devices, this._control, this._current, this._events) : super(const HomeState()) {
     _sub = _events.events.listen(_onEvent);
@@ -73,7 +73,7 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<void> media(String action) => _act(() => _control.media(action));
 
-  /// 슬라이더를 놓았을 때. 화면은 먼저 바꾸고, 실패하면 다시 불러온다
+  /// When the slider is released. Update the screen first; reload if it fails
   Future<void> setVolume(int volume) async {
     final s = state.status;
     if (s != null) emit(state.copyWith(status: () => s.copyWith(volume: volume)));

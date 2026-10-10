@@ -1,6 +1,6 @@
 /*
- * mDNS: 같은 Wi-Fi의 앱이 스피커를 찾게 한다 (설계서 2.14절).
- * 펌웨어 버전·비서 이름은 TXT에 넣지 않는다 (인증된 /status로만).
+ * mDNS: lets the app on the same Wi-Fi find the speaker (design document Section 2.14).
+ * The firmware version and assistant name are not put in TXT (only in the authenticated /status).
  */
 #include "net.h"
 

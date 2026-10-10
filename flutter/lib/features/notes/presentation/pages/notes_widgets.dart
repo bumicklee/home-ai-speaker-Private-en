@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// 알림 칩 (고르면 청록으로 채움, 3개 찬 뒤 나머지는 흐리게, 직접 입력은 점선 대신 외곽선)
+/// Reminder chip (filled teal when selected, the rest dimmed once 3 are chosen, custom entry outlined instead of dashed)
 class RemindChip extends StatelessWidget {
   const RemindChip({super.key, required this.label, required this.selected, this.onTap, this.custom = false});
 
   final String label;
   final bool selected;
 
-  /// null = 고를 수 없음
+  /// null = can't be selected
   final VoidCallback? onTap;
   final bool custom;
 
@@ -55,7 +55,7 @@ class RemindChip extends StatelessWidget {
   }
 }
 
-/// 둘·셋 중 하나 고르기 (디자인: 회색 바탕 위 흰 칸)
+/// Pick one of two or three (design: white cells on a gray background)
 class SegmentTabs extends StatelessWidget {
   const SegmentTabs({super.key, required this.labels, required this.selected, required this.onChanged});
 
@@ -106,7 +106,7 @@ class SegmentTabs extends StatelessWidget {
   }
 }
 
-/// 둘 중 하나 (메모/일정): 고른 쪽은 청록 외곽선
+/// One of two (note/event): the selected one gets a teal outline
 class KindChoice extends StatelessWidget {
   const KindChoice({super.key, required this.labels, required this.selected, this.onChanged});
 

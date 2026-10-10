@@ -13,7 +13,7 @@ import 'package:mocktail/mocktail.dart';
 
 class MockRepo extends Mock implements LessonRepository {}
 
-/// 펌웨어 lesson_json() 모양
+/// Shape of the firmware lesson_json()
 const firmwareJson = {
   'state': 'active',
   'course': 'biz',
@@ -93,7 +93,7 @@ void main() {
     test('스피커에 OpenAI 키가 없으면 시작을 잠근다 (Gemini를 써도 수업은 OpenAI)', () async {
       when(() => repo.openAiKeySaved()).thenAnswer((_) async => const Right(false));
       final c = EnglishCubit(repo);
-      expect(c.state.canStart, isTrue); // 확인 전에는 막지 않는다
+      expect(c.state.canStart, isTrue); // not blocked before it is confirmed
       await c.checkKey();
       expect(c.state.openAiKey, isFalse);
       expect(c.state.canStart, isFalse);

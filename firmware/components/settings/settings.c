@@ -33,7 +33,7 @@ esp_err_t settings_init(void)
     return err;
 }
 
-/* ── 공통 헬퍼 ────────────────────────────────────────────── */
+/* ── Common helpers ───────────────────────────────────────── */
 
 static uint8_t get_u8(const char *ns, const char *key, uint8_t def, uint8_t max)
 {
@@ -65,7 +65,7 @@ static esp_err_t set_u8s(const char *ns, const char *const *keys, const uint8_t 
     return err;
 }
 
-/* ── 프로비저닝 ───────────────────────────────────────────── */
+/* ── Provisioning ─────────────────────────────────────────── */
 
 bool settings_is_provisioned(void)
 {
@@ -104,7 +104,7 @@ esp_err_t settings_get_wifi(char ssid[33], char password[65])
     if (err == ESP_OK) {
         len = 65;
         err = nvs_get_str(h, "password", password, &len);
-        if (err == ESP_ERR_NVS_NOT_FOUND) {     /* 개방형 네트워크 */
+        if (err == ESP_ERR_NVS_NOT_FOUND) {     /* open network */
             password[0] = '\0';
             err = ESP_OK;
         }
@@ -131,18 +131,18 @@ esp_err_t settings_set_wifi(const char *ssid, const char *password)
         err = nvs_commit(h);
     }
     nvs_close(h);
-    /* 비밀번호는 길이만 남긴다 (2.2절) */
+    /* log only the password length (Section 2.2) */
     ESP_LOGI(TAG, "wifi saved: ssid_len=%u pass_len=%u: %s",
              (unsigned)strlen(ssid), (unsigned)strlen(password), esp_err_to_name(err));
     return err;
 }
 
-/* ── 오디오 ───────────────────────────────────────────────── */
+/* ── Audio ────────────────────────────────────────────────── */
 
 void settings_get_audio(settings_audio_t *out)
 {
     out->volume = get_u8("audio", "volume", 40, APP_VOLUME_MAX);
-    /* 기본 30dB: 실기기에서 24dB로는 말소리가 최대의 2%(-34 dBFS)뿐이었다 (책 6장 버그 4) */
+    /* default 30dB: on the real board, 24dB gave speech only 2% of full scale (-34 dBFS) (Chapter 6, Bug 4) */
     out->mic_gain = get_u8("audio", "mic_gain", 36, 36);
     out->auto_gain = get_u8("audio", "auto_gain", 0, 1);
     out->duck_db = get_u8("audio", "duck_db", 20, 40);
@@ -160,12 +160,12 @@ esp_err_t settings_set_audio(const settings_audio_t *in)
     return set_u8s("audio", keys, values, 5);
 }
 
-/* ── 호출어 ───────────────────────────────────────────────── */
+/* ── Wake word ────────────────────────────────────────────── */
 
 void settings_get_wake(settings_wake_t *out)
 {
     out->enabled = get_u8("wake", "enabled", 1, 1);
-    /* 기본 Computer·감도 80: 실기기에서 Jarvis는 감도 80에서도 거의 감지되지 않았다 (책 6장 6.2절) */
+    /* default Computer, sensitivity 80: on the real board, Jarvis was barely detected even at 80 (Chapter 6, Section 6.2) */
     out->phrase = get_u8("wake", "phrase", 1, 1);
     out->sensitivity = get_u8("wake", "sensitivity", 80, 100);
     out->gain_db = get_u8("wake", "gain_db", 12, 24);
@@ -197,7 +197,7 @@ esp_err_t settings_set_led_brightness(uint8_t brightness)
     return set_u8s("led", keys, &brightness, 1);
 }
 
-/* ── 문자열 ───────────────────────────────────────────────── */
+/* ── Strings ──────────────────────────────────────────────── */
 
 esp_err_t settings_get_str(const char *ns, const char *key, char *out, size_t *out_len)
 {

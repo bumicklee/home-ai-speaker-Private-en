@@ -26,7 +26,7 @@ esp_err_t app_events_init(void)
         .queue_size = 32,
         .task_name = "app_evt",
         .task_priority = 5,
-        .task_stack_size = 6144,     /* 핸들러가 NVS 쓰기·태스크 생성을 한다 */
+        .task_stack_size = 6144,     /* handlers write NVS and create tasks */
         .task_core_id = 0,
     };
     esp_err_t err = esp_event_loop_create(&args, &s_loop);

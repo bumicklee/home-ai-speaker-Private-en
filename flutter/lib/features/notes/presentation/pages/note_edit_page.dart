@@ -12,11 +12,11 @@ import '../bloc/notes_cubit.dart';
 import 'notes_texts.dart';
 import 'notes_widgets.dart';
 
-/// 메모·일정 만들기·고치기 (디자인 "일정 편집"). NotesCubit은 목록 화면에서 받는다
+/// Create/edit a note or event (design "일정 편집"). NotesCubit is passed in from the list screen
 class NoteEditPage extends StatefulWidget {
   const NoteEditPage({super.key, this.note, this.newKind = NoteKind.event});
 
-  /// null이면 새로 만들기
+  /// null means create new
   final Note? note;
   final NoteKind newKind;
 
@@ -34,7 +34,7 @@ class _NoteEditPageState extends State<NoteEditPage> {
   late TimeOfDay _time;
   late List<int> _remind;
 
-  /// 새 일정에서 알림을 건드리지 않았으면 remind를 보내지 않는다 (스피커 기본 알림)
+  /// If reminders weren't touched on a new event, don't send remind (speaker's default reminders)
   bool _remindTouched = false;
   bool _titleMissing = false;
 
@@ -101,7 +101,7 @@ class _NoteEditPageState extends State<NoteEditPage> {
       Navigator.pop(context);
       return;
     }
-    // 스피커에서 방금 바뀜: 최신 내용으로 다시 채운다 (안내는 목록 화면이 띄운다)
+    // Just changed on the speaker: refill with the latest content (the list screen shows the message)
     final latest = _note == null ? null : cubit.state.byId(_note!.id);
     if (cubit.state.failure?.code == 'CONFLICT' && latest != null) {
       setState(() {
@@ -144,7 +144,7 @@ class _NoteEditPageState extends State<NoteEditPage> {
   void _toggleAllDay(bool on, NotesSettings settings) => setState(() {
         final before = _defaults(settings);
         _allDay = on;
-        // 기본값 그대로였으면 하루 종일 기본값으로 바꾼다
+        // If it was still the default, switch to the all-day default
         if (_sameSet(_remind, before)) _remind = _defaults(settings);
       });
 
@@ -345,7 +345,7 @@ class _NoteEditPageState extends State<NoteEditPage> {
   }
 }
 
-/// 직접 입력: 1–10080분
+/// Custom entry: 1–10080 minutes
 Future<int?> showCustomRemindDialog(BuildContext context) {
   final l = AppLocalizations.of(context);
   final ctl = TextEditingController();
@@ -380,7 +380,7 @@ Future<int?> showCustomRemindDialog(BuildContext context) {
   ).whenComplete(ctl.dispose);
 }
 
-/// UTF-8 바이트 수로 자른다 (스피커 제목 80바이트, 내용 600바이트)
+/// Truncates by UTF-8 byte count (speaker title 80 bytes, body 600 bytes)
 class Utf8LengthFormatter extends TextInputFormatter {
   Utf8LengthFormatter(this.maxBytes);
 
@@ -389,7 +389,7 @@ class Utf8LengthFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     if (utf8.encode(newValue.text).length <= maxBytes) return newValue;
-    // 붙여 넣기 등으로 넘치면 글자 단위로 줄인다
+    // If pasting etc. overflows it, trim character by character
     final runes = newValue.text.runes.toList();
     var bytes = 0, keep = 0;
     for (final r in runes) {

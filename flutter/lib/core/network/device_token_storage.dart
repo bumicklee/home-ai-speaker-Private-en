@@ -1,6 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// 기기별 LAN 토큰 (`api.pair`로 받은 것). DevicesRepository만 쓴다.
+/// Per-device LAN tokens (received from `api.pair`). Only DevicesRepository uses this.
 class DeviceTokenStorage {
   DeviceTokenStorage(this._storage);
 

@@ -59,7 +59,7 @@ void main() {
     expect(find.text('Gemini 키 넣기 (가운데 버튼 3초 → 블루투스로 보내요)'), findsOneWidget);
     expect(find.text('② OpenAI 대화 방식'), findsOneWidget);
     expect(find.text('월 약 15,000원'), findsOneWidget);
-    expect(find.text('준비 중'), findsOneWidget); // openai.live가 available에 없음
+    expect(find.text('준비 중'), findsOneWidget); // openai.live is not in available
     expect(find.textContaining('실시간 API(OpenAI)'), findsOneWidget);
 
     await t.tap(find.text('Gemini'));

@@ -1,10 +1,10 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * 툴 워커 (설계서 2.8절 "툴 비동기 실행").
- * 기존 펌웨어는 세션 태스크가 툴을 직접 실행해서, 오래 걸리는 툴 동안 마이크 업로드가
- * 멈췄다. 여기서는 응답 해석 태스크가 큐에 넣기만 하고 이 태스크가 실행한 뒤
- * live_voice_submit_tool_outputs()로 결과를 돌려준다. radio_play의 방송 검색이 여기서 HTTPS를 쓴다
- * (TLS 핸드셰이크 + JSON 해석) → 스택 12KB, 실측 후 조정
+ * Tool worker (design document 2.8, "Running tools asynchronously").
+ * In the existing firmware the session task ran tools itself, so mic upload stopped during a long tool.
+ * Here the response-parsing task only puts calls on the queue; this task runs them and
+ * returns the results with live_voice_submit_tool_outputs(). radio_play's station search uses HTTPS here
+ * (TLS handshake + JSON parsing) → 12KB stack, tune after measuring
  */
 #include "assistant.h"
 
@@ -21,7 +21,7 @@ static const char *TAG = "TOOLS";
 typedef struct {
     cJSON *calls;
     unsigned generation;
-    void (*fn)(void *arg);      /* 일반 작업 (calls 대신) */
+    void (*fn)(void *arg);      /* general work (instead of calls) */
     void *arg;
 } tool_job_t;
 
@@ -56,8 +56,8 @@ static void tool_worker(void *arg)
         cJSON *outputs = cJSON_CreateArray();
         const cJSON *call;
         cJSON_ArrayForEach(call, job.calls) {
-            /* 대화가 끝났거나(종료 문구·버튼·시간 초과) 새 세션이 시작됐으면 남은 툴을 실행하지 않는다.
-             * 기존 펌웨어 run_tools()의 stopping 검사와 같다 */
+            /* If the conversation ended (hang-up phrase, button, timeout) or a new session started, don't run the remaining tools.
+             * Same as the stopping check in the existing firmware's run_tools() */
             if (job.generation != live_voice_generation() || !live_voice_ready()) {
                 break;
             }
@@ -67,10 +67,10 @@ static void tool_worker(void *arg)
             if (!cJSON_IsString(name) || !cJSON_IsString(args) || !cJSON_IsString(id)) {
                 continue;
             }
-            /* 툴 이름만 남긴다 (인자는 사용자 정보일 수 있음) */
+            /* Log only the tool name (the arguments may be user information) */
             ESP_LOGI(TAG, "run %s", name->valuestring);
             cJSON *result = assistant_execute(name->valuestring, args->valuestring);
-            /* 오류 문구는 기기가 만든 고정 문장이라 남겨도 된다 */
+            /* Error messages are fixed sentences made by the device, so logging them is fine */
             const cJSON *error = cJSON_GetObjectItem(result, "error");
             if (cJSON_IsString(error)) {
                 ESP_LOGW(TAG, "%s failed: %s", name->valuestring, error->valuestring);
@@ -105,7 +105,7 @@ esp_err_t assistant_tool_worker_start(void)
     if (!s_jobs) {
         return ESP_ERR_NO_MEM;
     }
-    /* 스택은 PSRAM (XIP 덕분에 NVS 사용 가능, 책 7장 7.3절) */
+    /* The stack is in PSRAM (NVS works thanks to XIP; Chapter 7, Section 7.3) */
     return xTaskCreatePinnedToCoreWithCaps(tool_worker, "tool_worker", 12288, NULL, 4, NULL, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS ? ESP_OK
                                                                                                  : ESP_ERR_NO_MEM;
 }

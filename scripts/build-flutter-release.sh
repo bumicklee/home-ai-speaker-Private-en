@@ -1,15 +1,15 @@
 #!/bin/bash
-# AI-PA 앱 - 릴리즈 빌드
-# 사용법: ./scripts/build-flutter-release.sh [android|ios|all] [--no-test] [--no-clean]
+# AI-PA app - release build
+# Usage: ./scripts/build-flutter-release.sh [android|ios|all] [--no-test] [--no-clean]
 #
-#   android    Android APK(직접 설치용) + AAB(Play 스토어용)
-#   ios        iOS IPA (서명 없이. 배포하려면 Xcode에서 서명)
-#   all        둘 다
-#   --no-test  빌드 전 정적 분석·테스트를 건너뜀
-#   --no-clean flutter clean을 건너뜀 (더 빠름)
+#   android    Android APK (direct install) + AAB (Play Store)
+#   ios        iOS IPA (unsigned; sign in Xcode to distribute)
+#   all        both
+#   --no-test  skip static analysis and tests before building
+#   --no-clean skip flutter clean (faster)
 #
-# 결과물: releases/ai-pa-<버전>-<날짜>.{apk,aab,ipa}
-# 휴대폰에 설치: adb install -r releases/ai-pa-….apk
+# Output: releases/ai-pa-<version>-<date>.{apk,aab,ipa}
+# Install on phone: adb install -r releases/ai-pa-….apk
 
 set -e
 
@@ -32,7 +32,7 @@ for arg in "$@"; do
             exit 0
             ;;
         *)
-            echo "알 수 없는 인자: $arg (도움말: $0 --help)"
+            echo "Unknown argument: $arg (help: $0 --help)"
             exit 1
             ;;
     esac
@@ -46,19 +46,19 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================="
-echo "AI-PA 앱 - 릴리즈 빌드 (${TARGET})"
+echo "AI-PA app - release build (${TARGET})"
 echo -e "==========================================${NC}"
 echo ""
 
 if ! command -v flutter &> /dev/null; then
-    echo -e "${RED}오류: Flutter가 설치되어 있지 않습니다.${NC}"
+    echo -e "${RED}Error: Flutter is not installed.${NC}"
     exit 1
 fi
 
 mkdir -p "$OUTPUT_DIR"
 cd "$FLUTTER_DIR"
 
-echo -e "${CYAN}[1/5] 의존성·문구 준비...${NC}"
+echo -e "${CYAN}[1/5] Dependencies and strings...${NC}"
 if [ "$CLEAN" -eq 1 ]; then
     flutter clean
 fi
@@ -68,44 +68,44 @@ flutter gen-l10n
 
 if [ "$RUN_TESTS" -eq 1 ]; then
     echo ""
-    echo -e "${CYAN}[2/5] 정적 분석·테스트...${NC}"
+    echo -e "${CYAN}[2/5] Static analysis and tests...${NC}"
     flutter analyze
     flutter test --reporter compact
 else
     echo ""
-    echo -e "${YELLOW}[2/5] 분석·테스트 건너뜀 (--no-test)${NC}"
+    echo -e "${YELLOW}[2/5] Skipping analysis and tests (--no-test)${NC}"
 fi
 
 VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
 DATE=$(date +%Y%m%d_%H%M)
 BASE="$OUTPUT_DIR/${APP_NAME}-${VERSION}-${DATE}"
 echo ""
-echo -e "${GREEN}버전: ${VERSION}${NC}"
+echo -e "${GREEN}Version: ${VERSION}${NC}"
 
 build_android() {
     echo ""
-    echo -e "${CYAN}[3/5] Android APK 빌드...${NC}"
+    echo -e "${CYAN}[3/5] Android APK build...${NC}"
     flutter build apk --release
     cp build/app/outputs/flutter-apk/app-release.apk "${BASE}.apk"
     echo -e "${GREEN}✓ APK $(du -h "${BASE}.apk" | cut -f1) → ${BASE}.apk${NC}"
 
     echo ""
-    echo -e "${CYAN}[4/5] Android AAB 빌드 (Play 스토어용)...${NC}"
+    echo -e "${CYAN}[4/5] Android AAB build (for the Play Store)...${NC}"
     flutter build appbundle --release
     cp build/app/outputs/bundle/release/app-release.aab "${BASE}.aab"
     echo -e "${GREEN}✓ AAB $(du -h "${BASE}.aab" | cut -f1) → ${BASE}.aab${NC}"
 
     if grep -q 'signingConfigs.getByName("debug")' android/app/build.gradle.kts; then
-        echo -e "${YELLOW}  ⚠ 릴리즈 서명 키가 없어 디버그 키로 서명했습니다. 가족 휴대폰에 직접 설치(adb)는 되지만,${NC}"
-        echo -e "${YELLOW}    Play 스토어에 올리려면 업로드 키를 만들어 build.gradle.kts의 signingConfig를 바꿔야 합니다.${NC}"
+        echo -e "${YELLOW}  ⚠ No release signing key, so it was signed with the debug key. Direct install (adb) on family phones works, but${NC}"
+        echo -e "${YELLOW}    to publish to the Play Store, create an upload key and change the signingConfig in build.gradle.kts.${NC}"
     fi
 }
 
 build_ios() {
     echo ""
-    echo -e "${CYAN}[3/5] iOS IPA 빌드 (서명 없이)...${NC}"
+    echo -e "${CYAN}[3/5] iOS IPA build (unsigned)...${NC}"
     if ! command -v xcodebuild &> /dev/null; then
-        echo -e "${RED}오류: Xcode가 설치되어 있지 않습니다.${NC}"
+        echo -e "${RED}Error: Xcode is not installed.${NC}"
         return 1
     fi
     flutter build ipa --release --no-codesign
@@ -114,7 +114,7 @@ build_ios() {
         cp "$IPA" "${BASE}.ipa"
         echo -e "${GREEN}✓ IPA → ${BASE}.ipa${NC}"
     else
-        echo -e "${YELLOW}⚠ IPA 파일이 만들어지지 않았습니다 (서명 필요). Archive: flutter/build/ios/archive/${NC}"
+        echo -e "${YELLOW}⚠ No IPA file was produced (signing required). Archive: flutter/build/ios/archive/${NC}"
     fi
 }
 
@@ -128,12 +128,12 @@ case $TARGET in
 esac
 
 echo ""
-echo -e "${CYAN}[5/5] 결과${NC}"
+echo -e "${CYAN}[5/5] Result${NC}"
 echo -e "${GREEN}=========================================="
-echo "빌드 완료"
+echo "Build complete"
 echo -e "==========================================${NC}"
 ls -lh "${BASE}".* 2>/dev/null || true
 echo ""
-echo "설치:"
+echo "Install:"
 echo "  Android: adb install -r ${BASE}.apk"
-echo "  iOS:     Xcode(Window > Devices and Simulators) 또는 Apple Configurator"
+echo "  iOS:     Xcode (Window > Devices and Simulators) or Apple Configurator"

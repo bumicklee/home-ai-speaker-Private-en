@@ -18,14 +18,14 @@ class EnglishState extends Equatable {
   final LessonOptions options;
   final bool starting;
 
-  /// 시작에 성공하면 그 수업 (화면이 수업 화면으로 넘어간다)
+  /// The lesson, once it starts successfully (the screen moves on to the lesson screen)
   final Lesson? started;
   final Failure? failure;
 
-  /// 스피커에 OpenAI 키가 있는지. 모르면 null (시작은 막지 않는다. 스피커가 409로 막는다)
+  /// Whether the speaker has an OpenAI key. null if unknown (start is not blocked; the speaker blocks it with 409)
   final bool? openAiKey;
 
-  /// 키가 없다고 확인되면 시작 버튼을 잠근다
+  /// Locks the start button once it is confirmed there is no key
   bool get canStart => !starting && openAiKey != false;
 
   EnglishState copyWith({
@@ -47,13 +47,13 @@ class EnglishState extends Equatable {
   List<Object?> get props => [options, starting, started, failure, openAiKey];
 }
 
-/// 코스 고르기 (디자인 "영어 선생님: 코스 고르기")
+/// Choosing a course (design "English Tutor: Choose a Course")
 class EnglishCubit extends Cubit<EnglishState> {
   EnglishCubit(this._repo) : super(EnglishState(options: _repo.savedOptions()));
 
   final LessonRepository _repo;
 
-  /// 화면을 열 때: 스피커에 OpenAI 키가 있는지 (못 읽으면 모르는 채로 둔다)
+  /// When the screen opens: whether the speaker has an OpenAI key (left unknown if it can't be read)
   Future<void> checkKey() async {
     final r = await _repo.openAiKeySaved();
     if (isClosed) return;
@@ -71,13 +71,13 @@ class EnglishCubit extends Cubit<EnglishState> {
       (f) => emit(state.copyWith(
             starting: false,
             failure: () => f,
-            // 409 NO_API_KEY: 그사이 키가 지워졌다 → 시작을 잠그고 안내
+            // 409 NO_API_KEY: the key was deleted in the meantime → lock start and show a notice
             openAiKey: f.errorKey == ErrorKeys.deviceNoApiKey ? () => false : null,
           )),
       (lesson) => emit(state.copyWith(starting: false, started: () => lesson)),
     );
   }
 
-  /// 수업 화면으로 넘어간 뒤 다시 누를 수 있게
+  /// So it can be pressed again after moving on to the lesson screen
   void consumeStarted() => emit(state.copyWith(started: () => null));
 }

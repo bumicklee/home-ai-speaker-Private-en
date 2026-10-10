@@ -71,7 +71,7 @@ void main() {
     expect(find.text('••••WXYZ'), findsOneWidget);
     expect(find.text('저장됨'), findsOneWidget);
     expect(find.text('바꾸기'), findsOneWidget);
-    expect(find.text('넣기'), findsNWidgets(2)); // Gemini 키·텔레그램 토큰은 스피커에 없음
-    expect(find.text('Gemini API 키'), findsNWidgets(2)); // 스피커·휴대폰 두 줄
+    expect(find.text('넣기'), findsNWidgets(2)); // the Gemini key and Telegram token are not on the speaker
+    expect(find.text('Gemini API 키'), findsNWidgets(2)); // two rows: speaker and phone
   });
 }

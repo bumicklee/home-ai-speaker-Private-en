@@ -26,10 +26,10 @@ const settingsJson = <String, dynamic>{
   'mode_gemini': 'live',
 };
 
-/// 1단계 펌웨어: OpenAI만
+/// Stage 1 firmware: OpenAI only
 const stage1 = AiStatus(provider: AiProvider.openai, mode: AiMode.saver, available: {'openai.live', 'openai.saver'});
 
-/// 2단계 펌웨어: + gemini.saver
+/// Stage 2 firmware: + gemini.saver
 const stage2 = AiStatus(
   provider: AiProvider.openai,
   mode: AiMode.saver,
@@ -85,7 +85,7 @@ void main() {
 
     when(() => system.status()).thenAnswer((_) async => Right(status(gemini: true)));
     await c.load();
-    expect(c.state.providerLock(AiProvider.gemini), AiLock.notReady); // 1단계 펌웨어
+    expect(c.state.providerLock(AiProvider.gemini), AiLock.notReady); // stage 1 firmware
 
     when(() => system.status()).thenAnswer((_) async => Right(status(gemini: true, ai: stage2)));
     await c.load();
@@ -93,7 +93,7 @@ void main() {
     expect(c.state.modeLock(AiProvider.gemini, AiMode.saver), AiLock.none);
     expect(c.state.modeLock(AiProvider.gemini, AiMode.live), AiLock.notReady);
 
-    // 지금 쓰는 AI의 키를 지웠어도 잠금으로 보인다
+    // Even if the key for the AI in use was deleted, it still shows as locked
     when(() => system.status()).thenAnswer((_) async => Right(status(openai: false, gemini: true, ai: stage2)));
     await c.load();
     expect(c.state.providerLock(AiProvider.openai), AiLock.noKey);
@@ -103,7 +103,7 @@ void main() {
   test('옛 펌웨어(ai 없음): OpenAI 실시간만 고를 수 있다', () async {
     when(() => system.status()).thenAnswer((_) async => Right(status(ai: AiStatus.legacy)));
     when(() => assistant.settings()).thenAnswer(
-        (_) async => Right(AssistantSettingsModel.fromJson(const {'name': 'Jarvis'}))); // AI 키 없음
+        (_) async => Right(AssistantSettingsModel.fromJson(const {'name': 'Jarvis'}))); // no AI keys
     final c = await loaded();
     expect(c.state.provider, AiProvider.openai);
     expect(c.state.mode, AiMode.live);
@@ -119,7 +119,7 @@ void main() {
     final c = await loaded();
     expect(c.state.settings, isNotNull);
     expect(c.state.hasKey(AiProvider.gemini), isNull);
-    expect(c.state.providerLock(AiProvider.gemini), AiLock.notReady); // 옛 펌웨어처럼 본다
+    expect(c.state.providerLock(AiProvider.gemini), AiLock.notReady); // treat it like old firmware
     expect(c.state.providerLock(AiProvider.openai), AiLock.none);
     await c.close();
   });
@@ -135,8 +135,8 @@ void main() {
   test('잠긴 AI·방식은 보내지 않는다', () async {
     final c = await loaded();
     expect(await c.chooseProvider(AiProvider.gemini), isNull);
-    expect(await c.chooseProvider(AiProvider.openai), isNull); // 이미 고름
-    expect(await c.chooseMode(AiMode.saver), isNull); // 이미 고름
+    expect(await c.chooseProvider(AiProvider.openai), isNull); // already chosen
+    expect(await c.chooseMode(AiMode.saver), isNull); // already chosen
     verifyNever(() => assistant.update(any()));
     await c.close();
   });
@@ -157,7 +157,7 @@ void main() {
         .thenAnswer((_) async => Right(settings({'ai_provider': 'gemini', 'mode_gemini': 'saver'})));
     final c = await loaded();
     expect(await c.chooseProvider(AiProvider.gemini), isNull);
-    // mode_gemini는 live였지만 2단계 펌웨어는 gemini.saver만
+    // mode_gemini was live, but stage 2 firmware has only gemini.saver
     verify(() => assistant.update({'ai_provider': 'gemini', 'mode_gemini': 'saver'})).called(1);
     expect(c.state.provider, AiProvider.gemini);
     expect(c.state.mode, AiMode.saver);
@@ -197,7 +197,7 @@ void main() {
     expect(await c.sendKey(AiProvider.gemini, key), isNull);
     verify(() => vault.saveGeminiKey(key)).called(1);
     expect(c.state.hasKey(AiProvider.gemini), isTrue);
-    expect(c.state.providerLock(AiProvider.gemini), AiLock.notReady); // 1단계 펌웨어는 아직 준비 중
+    expect(c.state.providerLock(AiProvider.gemini), AiLock.notReady); // stage 1 firmware: still coming soon
     await c.close();
   });
 

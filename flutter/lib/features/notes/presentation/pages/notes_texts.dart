@@ -6,25 +6,25 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/notes_view.dart';
 
-/// 알림 칩에 늘 보이는 값 (설계서 4절 표). 직접 입력은 따로
+/// Values always shown on the reminder chips (table in design document Section 4). Custom entry is separate
 const remindPresets = [0, 10, 30, 60, 120, 1440];
 
 String _locale(BuildContext context) => Localizations.localeOf(context).toLanguageTag();
 
-/// "오전 9:00"
+/// "오전 9:00" (9:00 AM)
 String clockText(BuildContext context, ClockTime t) =>
     MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: t.hour, minute: t.minute));
 
-/// 홈 부제용 짧은 시각 ("3시", "3시 30분")
+/// Short time for the home subtitle ("3시", "3시 30분")
 String shortClock(AppLocalizations l, DateTime t) {
   final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
   return t.minute == 0 ? l.notesClockHour(h) : l.notesClockHourMinute(h, t.minute.toString().padLeft(2, '0'));
 }
 
-/// "10월 4일 (일)"
+/// "10월 4일 (일)" (Oct 4 (Sun))
 String dayText(BuildContext context, DateTime d) => DateFormat.MMMEd(_locale(context)).format(d);
 
-/// 알림 하나 ("1시간 전", 하루 종일이면 0 = "당일 오전 9:00")
+/// One reminder ("1시간 전"; for all-day, 0 = "당일 오전 9:00")
 String remindLabel(BuildContext context, int minutes, {required bool allDay, required ClockTime allDayTime}) {
   final l = AppLocalizations.of(context);
   if (minutes == 0) return allDay ? l.notesRemindSameDay(clockText(context, allDayTime)) : l.notesRemindOnTime;
@@ -35,7 +35,7 @@ String remindLabel(BuildContext context, int minutes, {required bool allDay, req
   return l.notesRemindMinutes(minutes);
 }
 
-/// 이른 알림부터 이어 붙인다 ("하루 전 · 1시간 전"). 없으면 "알림 없음"
+/// Joins reminders earliest first ("하루 전 · 1시간 전"). "알림 없음" if none
 String remindList(BuildContext context, List<int> remind,
     {required bool allDay, required ClockTime allDayTime, String separator = ' · '}) {
   if (remind.isEmpty) return AppLocalizations.of(context).notesRemindNone;
@@ -43,7 +43,7 @@ String remindList(BuildContext context, List<int> remind,
   return sorted.map((m) => remindLabel(context, m, allDay: allDay, allDayTime: allDayTime)).join(separator);
 }
 
-/// "스피커가 하루 전, 1시간 전에 말로 알려 줘요"
+/// "스피커가 하루 전, 1시간 전에 말로 알려 줘요" (the speaker tells you out loud 1 day and 1 hour before)
 String remindSummary(BuildContext context, List<int> remind, {required bool allDay, required ClockTime allDayTime}) {
   final l = AppLocalizations.of(context);
   if (remind.isEmpty) return l.notesRemindNone;
@@ -59,7 +59,7 @@ String? badgeText(AppLocalizations l, NoteBadge b) => switch (b) {
       NoteBadge.missed => l.notesBadgeMissed,
     };
 
-/// (글자색, 바탕색)
+/// (text color, background color)
 (Color, Color) badgeColors(BuildContext context, NoteBadge b) {
   final scheme = Theme.of(context).colorScheme;
   return switch (b) {
@@ -82,7 +82,7 @@ String groupTitle(BuildContext context, EventGroup g) {
   };
 }
 
-/// 메모 줄 오른쪽 ("오늘", "어제", "10월 1일")
+/// Right side of a note row ("오늘", "어제", "10월 1일")
 String memoWhen(BuildContext context, Note n, DateTime now) {
   final l = AppLocalizations.of(context);
   final t = n.updated ?? n.created;

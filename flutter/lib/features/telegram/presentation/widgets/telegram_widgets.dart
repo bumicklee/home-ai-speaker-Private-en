@@ -8,7 +8,7 @@ import '../../../../core/widgets/app_widgets.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/entities/telegram.dart';
 
-/// 디자인 "텔레그램 연결"의 단계 카드 (번호 원 + 제목). 진행 중인 단계는 청록 테두리
+/// Step card from the design "Connect Telegram" (numbered circle + title). The active step gets a teal border
 class TgStepCard extends StatelessWidget {
   const TgStepCard({
     super.key,
@@ -56,7 +56,7 @@ class TgStepCard extends StatelessWidget {
   }
 }
 
-/// 아이콘 + 한 줄 결과 (확인됨, 기다리는 중 등)
+/// Icon + one-line result (verified, waiting, and so on)
 class TgStatusLine extends StatelessWidget {
   const TgStatusLine({super.key, required this.text, this.icon, this.color, this.busy = false});
 
@@ -79,7 +79,7 @@ class TgStatusLine extends StatelessWidget {
   }
 }
 
-/// 대화방 첫 글자 동그라미 (개인: 청록, 그룹: 호박)
+/// Circle with the chat's first letter (private: teal, group: amber)
 class TgChatAvatar extends StatelessWidget {
   const TgChatAvatar({super.key, required this.chat});
 
@@ -101,7 +101,7 @@ class TgChatAvatar extends StatelessWidget {
   }
 }
 
-/// "개인 대화 · Kim Mira"
+/// "개인 대화 · Kim Mira" (private chat · Kim Mira)
 String tgChatSubtitle(AppLocalizations l, TelegramChat chat) {
   final kind = chat.isGroup ? l.tgChatGroup : (chat.type == 'channel' ? l.tgChatChannel : l.tgChatPrivate);
   return chat.title.isEmpty || chat.title == chat.alias ? kind : '$kind · ${chat.title}';
@@ -110,17 +110,17 @@ String tgChatSubtitle(AppLocalizations l, TelegramChat chat) {
 /// 22 → "22:00"
 String tgHour(int h) => '${h.toString().padLeft(2, '0')}:00';
 
-/// 텔레그램 링크 열기 (앱이 있으면 앱으로)
+/// Open a Telegram link (in the app if installed)
 Future<void> openTelegramLink(BuildContext context, String url) async {
   final l = AppLocalizations.of(context);
   final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication).catchError((_) => false);
   if (!ok && context.mounted) showMessage(context, l.tgOpenFailed);
 }
 
-/// 펌웨어 별칭 한도 (TG_ALIAS_MAX, UTF-8 바이트)
+/// Firmware alias limit (TG_ALIAS_MAX, UTF-8 bytes)
 const tgAliasMaxBytes = 32;
 
-/// 별칭 바꾸기 대화상자. 바꾼 값 또는 null(취소)
+/// Change-alias dialog. Returns the new value or null (cancel)
 Future<String?> showRenameDialog(BuildContext context, TelegramChat chat) =>
     showDialog<String>(context: context, builder: (_) => _RenameDialog(initial: chat.alias));
 
@@ -176,7 +176,7 @@ class _RenameDialogState extends State<_RenameDialog> {
   }
 }
 
-/// 조용한 시간 고르기 (시작·끝, 0–23시). 고른 값 또는 null(취소)
+/// Pick quiet hours (start and end, 0–23). Returns the chosen values or null (cancel)
 Future<(int, int)?> showQuietHoursSheet(BuildContext context, TelegramOptions options) =>
     showModalBottomSheet<(int, int)>(
       context: context,

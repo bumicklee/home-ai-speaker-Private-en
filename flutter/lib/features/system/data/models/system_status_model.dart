@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../../../core/ai/ai_choice.dart';
 import '../../domain/entities/system_status.dart';
 
-/// 펌웨어 `device_info.c`의 `/status` JSON → SystemStatus
+/// `/status` JSON from firmware `device_info.c` → SystemStatus
 class SystemStatusModel {
   SystemStatusModel._();
 
@@ -20,7 +20,7 @@ class SystemStatusModel {
         secrets: {
           for (final e in (j['secrets'] as Map<String, dynamic>? ?? const {}).entries) e.key: e.value == true,
         },
-        // 형식이 아직 정해지지 않았다 (sys/fail_log 구현 전). 글자면 그대로, 아니면 JSON으로 보여 준다
+        // The format isn't settled yet (sys/fail_log not implemented). Show text as is, otherwise as JSON
         failures: [
           for (final f in j['failures'] as List<dynamic>? ?? const []) f is String ? f : jsonEncode(f),
         ],
@@ -45,7 +45,7 @@ class RegisteredPhoneModel {
     return RegisteredPhone(
       phoneId: j['phone_id'] as String? ?? '',
       name: j['name'] as String? ?? '',
-      // 0 = 스피커 시계가 맞기 전에 등록
+      // 0 = registered before the speaker's clock was set
       created: created > 0 ? DateTime.fromMillisecondsSinceEpoch(created * 1000) : null,
       self: j['self'] == true,
     );

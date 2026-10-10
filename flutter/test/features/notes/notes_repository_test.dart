@@ -84,7 +84,7 @@ void main() {
       expect(second.rev, 12);
       expect({for (final n in second.items) n.id: n.title}, {'a': '바뀜', 'd': '메모'});
 
-      // 앱을 다시 켜도 파일에서 같은 사본
+      // the same copy from the file even after the app restarts
       final saved = await NotesLocalStore(directory: () async => dir).read('A1B2C3');
       expect(saved.rev, 12);
       expect(saved.items.map((n) => n.id).toSet(), {'a', 'd'});

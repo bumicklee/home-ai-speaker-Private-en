@@ -7,7 +7,7 @@ import 'presentation/bloc/notes_cubit.dart';
 
 export 'presentation/pages/notes_page.dart' show NotesPage;
 
-/// 메모·일정 (펌웨어 notes 모듈, LAN /api/v1/notes, WS `notes`·`reminder`)
+/// Notes and schedule (firmware notes module, LAN /api/v1/notes, WS `notes`, `reminder`)
 void registerNotesFeature(GetIt sl) {
   sl
     ..registerLazySingleton<NotesRemoteDataSource>(() => NotesRemoteDataSource(sl()))

@@ -5,7 +5,7 @@ import '../../../../core/settings/settings_cubit.dart';
 import '../../../../core/widgets/app_widgets.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// 앱 설정 (이 휴대폰): 화면 모드, 언어. 앱 전역 SettingsCubit을 쓴다
+/// App settings (this phone): theme mode, language. Uses the app-wide SettingsCubit
 class AppSettingsPage extends StatelessWidget {
   const AppSettingsPage({super.key});
 
@@ -61,7 +61,7 @@ class AppSettingsPage extends StatelessWidget {
   }
 }
 
-/// 하나만 고르는 줄 (선택되면 체크)
+/// Single-choice row (checked when selected)
 class _ChoiceRow extends StatelessWidget {
   const _ChoiceRow({required this.label, required this.selected, required this.onTap});
 

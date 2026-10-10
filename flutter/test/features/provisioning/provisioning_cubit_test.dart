@@ -22,14 +22,14 @@ class MockVault extends Mock implements KeyVault {}
 const mac = 'A1B2C3EB1650';
 final speaker = DiscoveredSpeaker(device: BluetoothDevice.fromId('00:11:22:33:44:55'), name: 'JARVIS_EB1650', rssi: -50);
 
-/// 모든 조합을 하는 펌웨어 (3단계)
+/// Firmware that supports every combination (stage 3)
 const allAi = AiStatus(
   provider: AiProvider.openai,
   mode: AiMode.saver,
   available: {'openai.live', 'openai.saver', 'gemini.saver', 'gemini.live'},
 );
 
-/// 1단계 펌웨어: OpenAI만
+/// Stage 1 firmware: OpenAI only
 const stage1 = AiStatus(provider: AiProvider.openai, mode: AiMode.saver, available: {'openai.live', 'openai.saver'});
 
 DeviceInfo info({
@@ -138,7 +138,7 @@ void main() {
     expect(await c.submitKeys(const ProvisioningInput(phoneName: 'p'), remember: true), isFalse);
     expect(c.state.step, ProvStep.keys);
     verifyNever(() => repo.scan());
-    // 다른 AI(Gemini) 키만 넣어도 OpenAI를 골랐으면 못 간다
+    // If OpenAI is chosen, a key for another AI (Gemini) alone is not enough to proceed
     expect(const ProvisioningInput(geminiKey: geminiKey, phoneName: 'p').canSearch, isFalse);
     expect(
         const ProvisioningInput(provider: AiProvider.gemini, geminiKey: geminiKey, phoneName: 'p').canSearch, isTrue);
@@ -152,12 +152,12 @@ void main() {
     await c.selectSpeaker(speaker);
     expect(c.state.step, ProvStep.keys);
     expect(c.state.missingKey, AiProvider.openai);
-    expect(c.state.input.existingKey, isFalse); // 다시 고르게
+    expect(c.state.input.existingKey, isFalse); // pick again
     verify(() => repo.disconnect()).called(1);
     verify(() => vault.saveOpenAiKey(null)).called(1);
     verify(() => vault.saveGeminiKey(null)).called(1);
     verifyNever(() => repo.scanWifi());
-    // 다시 넘기면 안내를 지운다
+    // Moving on again clears the notice
     await c.submitKeys(input, remember: false);
     expect(c.state.missingKey, isNull);
     await c.close();
@@ -223,7 +223,7 @@ void main() {
     verify(() => repo.disconnect()).called(1);
     verifyNever(() => repo.scanWifi());
     verifyNever(() => repo.setSecret(any(), any()));
-    // 다시 넘기면 안내를 지운다
+    // Moving on again clears the notice
     await c.submitKeys(input, remember: false);
     expect(c.state.notReady, isNull);
     await c.close();

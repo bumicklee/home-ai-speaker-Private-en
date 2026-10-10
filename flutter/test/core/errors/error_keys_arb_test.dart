@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// ErrorKeys의 모든 키가 두 ARB에 있어야 한다 (없으면 화면에 errorUnknown만 보인다)
+/// Every ErrorKeys key must be in both ARBs (otherwise the screen shows only errorUnknown)
 void main() {
   test('ErrorKeys ↔ ARB', () {
     final source = File('lib/core/errors/error_keys.dart').readAsStringSync();

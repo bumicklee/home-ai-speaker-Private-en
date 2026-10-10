@@ -1,281 +1,281 @@
-# AI Speaker 상세 기능 명세
+# AI Speaker Detailed Feature Specification
 
-- 작성일: 2026-10-02
-- 상위 문서: 기획서(이 저장소에는 넣지 않음) · [설계서](../design.md)
-- 기능 ID 규칙: `영역-번호` (예: `VOI-03`). 코드 주석, 커밋, 테스트 이름에 이 ID를 쓴다.
+- Written: 2026-10-02
+- Parent documents: plan document (not included in this repository) · [design document](../design.md)
+- Feature ID rule: `AREA-number` (example: `VOI-03`). Use this ID in code comments, commits, and test names.
 
-## 읽는 법
+## How to Read This
 
-| 열 | 의미 |
+| Column | Meaning |
 |:--|:--|
-| 우선순위 | **P0** 없으면 제품이 성립하지 않음 · **P1** 1차 출시에 포함 · **P2** 이후 추가 |
-| Phase | 기획서 7절의 구현 단계 (1 기반 · 2 앱 연결 · 3 라디오 · 4 Telegram · 5 Spotify · 6 마감) |
-| FW / APP | 담당 펌웨어 컴포넌트 / 앱 기능 폴더 (설계서 2.1절, 3.2절) |
-| 완료 기준 | 이 조건을 확인하면 구현 완료로 본다 |
+| Priority | **P0** the product does not work without it · **P1** included in the first release · **P2** added later |
+| Phase | The implementation phase from Section 7 of the plan document (1 foundation · 2 app connection · 3 radio · 4 Telegram · 5 Spotify · 6 wrap-up) |
+| FW / APP | The firmware component / app feature folder responsible (design document Sections 2.1 and 3.2) |
+| Completion criterion | When this condition is confirmed, the feature counts as implemented |
 
-## 기능 영역
+## Feature Areas
 
-전체 133개. 버튼은 보드의 Key1/Key2/Key3(TCA9555 EXIO 9/10/11)를 말한다. Key2가 시스템 버튼이다(설계서 2.15절).
+133 in all. "Buttons" means the board's Key1/Key2/Key3 (TCA9555 EXIO 9/10/11). Key2 is the system button (design document Section 2.15).
 
-| 코드 | 영역 | 기능 수 |
+| Code | Area | Feature count |
 |:--|:--|:--|
-| SYS | 시스템·하드웨어 | 15 |
-| PRV | 프로비저닝·연결 | 15 |
-| VOI | 음성 대화 | 21 |
-| AST | 비서 설정·기억 | 11 |
-| INF | 정보 조회 | 7 |
-| AUD | 오디오 설정 | 7 |
-| RAD | 인터넷 라디오 | 12 |
+| SYS | System and hardware | 15 |
+| PRV | Provisioning and connectivity | 15 |
+| VOI | Voice conversation | 21 |
+| AST | Assistant settings and memory | 11 |
+| INF | Information lookup | 7 |
+| AUD | Audio settings | 7 |
+| RAD | Internet radio | 12 |
 | SPT | Spotify | 13 |
 | TLG | Telegram | 14 |
-| APP | 앱 공통 | 12 |
-| OTA | 펌웨어 업데이트 | 6 |
+| APP | App common | 12 |
+| OTA | Firmware update | 6 |
 
 ---
 
-## 1. 시스템·하드웨어 (SYS)
+## 1. System and Hardware (SYS)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| SYS-01 | 부팅 초기화 | 설정 → 보드(I2C, TCA9555, 코덱, LED, 버튼, RTC) → 오디오 → 네트워크 순서로 초기화. 실패한 하위 기능(LED, 호출어 모델 등)이 있어도 나머지는 동작 | main, board | P0 | 1 | 각 단계 성공/실패가 로그에 남고, LED 실패 시에도 대화 가능 |
-| SYS-02 | 부팅음 | 초기화가 끝나면 `startup.mp3`(16kHz, 3.5초)를 재생. 볼륨 설정을 따르고 볼륨 0이면 생략 | audio_core | P1 | 1 | 전원 투입 후 5초 안에 재생 |
-| SYS-03 | RTC 시각 복원 | 부팅 시 PCF85063 시각을 시스템 시간으로 설정. SNTP 동기화에 성공하면 RTC를 갱신 | board(rtc), net | P1 | 1 | 재부팅 직후 SNTP 전에도 TLS 연결 성공 |
-| SYS-04 | 상태 LED 링 | GPIO38의 WS2812B 7개(설계서 2.0절). 설계서 2.15절 색상표대로 상태 표시. 상태가 겹치면 설계서 2.15절 우선순위 표를 따른다(공장 초기화 > OTA > 오류 > BLE 창 > Wi-Fi 연결 중 > 호출어 감지 > 대화 > 음악 > Telegram 알림 > 대기) | board(led_ring) | P0 | 1 | 각 상태를 수동으로 만들어 색과 패턴 확인 |
-| SYS-05 | LED 밝기 | 앱에서 LED 밝기 0–100% 조절. 0이면 오류 표시 외에는 끔 | led_ring / audio | P2 | 6 | 설정이 재부팅 후에도 유지 |
-| SYS-06 | Key2 짧게 | 3초 미만으로 누르고 떼면: 대화 중이면 종료, 아니면 시작 (음악 재생 중에도 대화 시작, 음악은 덕킹 — Q5 결정 2026-10-03) | buttons | P0 | 1 | 20ms 폴링·40ms 디바운스, 연속 입력에 오동작 없음 |
-| SYS-07 | Key2 3초 | 3초 도달 시 하늘색 링, 3–7초 사이에 떼면 BLE 창 열기(연결 없으면 5분, 연결 중 연장, 최대 15분) | buttons, ble_prov | P0 | 2 | 창이 열린 동안에도 대화·음악·LAN 동작 |
-| SYS-08 | Key2 10초 | 7초부터 빨간색 링이 차오르며 경고(이때 떼면 취소), 10초 도달 시 즉시 `nvs`·`secrets` 삭제 + 프리셋 기본값 복원 후 재부팅 | buttons, settings | P0 | 2 | 초기화 후 프로비저닝 모드로 부팅 |
-| SYS-09 | 원격 재부팅 | 앱에서 재부팅 요청. 대화 중이면 거부(409) | local_api / system | P1 | 2 | 응답 후 2초 안에 재부팅 |
-| SYS-10 | 작업 감시(Watchdog) | Task WDT 10초. 멈추면 자동 재부팅하고 재부팅 사유를 저장 | main | P0 | 1 | 강제로 태스크를 멈췄을 때 재부팅 후 사유 확인 |
-| SYS-11 | 진단 정보 | 가동 시간, 재부팅 사유, 내부 RAM/PSRAM 여유·최솟값, Wi-Fi RSSI, 태스크 스택 여유, 최근 실패 5건 | local_api / system | P1 | 2 | 앱 시스템 화면에 표시 |
-| SYS-12 | 직렬 로그 | USB 콘솔에 모듈별 로그 출력. 비밀값·Wi-Fi 비밀번호·메시지 본문·대화 전사는 출력하지 않음 | 전체 | P0 | 1 | 로그 전체 검색에서 비밀값 0건 |
-| SYS-13 | 시각 동기화 | Wi-Fi 연결 후 SNTP(`pool.ntp.org`, 한국 시간대 KST 표시용). 실패 시 1분 간격 재시도 | net | P0 | 1 | 동기화 결과 로그 |
-| SYS-14 | 저전력 대기 | 대화·음악이 없을 때 Wi-Fi 절전(modem sleep). 대화 시작 시 절전 해제(기존 코드 방식) | net, live_voice | P2 | 6 | 대기 전류 측정값 기록 |
-| SYS-15 | 볼륨 버튼 | Key1 볼륨 내림, Key3 볼륨 올림(5 단계, 길게 누르면 0.3초마다 반복, 0–80) | buttons, audio_core | P0 | 1 | 변경 값 NVS 저장, 앱에 WS `volume` 반영 |
+| SYS-01 | Boot initialization | Initialize in the order settings → board (I2C, TCA9555, codec, LED, buttons, RTC) → audio → network. Even if a sub-feature fails (LED, wake word model, and so on), the rest works | main, board | P0 | 1 | Each step's success/failure is logged, and conversation works even if the LED fails |
+| SYS-02 | Startup sound | After initialization finishes, play `startup.mp3` (16kHz, 3.5 seconds). Follows the volume setting; skipped if volume is 0 | audio_core | P1 | 1 | Plays within 5 seconds of power-on |
+| SYS-03 | Restoring RTC time | At boot, set the system time from the PCF85063. When SNTP sync succeeds, update the RTC | board(rtc), net | P1 | 1 | TLS connection succeeds right after a reboot, even before SNTP |
+| SYS-04 | Status LED ring | 7 WS2812B LEDs on GPIO38 (design document Section 2.0). Show states per the color table in design document Section 2.15. When states overlap, follow the priority table in design document Section 2.15 (factory reset > OTA > error > BLE window > Wi-Fi connecting > wake word detected > conversation > music > Telegram notification > standby) | board(led_ring) | P0 | 1 | Create each state by hand and check the color and pattern |
+| SYS-05 | LED brightness | Adjust LED brightness 0–100% in the app. At 0, everything is off except error indications | led_ring / audio | P2 | 6 | Setting persists after reboot |
+| SYS-06 | Key2 short press | Pressed and released in under 3 seconds: ends the conversation if one is running, otherwise starts one (starts a conversation even while music plays; the music ducks — Q5 decision 2026-10-03) | buttons | P0 | 1 | 20ms polling, 40ms debounce, no misbehavior on repeated presses |
+| SYS-07 | Key2 3 seconds | At 3 seconds the ring turns sky blue; releasing between 3 and 7 seconds opens the BLE window (5 minutes with no connection, extended while connected, 15 minutes max) | buttons, ble_prov | P0 | 2 | Conversation, music, and LAN keep working while the window is open |
+| SYS-08 | Key2 10 seconds | From 7 seconds the red ring fills up as a warning (releasing now cancels); at 10 seconds immediately erase `nvs` and `secrets` + restore preset defaults, then reboot | buttons, settings | P0 | 2 | Boots into provisioning mode after the reset |
+| SYS-09 | Remote reboot | Reboot request from the app. Refused during a conversation (409) | local_api / system | P1 | 2 | Reboots within 2 seconds of the response |
+| SYS-10 | Task watchdog | Task WDT 10 seconds. If something hangs, reboot automatically and save the reboot reason | main | P0 | 1 | After forcibly stalling a task, the reason is visible after reboot |
+| SYS-11 | Diagnostics | Uptime, reboot reason, internal RAM/PSRAM free and minimum, Wi-Fi RSSI, task stack headroom, last 5 failures | local_api / system | P1 | 2 | Shown on the app's System screen |
+| SYS-12 | Serial log | Per-module logs on the USB console. Secrets, Wi-Fi passwords, message bodies, and conversation transcripts are never printed | all | P0 | 1 | Zero secrets found in a full search of the logs |
+| SYS-13 | Time sync | SNTP after Wi-Fi connects (`pool.ntp.org`, Korean time zone KST for display). On failure, retry every minute | net | P0 | 1 | Sync result logged |
+| SYS-14 | Low-power standby | Wi-Fi power save (modem sleep) when there's no conversation or music. Power save off at conversation start (as in the existing code) | net, live_voice | P2 | 6 | Standby current measurement recorded |
+| SYS-15 | Volume buttons | Key1 volume down, Key3 volume up (steps of 5, holding repeats every 0.3 seconds, 0–80) | buttons, audio_core | P0 | 1 | Changed value saved to NVS, reflected in the app via WS `volume` |
 
-## 2. 프로비저닝·연결 (PRV)
+## 2. Provisioning and Connectivity (PRV)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| PRV-01 | 첫 부팅 프로비저닝 | 프로비저닝 기록이 없거나 Wi-Fi 정보가 없으면 자동으로 BLE 광고 시작 (시간 제한 없음) | ble_prov | P0 | 2 | 새 보드에서 앱 검색 목록에 표시 |
-| PRV-02 | BLE 광고 | 이름 `JARVIS_` + MAC 뒤 6자리, 서비스 UUID `0xFF50` 포함 | ble_prov | P0 | 2 | 앱이 이름 접두어와 UUID로 걸러냄 |
-| PRV-03 | BLE 연결·본딩 | LE Secure Connections Just Works 본딩. 쓰기 특성은 암호화 링크에서만 허용 | ble_prov / provisioning | P0 | 2 | 암호화 전 쓰기 시도가 거부됨 |
-| PRV-04 | Wi-Fi 목록 | 앱이 0xFF54에 쓰면 기기가 작업 태스크에서 스캔하고 최대 20개를 AP당 알림 1회로 보냄(SSID, RSSI, 보안 방식). 같은 SSID는 가장 강한 것 하나. 실패 시 개수 `0xFF`. 2.4GHz만. iOS·Android 모두 이 방식 사용(휴대폰 Wi-Fi 스캔 안 씀) | ble_prov, net / provisioning | P0 | 2 | 스캔 중에도 BLE 연결 유지 |
-| PRV-05 | Wi-Fi 설정 | 알림 구독 → SSID(0xFF51, UTF-8) → 비밀번호(0xFF52, UTF-8, 개방형은 길이 0) → 연결 시도 → 결과 알림(0xFF53). 비밀번호 1회당 종료 상태(성공/SSID 없음/인증 실패/시간 초과 20초)는 정확히 한 번. 숨김 SSID 직접 입력 지원 | ble_prov, net / provisioning | P0 | 2 | 틀린 비밀번호에 "인증 실패" 표시, 한글 SSID 연결 성공 |
-| PRV-06 | OpenAI 키 입력 | 설정 명령 `secret.set openai_key`. 형식(길이 20–512, 출력 가능한 ASCII) 확인 후 저장. 앱은 저장 여부만 표시 | ble_prov, settings / keys | P0 | 2 | 재부팅 후에도 대화 가능 |
-| PRV-07 | 휴대폰 등록 | 설정 명령 `api.pair`(앱 설치별 `phone_id`, 휴대폰 이름). 기기가 LAN 토큰을 만들어 응답. 같은 `phone_id`는 기존 등록 교체. 최대 5대, 가득 차면 `PHONES_FULL` + 목록 → 앱에서 지울 휴대폰을 골라 `evict`로 재요청 | ble_prov, local_api / provisioning | P0 | 2 | 받은 토큰으로 LAN API 호출 성공 |
-| PRV-08 | 프로비저닝 완료 | 0xFF88에 `0x01` → 이번 연결에서 Wi-Fi가 성공(상태 2)한 경우에만 Wi-Fi 저장 + 2초 뒤 재부팅. Wi-Fi 변경이 없으면 재부팅 없이 창만 닫음. 비밀값·설정·휴대폰 등록은 요청 즉시 저장됨 | ble_prov | P0 | 2 | 재부팅 후 정상 모드 진입. 키만 바꾸고 완료해도 저장된 Wi-Fi 유지 |
-| PRV-09 | 재프로비저닝 | Key2 3초(SYS-07)로 창을 열면 기존 설정을 유지한 채 Wi-Fi 변경, 키 교체, 휴대폰 추가, Telegram·Spotify 등록 가능. Wi-Fi를 안 바꾸면 `prov.close`로 재부팅 없이 끝냄 | ble_prov / provisioning | P0 | 2 | Wi-Fi 변경 후 기존 비서 설정 유지 |
-| PRV-10 | Wi-Fi 자동 재연결 | 끊기면 1초부터 2배씩 최대 30초 간격으로 계속 재시도. 연결됐는데 IP가 45초 안에 안 오면 끊고 재시도(DHCP 워치독) | net(wifi_manager) | P0 | 1 | 공유기 재부팅 후 자동 복구 |
-| PRV-11 | 가장 강한 AP 선택 | 부팅 시 같은 SSID의 AP 중 신호가 가장 강한 것을 선택(기존 코드 방식) | net | P1 | 1 | 메시 공유기 환경에서 확인 |
-| PRV-12 | mDNS 광고 | `_aispeaker._tcp`, TXT `id`, `fw`, `name`. 호스트 이름 `jarvis-XXXXXX.local` | net(mdns) | P0 | 2 | 앱이 IP를 몰라도 검색 |
-| PRV-13 | LAN 인증 | 모든 LAN API와 WebSocket에 `Authorization: Bearer`. 틀리면 401(해지된 토큰). 같은 IP 5회 연속 실패 시 30초 동안 429 | local_api | P0 | 2 | 토큰 없이 호출 시 401 |
-| PRV-14 | 휴대폰 해지 | 앱에서 등록된 휴대폰 목록 확인·해지. 목록에 자기 자신 표시(`self`), 자기 자신 해지 시 경고 | local_api / system | P1 | 2 | 해지된 토큰으로 호출 시 401 |
-| PRV-15 | BLE 종료 | 0xFF88·`prov.close`·시간 만료(버튼 창: 연결 없으면 5분, 최대 15분) 시 NimBLE을 완전히 내려 메모리 반환. 미설정 첫 부팅은 시간 제한 없음 | ble_prov | P0 | 2 | 종료 후 내부 RAM 여유 증가 확인 |
+| PRV-01 | First-boot provisioning | If there's no provisioning record or no Wi-Fi info, start BLE advertising automatically (no time limit) | ble_prov | P0 | 2 | A new board appears in the app's search list |
+| PRV-02 | BLE advertising | Name `JARVIS_` + last 6 digits of the MAC, includes service UUID `0xFF50` | ble_prov | P0 | 2 | The app filters by name prefix and UUID |
+| PRV-03 | BLE connection and bonding | LE Secure Connections Just Works bonding. Write characteristics are allowed only on an encrypted link | ble_prov / provisioning | P0 | 2 | Write attempts before encryption are refused |
+| PRV-04 | Wi-Fi list | When the app writes to 0xFF54, the device scans in a worker task and sends up to 20 entries, one notification per AP (SSID, RSSI, security type). For a repeated SSID, only the strongest. On failure, count `0xFF`. 2.4GHz only. Both iOS and Android use this method (no phone Wi-Fi scan) | ble_prov, net / provisioning | P0 | 2 | BLE connection stays up during the scan |
+| PRV-05 | Wi-Fi setup | Subscribe to notifications → SSID (0xFF51, UTF-8) → password (0xFF52, UTF-8, length 0 for open networks) → connection attempt → result notification (0xFF53). Exactly one final status per password (success / SSID not found / auth failed / timeout 20 seconds). Supports typing a hidden SSID | ble_prov, net / provisioning | P0 | 2 | A wrong password shows "auth failed"; connecting to a Korean-named SSID succeeds |
+| PRV-06 | OpenAI key entry | Settings command `secret.set openai_key`. Saved after a format check (length 20–512, printable ASCII). The app shows only whether it's saved | ble_prov, settings / keys | P0 | 2 | Conversation works after reboot |
+| PRV-07 | Phone registration | Settings command `api.pair` (per-install `phone_id`, phone name). The device creates a LAN token and returns it. The same `phone_id` replaces the existing registration. Up to 5 phones; when full, `PHONES_FULL` + the list → in the app, pick a phone to remove and retry with `evict` | ble_prov, local_api / provisioning | P0 | 2 | A LAN API call with the received token succeeds |
+| PRV-08 | Provisioning done | `0x01` to 0xFF88 → only if Wi-Fi succeeded (status 2) in this connection, save Wi-Fi + reboot after 2 seconds. With no Wi-Fi change, just close the window without rebooting. Secrets, settings, and phone registrations are saved as soon as they're requested | ble_prov | P0 | 2 | Enters normal mode after reboot. Changing only a key and finishing keeps the saved Wi-Fi |
+| PRV-09 | Re-provisioning | Opening the window with Key2 3 seconds (SYS-07) allows changing Wi-Fi, replacing keys, adding phones, and registering Telegram and Spotify while keeping existing settings. If Wi-Fi isn't changed, finish with `prov.close`, no reboot | ble_prov / provisioning | P0 | 2 | Existing assistant settings kept after a Wi-Fi change |
+| PRV-10 | Wi-Fi auto-reconnect | When disconnected, keep retrying starting at 1 second, doubling up to a 30-second interval. If connected but no IP arrives within 45 seconds, disconnect and retry (DHCP watchdog) | net(wifi_manager) | P0 | 1 | Recovers automatically after a router reboot |
+| PRV-11 | Strongest AP selection | At boot, choose the strongest AP among those with the same SSID (as in the existing code) | net | P1 | 1 | Checked on a mesh router setup |
+| PRV-12 | mDNS advertising | `_aispeaker._tcp`, TXT `id`, `fw`, `name`. Host name `jarvis-XXXXXX.local` | net(mdns) | P0 | 2 | The app finds it without knowing the IP |
+| PRV-13 | LAN authentication | `Authorization: Bearer` on every LAN API and WebSocket. Wrong → 401 (revoked token). 5 consecutive failures from the same IP → 429 for 30 seconds | local_api | P0 | 2 | A call without a token gets 401 |
+| PRV-14 | Phone revocation | View and revoke registered phones in the app. The list marks your own phone (`self`); revoking yourself shows a warning | local_api / system | P1 | 2 | A call with a revoked token gets 401 |
+| PRV-15 | BLE shutdown | On 0xFF88, `prov.close`, or timeout (button window: 5 minutes with no connection, 15 minutes max), shut NimBLE down completely and return the memory. An unprovisioned first boot has no time limit | ble_prov | P0 | 2 | Internal RAM free increases after shutdown |
 
-## 3. 음성 대화 (VOI)
+## 3. Voice Conversation (VOI)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| VOI-01 | 호출어 감지 | WakeNet9 **"Computer"(기본)** 또는 "Jarvis"(쓰지 않음, 감지율 낮음). 16kHz 마이크 음성으로 기기 안에서만 감지 — 스피커가 조용하면 원본 마이크, 소리를 낼 때는 에코 제거된 소리 (2026-10-03 변경: Jarvis는 실기기 감지율이 낮아 쓰지 않음, 책 6장 6.2절) | wake | P0 | 1 | 설계서 6절 감지율 기준 충족 |
-| VOI-02 | 호출어 응답 | 감지 즉시 초록색 번쩍임 + 짧은 확인음. 음악은 덕킹 | wake, audio_core | P0 | 1 | 감지 후 200ms 안에 반응 |
-| VOI-03 | 감지 후 대기 시간 | 감지 직후 3초간 재감지 금지(기존 코드) | wake | P0 | 1 | 연속 오감지 없음 |
-| VOI-04 | 음악 중 호출어 | 라디오·Spotify 재생 중에도 호출어 감지(하드웨어 레퍼런스 AEC) | audio_core, wake | P1 | 3 | 볼륨 50에서 20회 중 15회 이상 |
-| VOI-05 | 세션 연결 | Wi-Fi 확인 → 시각 확인(RTC 우선) → WSS `gpt-live-1` 연결 → `session.start`(지시문, 보이스, 툴). 연결 중 주황색 회전 | live_voice, assistant | P0 | 1 | 호출어 → 준비음 3초 이내 |
-| VOI-06 | 준비음 | 세션이 준비되면(`session.started`) 준비음. 이후 말하면 됨 | live_voice | P0 | 1 | 준비음 전 음성은 버림 |
-| VOI-07 | 실시간 대화 | 마이크 PCM을 최대 64ms씩 묶어 업로드, 응답 음성을 바로 재생. 응답 재생 중 파란색 레벨 미터 | live_voice, audio_core | P0 | 1 | 10분 대화에서 끊김 없음 |
-| VOI-08 | 끼어들기 | 비서가 말하는 중에 사용자가 말하면 비서가 멈추고 듣는다(서버 측 처리, 기기는 에코 제거로 지원) | audio_core | P1 | 1 | 응답 중 말 걸기 10회 중 8회 이상 반응 |
-| VOI-09 | 종료 문구 | 입력 전사에서 "goodbye computer", "잘가 컴퓨터", "goodbye jarvis", "잘가 자비스", "대화 종료"를 찾으면 종료. 마지막 단어 후 600ms 대기 | live_voice(hangup) | P0 | 1 | 문장 중간 포함("굿바이 자비스온")에는 반응 안 함 |
-| VOI-10 | 버튼 종료 | 대화 중 Key2 짧게 → 즉시 종료 | buttons | P0 | 1 | |
-| VOI-11 | 무응답 종료 | 60초 동안 대화가 없으면 종료(응답 음성 재생 중은 대화로 간주) | live_voice | P0 | 1 | |
-| VOI-12 | 최대 시간 | 대화 1회 최대 10분 | live_voice | P0 | 1 | |
-| VOI-13 | 정상 종료 처리 | `session.close` 전송 → 사용량 수신 대기(최대 15초) → 호출어 대기로 복귀 | live_voice | P0 | 1 | 사용량(초)이 진단에 기록 |
-| VOI-14 | 대화 실패 처리 | 연결·인증·전송 실패 시 빨간색 3초 + 오류음, 자동 재시도 없음. 실패 사유를 진단에 저장 | live_voice | P0 | 1 | 키 오류·인터넷 끊김 각각 사유 구분 |
-| VOI-15 | 툴 비동기 실행 | HTTPS가 필요한 툴은 `tool_worker`에서 실행. 실행 중에도 마이크 업로드 계속 | assistant | P0 | 1 | 툴 실행 중 업로드 지연 100ms 이하 |
-| VOI-16 | 한국어 대화 | 기본 언어 한국어. 비서 설정 `language`로 영어 전환 | assistant | P0 | 1 | |
-| VOI-17 | 앱에서 대화 시작·종료 | 홈 화면 버튼으로 시작/종료, 대화 상태 실시간 표시 | local_api / devices | P1 | 2 | |
-| VOI-18 | 호출어 켜기/끄기 | 끄면 버튼·앱으로만 대화 시작 | wake / audio | P0 | 2 | 설정 유지 |
-| VOI-19 | 호출어 감지 테스트 | 60초 동안 감지만 하고 확인음만 재생(대화 안 염, 과금 없음) | wake / audio | P1 | 2 | 테스트 중 감지 횟수 앱 표시 |
-| VOI-20 | 대화 기록 미보관 | 기기는 음성·전사를 저장하지 않음 | 전체 | P0 | 1 | 플래시·로그 점검 |
-| VOI-21 | 호출어 선택·감도 | "Computer"(기본) / "Jarvis" 중 선택, 감도 0–100(기본 **80**, 높을수록 잘 반응하지만 오감지 증가), 호출어 입력 증폭 0–24 dB(기본 12). 앱에서 설정 | wake / audio | P0 | 2 | 설정 즉시 반영, 재부팅 후 유지 |
+| VOI-01 | Wake word detection | WakeNet9 **"Computer" (default)** or "Jarvis" (not used, low detection rate). Detected only on the device from 16kHz microphone audio — the raw microphone when the speaker is quiet, echo-cancelled audio while it's making sound (changed 2026-10-03: Jarvis not used because of its low detection rate on the real board, Chapter 6, Section 6.2 of the book) | wake | P0 | 1 | Meets the detection rate criteria in design document Section 6 |
+| VOI-02 | Wake word response | On detection, an immediate green flash + a short confirmation tone. Music ducks | wake, audio_core | P0 | 1 | Reacts within 200ms of detection |
+| VOI-03 | Post-detection holdoff | No re-detection for 3 seconds right after a detection (existing code) | wake | P0 | 1 | No repeated false detections |
+| VOI-04 | Wake word during music | Wake word detection even while radio or Spotify plays (hardware reference AEC) | audio_core, wake | P1 | 3 | 15 or more out of 20 at volume 50 |
+| VOI-05 | Session connection | Check Wi-Fi → check time (RTC first) → connect WSS `gpt-live-1` → `session.start` (instructions, voice, tools). Orange spin while connecting | live_voice, assistant | P0 | 1 | Wake word → ready tone within 3 seconds |
+| VOI-06 | Ready tone | When the session is ready (`session.started`), play the ready tone. Then you can speak | live_voice | P0 | 1 | Audio before the ready tone is discarded |
+| VOI-07 | Live conversation | Upload microphone PCM in batches of up to 64ms, play the reply audio immediately. Blue level meter while the reply plays | live_voice, audio_core | P0 | 1 | No dropouts in a 10-minute conversation |
+| VOI-08 | Barge-in | If the user speaks while the assistant is talking, the assistant stops and listens (handled server-side; the device supports it with echo cancellation) | audio_core | P1 | 1 | Reacts to 8 or more of 10 interruptions during a reply |
+| VOI-09 | Hang-up phrase | End when the input transcription contains "goodbye computer" / "bye computer", "goodbye alexa" / "bye alexa", "goodbye jarvis" / "bye jarvis", or "end conversation" / "end the conversation" / "stop conversation" (not after "don't", "not" or "never"). The Korean "잘가 컴퓨터" (goodbye, Computer), "잘가 자비스" (goodbye, Jarvis) and "대화 종료" (end conversation) also work. Wait 600ms after the last word | live_voice(hangup) | P0 | 1 | Doesn't react when it's inside a longer word ("굿바이 자비스온") |
+| VOI-10 | Button end | Key2 short press during a conversation → ends immediately | buttons | P0 | 1 | |
+| VOI-11 | No-response timeout | End after 60 seconds with no conversation (while reply audio plays counts as conversation) | live_voice | P0 | 1 | |
+| VOI-12 | Maximum length | One conversation lasts at most 10 minutes | live_voice | P0 | 1 | |
+| VOI-13 | Normal shutdown | Send `session.close` → wait for usage (up to 15 seconds) → return to waiting for the wake word | live_voice | P0 | 1 | Usage (seconds) recorded in diagnostics |
+| VOI-14 | Conversation failure handling | On connection, auth, or send failure: red for 3 seconds + error tone, no automatic retry. Save the failure reason in diagnostics | live_voice | P0 | 1 | Key error and internet loss are distinguished as reasons |
+| VOI-15 | Async tool execution | Tools that need HTTPS run in `tool_worker`. Microphone upload continues while they run | assistant | P0 | 1 | Upload delay of 100ms or less during tool execution |
+| VOI-16 | Conversation language | Default language English. Switch to Korean with the assistant setting `language` | assistant | P0 | 1 | |
+| VOI-17 | Start and end conversations from the app | Start/end with the Home screen button; conversation state shown in real time | local_api / devices | P1 | 2 | |
+| VOI-18 | Wake word on/off | When off, conversations start only from the button or the app | wake / audio | P0 | 2 | Setting persists |
+| VOI-19 | Wake word detection test | For 60 seconds, only detect and play the confirmation tone (no conversation opened, no charge) | wake / audio | P1 | 2 | The app shows the detection count during the test |
+| VOI-20 | No conversation records kept | The device doesn't store audio or transcripts | all | P0 | 1 | Flash and log inspection |
+| VOI-21 | Wake word choice and sensitivity | Choose "Computer" (default) / "Jarvis", sensitivity 0–100 (default **80**; higher reacts more readily but with more false detections), wake word input boost 0–24 dB (default 12). Set in the app | wake / audio | P0 | 2 | Takes effect immediately, persists after reboot |
 
-## 4. 비서 설정·기억 (AST)
+## 4. Assistant Settings and Memory (AST)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| AST-01 | 이름 | 비서의 대화상 이름(기본 Jarvis, ≤32B). 호출어(기본 Computer)는 바뀌지 않음. 앱 또는 "이제부터 네 이름은 세이지야" | assistant / assistant | P1 | 2 | 다음 대화부터 새 이름으로 자기소개 |
-| AST-02 | 목적·말투 | 자유 문장 ≤600B (예: "짧게 대답해 줘") | assistant | P1 | 2 | |
-| AST-03 | 언어 | ko / en | assistant | P0 | 2 | |
-| AST-04 | 보이스 | `gpt-live-1` 지원 보이스 22종. 앱 선택 또는 "목소리를 시더로 바꿔 줘". 다음 대화부터 적용 | assistant | P1 | 2 | 바뀐 보이스로 응답 |
-| AST-05 | 위치 | 도시·국가 ≤96B. 날씨·지역 검색에 사용. 앱 또는 "내 위치를 서울로 저장해 줘" | assistant | P0 | 2 | |
-| AST-06 | 단위 | metric(기본) / imperial | assistant | P1 | 2 | |
-| AST-07 | 웹 검색 사용 | 끄면 최신 정보는 확인할 수 없다고 안내 | assistant | P1 | 2 | |
-| AST-08 | 음성 설정 변경 허용 | 끄면 음성으로 볼륨·이름·기억 등을 바꿀 수 없음 | assistant | P1 | 2 | |
-| AST-09 | 기억 저장 | "내가 채식한다는 거 기억해 줘" → 최대 12개(키 ≤32, 값 ≤160B). 가득 차면 무엇을 지울지 물어봄 | assistant | P1 | 1 | 재부팅 후에도 다음 대화에서 반영 |
-| AST-10 | 자동 기억 | 켜면 사용자가 직접 말한 안정적인 사실을 자동 저장. 건강·금융·주소·아이 관련은 먼저 물어봄. 기본 끔 | assistant | P2 | 2 | |
-| AST-11 | 기억 확인·삭제 | 앱 목록에서 삭제 또는 "그거 잊어 줘" | assistant / assistant | P1 | 2 | |
+| AST-01 | Name | The assistant's name in conversation (default Jarvis, ≤32B). The wake word (default Computer) doesn't change. From the app, or "From now on your name is Sage" | assistant / assistant | P1 | 2 | Introduces itself with the new name from the next conversation |
+| AST-02 | Purpose and tone | Free text ≤600B (example: "Keep your answers short") | assistant | P1 | 2 | |
+| AST-03 | Language | ko / en | assistant | P0 | 2 | |
+| AST-04 | Voice | 22 voices supported by `gpt-live-1`. Choose in the app, or "Change your voice to Cedar". Applies from the next conversation | assistant | P1 | 2 | Replies in the changed voice |
+| AST-05 | Location | City and country ≤96B. Used for weather and local searches. From the app, or "Save my location as Seoul" | assistant | P0 | 2 | |
+| AST-06 | Units | metric (default) / imperial | assistant | P1 | 2 | |
+| AST-07 | Use web search | When off, it says it can't check the latest information | assistant | P1 | 2 | |
+| AST-08 | Allow voice changes to settings | When off, volume, name, memories, and so on can't be changed by voice | assistant | P1 | 2 | |
+| AST-09 | Saving memories | "Remember that I'm vegetarian" → up to 12 (key ≤32, value ≤160B). When full, it asks what to delete | assistant | P1 | 1 | Reflected in the next conversation, even after a reboot |
+| AST-10 | Automatic memory | When on, automatically saves stable facts the user stated directly. Asks first about health, finances, addresses, or children. Off by default | assistant | P2 | 2 | |
+| AST-11 | Viewing and deleting memories | Delete from the app's list, or "Forget that" | assistant / assistant | P1 | 2 | |
 
-## 5. 정보 조회 (INF)
+## 5. Information Lookup (INF)
 
-모두 OpenAI 호스팅 `web_search`로 처리한다. 기기는 위치·단위·현재 시각만 지시문에 넣는다.
+All handled by OpenAI's hosted `web_search`. The device only puts location, units, and the current time into the instructions.
 
-| ID | 기능 | 예시 발화 | 상세 동작 | 우선 | Phase | 완료 기준 |
+| ID | Feature | Example utterance | Detailed behavior | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| INF-01 | 오늘·내일 날씨 | "오늘 날씨 어때?", "내일 비 와?" | 저장된 위치 기준. 위치가 없으면 물어봄. 출처와 기준 시각을 짧게 언급 | P0 | 1 | 위치 미설정 시 지어내지 않고 질문 |
-| INF-02 | 주간 날씨 | "이번 주말 날씨 알려 줘" | | P1 | 1 | |
-| INF-03 | 뉴스 | "오늘 주요 뉴스 알려 줘", "경제 뉴스" | 3건 내외 요약 | P0 | 1 | |
-| INF-04 | 주식 | "삼성전자 주가 얼마야?", "애플 주가" | 현재가·등락·기준 시각. 장 마감 여부 언급. 투자 조언은 하지 않음 | P1 | 1 | 기준 시각 없이 숫자만 말하지 않음 |
-| INF-05 | 일반 검색 | "근처 약국 몇 시까지 해?" | 결과가 불확실하면 그렇다고 말함 | P1 | 1 | |
-| INF-06 | 시각·날짜 | "지금 몇 시야?" | 기기 시각(KST) 사용 | P0 | 1 | |
-| INF-07 | 주식 전용 API | 키(`stock_key`)를 넣으면 `get_stock_quote` 툴로 시세 조회. 키가 없으면 INF-04 방식 | P2 | 6 | 키 없을 때 툴 미등록 |
+| INF-01 | Today's and tomorrow's weather | "How's the weather today?", "Will it rain tomorrow?" | Based on the saved location. If there's no location, it asks. Briefly mentions the source and reference time | P0 | 1 | With no location set, it asks instead of making something up |
+| INF-02 | Weekly weather | "What's the weather this weekend?" | | P1 | 1 | |
+| INF-03 | News | "Tell me today's top news", "Business news" | A summary of about 3 items | P0 | 1 | |
+| INF-04 | Stocks | "What's Samsung Electronics' stock price?", "Apple stock" | Current price, change, reference time. Mentions whether the market is closed. No investment advice | P1 | 1 | Never states a number without a reference time |
+| INF-05 | General search | "How late is the pharmacy nearby open?" | If the result is uncertain, it says so | P1 | 1 | |
+| INF-06 | Time and date | "What time is it?" | Uses the device time (KST) | P0 | 1 | |
+| INF-07 | Dedicated stock API | With a key (`stock_key`), look up quotes with the `get_stock_quote` tool. Without a key, the INF-04 method | P2 | 6 | Tool not registered when there's no key |
 
-## 6. 오디오 설정 (AUD)
+## 6. Audio Settings (AUD)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| AUD-01 | 스피커 볼륨 | 0–80 (스피커 왜곡 방지 상한). 앱 슬라이더 또는 "볼륨 60으로", "소리 좀 줄여 줘"(현재값 조회 후 상대 변경) | audio_core / audio | P0 | 1 | 변경 즉시 반영, 재부팅 후 유지 |
-| AUD-02 | 마이크 게인 | 0–36dB(33 제외, 3dB 단위) | audio_core / audio | P1 | 2 | |
-| AUD-03 | 음성 마이크 보정 | "마이크 보정해 줘" → 조용히 측정 → 말하기 측정 → 검증 후 저장(기존 코드) | assistant(mic_control) | P2 | 1 | 검증 실패 시 이전 값 유지 |
-| AUD-04 | 자동 게인 | 말소리 크기에 맞춰 0.5–2배 보정. 켜기/끄기 | audio_core | P2 | 1 | |
-| AUD-05 | 덕킹 정도 | 대화 중 음악 감쇠 0–40dB(기본 20) | audio_core / audio | P1 | 3 | |
-| AUD-06 | 대화 중 Spotify 일시정지 | 켜면 덕킹 대신 일시정지 후 재개 | media_spotify / audio | P2 | 5 | |
-| AUD-07 | 스피커 테스트 | 앱에서 테스트음 재생 | audio_core / audio | P1 | 2 | |
+| AUD-01 | Speaker volume | 0–80 (upper limit to prevent speaker distortion). App slider, or "Volume to 60", "Turn it down a bit" (reads the current value, then changes it relatively) | audio_core / audio | P0 | 1 | Takes effect immediately, persists after reboot |
+| AUD-02 | Microphone gain | 0–36dB (excluding 33, in 3dB steps) | audio_core / audio | P1 | 2 | |
+| AUD-03 | Voice microphone calibration | "Calibrate the microphone" → measure quiet → measure speech → verify, then save (existing code) | assistant(mic_control) | P2 | 1 | On verification failure, the previous value is kept |
+| AUD-04 | Auto gain | Corrects 0.5–2x to match speech loudness. On/off | audio_core | P2 | 1 | |
+| AUD-05 | Ducking amount | Music attenuation during conversation 0–40dB (default 20) | audio_core / audio | P1 | 3 | |
+| AUD-06 | Pause Spotify during conversation | When on, pause and resume instead of ducking | media_spotify / audio | P2 | 5 | |
+| AUD-07 | Speaker test | Play a test tone from the app | audio_core / audio | P1 | 2 | |
 
-## 7. 인터넷 라디오 (RAD)
+## 7. Internet Radio (RAD)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| RAD-01 | 프리셋 재생 | "KBS 클래식 틀어 줘", "라디오 틀어 줘"(마지막 방송, NVS `last_preset`/`last_url`) | media_radio, assistant | P1 | 3 | 명령 후 3초 안에 소리 |
-| RAD-02 | 장르 재생 | "재즈 라디오 틀어 줘" → 프리셋 중 장르 일치 → 없으면 Radio-Browser 검색 상위 결과 | media_radio | P1 | 3 | |
-| RAD-03 | 정지·일시정지·재개 | 음성 "라디오 꺼 줘", 앱 버튼 (Key2 짧게는 대화 시작, Q5 결정) | media_radio | P1 | 3 | |
-| RAD-04 | 지금 나오는 곡 | ICY 메타데이터 곡 제목. "지금 나오는 노래 뭐야?" / 앱 표시 | media_radio | P1 | 3 | 메타데이터가 없으면 방송 이름만 |
-| RAD-05 | 형식 지원 | MP3, AAC(HE-AAC 포함), HTTP/HTTPS, `.pls`, `.m3u`, 302 리다이렉트 | media_radio | P1 | 3 | 기본 프리셋 7개 모두 재생 |
-| RAD-06 | 자동 재연결 | 스트림이 끊기면 1초부터 최대 30초 간격으로 재시도. 5회 실패 시 정지하고 안내음 | media_radio | P1 | 3 | 공유기 재부팅 후 복구 |
-| RAD-07 | 버퍼링 표시 | 버퍼링 중 LED 흰색 느린 깜빡임 | media_radio, led_ring | P2 | 3 | |
-| RAD-08 | 프리셋 관리 | 앱에서 추가·삭제·순서 변경·이름 변경. 최대 20개(littlefs `/presets.json`) | local_api / music | P1 | 3 | |
-| RAD-09 | 방송 검색 | 앱이 Radio-Browser API로 이름·장르·국가 검색 (기기 거치지 않음) | music | P1 | 3 | |
-| RAD-10 | 미리듣기 | 앱 자체에서 스트림 미리듣기 후 프리셋 추가 | music | P2 | 3 | |
-| RAD-11 | 앱에서 재생 | 프리셋 목록에서 눌러 스피커로 재생 | local_api / music | P1 | 3 | |
-| RAD-12 | 기본 프리셋 | Radio Paradise Mellow·Rock, SomaFM Groove Salad·DefCon·Indie Pop Rocks, KEXP (6개. KBS 1FM은 HLS라 삭제, 2026-10-03) | media_radio | P1 | 3 | |
+| RAD-01 | Preset playback | "Play KBS Classic", "Play the radio" (last station, NVS `last_preset`/`last_url`) | media_radio, assistant | P1 | 3 | Sound within 3 seconds of the command |
+| RAD-02 | Genre playback | "Play jazz radio" → a preset with a matching genre → if none, the top result of a Radio-Browser search | media_radio | P1 | 3 | |
+| RAD-03 | Stop, pause, resume | Voice "Turn off the radio", app buttons (Key2 short press starts a conversation, Q5 decision) | media_radio | P1 | 3 | |
+| RAD-04 | Now playing | Song title from ICY metadata. "What song is this?" / shown in the app | media_radio | P1 | 3 | Station name only if there's no metadata |
+| RAD-05 | Format support | MP3, AAC (including HE-AAC), HTTP/HTTPS, `.pls`, `.m3u`, 302 redirects | media_radio | P1 | 3 | All 7 default presets play |
+| RAD-06 | Auto-reconnect | If the stream drops, retry starting at 1 second up to a 30-second interval. After 5 failures, stop and play an alert tone | media_radio | P1 | 3 | Recovers after a router reboot |
+| RAD-07 | Buffering indication | Slow white LED blink while buffering | media_radio, led_ring | P2 | 3 | |
+| RAD-08 | Preset management | Add, delete, reorder, rename in the app. Up to 20 (littlefs `/presets.json`) | local_api / music | P1 | 3 | |
+| RAD-09 | Station search | The app searches the Radio-Browser API by name, genre, and country (doesn't go through the device) | music | P1 | 3 | |
+| RAD-10 | Preview | Preview the stream in the app itself, then add it as a preset | music | P2 | 3 | |
+| RAD-11 | Play from the app | Tap in the preset list to play on the speaker | local_api / music | P1 | 3 | |
+| RAD-12 | Default presets | Radio Paradise Mellow and Rock, SomaFM Groove Salad, DefCon, and Indie Pop Rocks, KEXP (6. KBS 1FM removed because it's HLS, 2026-10-03) | media_radio | P1 | 3 | |
 
 ## 8. Spotify (SPT)
 
-사전 준비: 스피커를 쓰는 **집마다 대표 계정이 Flutter 앱 안내에 따라 Spotify 개발자 앱을 한 번 손으로 만들고** `client_id`를 앱에 입력한다(SPT-13, B안). SPT-01–03(휴대폰 Spotify 앱에서 스피커로 재생)은 개발자 앱 없이 동작하고, SPT-04–06·09(음성 제어, Web API)에 개발자 앱이 필요하다. 스피커도 앱도 개발자 앱을 자동으로 만들 수는 없다(설계서 2.10절).
+Preparation: in **each home that uses the speaker, one main account creates a Spotify developer app by hand, once, following the Flutter app's guide**, and enters the `client_id` into the app (SPT-13, option B). SPT-01–03 (playing on the speaker from the phone's Spotify app) work without a developer app; SPT-04–06 and 09 (voice control, Web API) need one. Neither the speaker nor the app can create the developer app automatically (design document Section 2.10).
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| SPT-01 | Connect 기기 표시 | 같은 Wi-Fi의 Spotify 앱 "기기 선택" 목록에 비서 이름으로 표시(Zeroconf). 부팅 시 대표 계정으로 로그인 | media_spotify | P1 | 5 | 가족 Premium 계정 각자 선택 가능 |
-| SPT-02 | 휴대폰에서 재생 | Spotify 앱에서 스피커를 고르면 스피커에서 직접 재생(휴대폰을 꺼도 계속) | media_spotify | P1 | 5 | |
-| SPT-03 | Spotify 앱 제어 반영 | Spotify 앱의 재생·일시정지·다음·볼륨·탐색이 스피커에 반영 | media_spotify | P1 | 5 | |
-| SPT-04 | 음성 검색 재생 | "아이유 노래 틀어 줘", "잔잔한 재즈 플레이리스트 틀어 줘" → Web API 검색(최대 10개) → 이 기기에서 재생 | media_spotify, assistant | P1 | 5 | |
-| SPT-05 | 음성 제어 | "다음 곡", "이전 곡", "멈춰", "다시 틀어". 대표 계정으로 재생 중일 때만. 다른 가족 계정이 재생 중이면 "다른 가족 계정이 사용 중" 안내 | media_spotify | P1 | 5 | |
-| SPT-06 | 지금 나오는 곡 | "이 노래 뭐야?" → 곡·가수 | media_spotify | P1 | 5 | |
-| SPT-07 | 앱 로그인 | SPT-13에서 받은 `client_id`로 PKCE 로그인 → Key2 3초로 BLE 창 → `client_id`와 refresh token을 `spotify.link`로 함께 전달. 전달 후 앱은 토큰을 직접 갱신하지 않음. Client Secret 없음 | spotify | P1 | 5 | |
-| SPT-08 | 토큰 자동 갱신 | 만료 전 갱신. 새 refresh token을 받으면 즉시 저장 | media_spotify | P1 | 5 | 1주일 방치 후에도 음성 재생 가능 |
-| SPT-09 | 연결 상태 | 앱에 로그인 계정, Connect 상태, 마지막 오류 표시 | spotify | P1 | 5 | |
-| SPT-10 | 로그아웃 | 앱에서 연결 해제(LAN `DELETE /spotify` 또는 BLE `spotify.logout`) → 스피커의 `client_id`·토큰·Connect 자격 정보 삭제. 앱은 `client_id`를 기억해 재로그인 때 미리 채움 | spotify | P1 | 5 | |
-| SPT-11 | 라디오와 전환 | Spotify가 재생되면 라디오 정지, 반대도 마찬가지 | media_* | P1 | 5 | |
-| SPT-12 | 오류 안내 | Premium이 아니거나 사용자 등록(개발자 모드 5명) 안 됨, 재로그인 필요(`invalid_grant`), 리다이렉트 URI 불일치, 개발자 앱 수 한도 초과 → 음성과 앱으로 원인과 해결 방법 안내 | media_spotify / spotify | P1 | 5 | |
-| SPT-13 | 개발자 앱 등록 안내 | 앱이 단계별 안내 화면을 보여주고 브라우저로 Spotify Developer Dashboard를 연다. 리다이렉트 URI 복사 버튼, 화면별 설명, 개발자 앱 수 한도·Premium 조건 안내. 사용자가 붙여넣은 `client_id`의 형식(32자리 16진수)을 확인하고 PKCE 로그인으로 설정이 맞는지 바로 검증 | spotify | P1 | 5 | 처음 쓰는 사람이 안내만 보고 10분 안에 등록 완료. 리다이렉트 URI가 틀리면 원인을 짚어 줌 |
+| SPT-01 | Connect device listing | Appears under the assistant's name in the Spotify app's "Devices" list on the same Wi-Fi (Zeroconf). Logs in with the main account at boot | media_spotify | P1 | 5 | Each family Premium account can select it |
+| SPT-02 | Play from the phone | Choosing the speaker in the Spotify app plays directly on the speaker (continues even if the phone is turned off) | media_spotify | P1 | 5 | |
+| SPT-03 | Spotify app controls reflected | Play, pause, next, volume, and seek in the Spotify app are reflected on the speaker | media_spotify | P1 | 5 | |
+| SPT-04 | Voice search playback | "Play IU songs", "Play a mellow jazz playlist" → Web API search (up to 10) → play on this device | media_spotify, assistant | P1 | 5 | |
+| SPT-05 | Voice control | "Next song", "Previous song", "Stop", "Play again". Only while playing with the main account. If another family account is playing, it says "Another family account is using it" | media_spotify | P1 | 5 | |
+| SPT-06 | Now playing | "What song is this?" → song and artist | media_spotify | P1 | 5 | |
+| SPT-07 | App login | PKCE login with the `client_id` from SPT-13 → BLE window with Key2 3 seconds → pass `client_id` and the refresh token together with `spotify.link`. After that, the app doesn't refresh the token itself. No Client Secret | spotify | P1 | 5 | |
+| SPT-08 | Automatic token refresh | Refresh before expiry. Save a new refresh token immediately when received | media_spotify | P1 | 5 | Voice playback still works after a week untouched |
+| SPT-09 | Connection status | The app shows the logged-in account, Connect status, and last error | spotify | P1 | 5 | |
+| SPT-10 | Log out | Disconnect in the app (LAN `DELETE /spotify` or BLE `spotify.logout`) → the speaker's `client_id`, tokens, and Connect credentials are deleted. The app remembers `client_id` and prefills it on re-login | spotify | P1 | 5 | |
+| SPT-11 | Switching with radio | When Spotify plays, the radio stops, and vice versa | media_* | P1 | 5 | |
+| SPT-12 | Error guidance | Not Premium or user not registered (developer mode, 5 users), re-login needed (`invalid_grant`), redirect URI mismatch, developer app limit exceeded → explain the cause and fix by voice and in the app | media_spotify / spotify | P1 | 5 | |
+| SPT-13 | Developer app registration guide | The app shows a step-by-step guide screen and opens the Spotify Developer Dashboard in the browser. A copy button for the redirect URI, per-screen explanations, notes on the developer app limit and the Premium requirement. Checks the format of the `client_id` the user pastes (32 hex digits) and verifies the setup right away with a PKCE login | spotify | P1 | 5 | A first-time user finishes registration within 10 minutes from the guide alone. If the redirect URI is wrong, it points out the cause |
 
 ## 9. Telegram (TLG)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| TLG-01 | 봇 설정 안내 | 앱에 BotFather로 **이 스피커 전용 봇** 생성, 그룹 초대, privacy mode 끄기(끈 뒤 봇을 그룹에서 내보냈다가 다시 초대해야 적용) 안내 | telegram | P1 | 4 | |
-| TLG-02 | 토큰 검증·저장 | 앱이 `getMe`로 확인 → Key2 3초로 BLE 창 → 스피커에 저장 | telegram, ble_prov | P1 | 4 | 틀린 토큰은 저장 전에 거부 |
-| TLG-03 | 대화방 등록 | 앱에서 6자리 코드 발급(5분, 1회용, 5번 틀리면 무효) → 가족이 봇 개인 대화에 `/pair 코드`, 그룹에서는 `/pair@봇이름 코드` → 스피커가 등록하고 앱에 알림(WS `tg_paired`) | messenger_telegram / telegram | P1 | 4 | 등록 후 봇이 "등록되었습니다" 답장 |
-| TLG-04 | 별칭 | 대화방마다 별칭(예: 가족방, 엄마). 음성 명령에 사용 | telegram | P1 | 4 | |
-| TLG-05 | 등록 해제 | 앱에서 삭제. 최대 10개. 그룹이 슈퍼그룹으로 바뀌면 새 chat_id로 자동 갱신 | telegram | P1 | 4 | |
-| TLG-06 | 메시지 수신 | 롱폴링으로 수신. 등록된 대화방만 처리, 나머지 무시. 최근 20개 보관(전원 끄면 사라짐) | messenger_telegram | P1 | 4 | 수신 후 10초 안에 알림 |
-| TLG-07 | 수신 알림 | 알림음 + 보라색 LED 점. 대화 중에는 알림음 생략 | messenger_telegram, led_ring | P1 | 4 | |
-| TLG-08 | 메시지 읽기 | "텔레그램 메시지 읽어 줘", "엄마가 뭐라고 보냈어?" → 보낸 사람·시각·내용. 읽은 메시지는 읽음 처리, 앱 홈의 읽지 않은 수 갱신 | assistant | P1 | 4 | 읽은 뒤 보라색 LED 꺼짐 |
-| TLG-09 | 메시지 보내기 | "가족방에 오늘 늦는다고 보내 줘" → 받는 곳과 내용을 읽어주고 확인 → 전송. 툴이 2단계(초안 → 다음 발화로 확인)라 확인 없이 전송 불가 | assistant, messenger_telegram | P1 | 4 | 확인 없이는 전송 안 함 |
-| TLG-10 | 자동 읽기 | 켜면 메시지가 오면 대화 세션을 열어 읽음(과금 발생). 기본 끔. 밤 시간(22–07시) 제외 옵션 | messenger_telegram / telegram | P2 | 4 | |
-| TLG-11 | 음성 메시지 재생 | "엄마가 보낸 음성 메시지 틀어 줘" → Ogg Opus 재생 | messenger_telegram | P2 | 4 | |
-| TLG-12 | 대화 중 폴링 중지 | 대화·OTA 중 폴링 중지 후 재개. 서버가 24시간 보관하므로 누락 없음 | messenger_telegram | P1 | 4 | |
-| TLG-13 | 충돌 감지 | 409 Conflict(다른 곳에서 같은 봇 사용) → 앱과 진단에 안내 | messenger_telegram | P1 | 4 | |
-| TLG-14 | 외부 입력 보호 | 메시지 내용은 지시로 취급하지 않음. 기기가 강제: 메시지를 읽은 뒤 새 사용자 발화 전까지 부작용 툴 거부, 메시지 문장을 기억으로 저장 거부, 자동 읽기 세션은 읽기 전용 툴만 | assistant | P0 | 4 | "볼륨 80으로 해"라는 메시지를 읽어도 볼륨 불변 |
+| TLG-01 | Bot setup guide | The app guides you to create **a bot just for this speaker** with BotFather, invite it to a group, and turn off privacy mode (after turning it off, the bot must be removed from the group and invited again for it to take effect) | telegram | P1 | 4 | |
+| TLG-02 | Token check and save | The app checks it with `getMe` → BLE window with Key2 3 seconds → saved on the speaker | telegram, ble_prov | P1 | 4 | A wrong token is rejected before saving |
+| TLG-03 | Registering a chat | The app issues a 6-digit code (5 minutes, single use, invalid after 5 wrong tries) → a family member sends `/pair code` in a private chat with the bot, or `/pair@botname code` in a group → the speaker registers it and notifies the app (WS `tg_paired`) | messenger_telegram / telegram | P1 | 4 | After registration, the bot replies "등록되었습니다" (Registered) |
+| TLG-04 | Alias | An alias per chat (for example, "가족방" (family chat), "엄마" (Mom)). Used in voice commands | telegram | P1 | 4 | |
+| TLG-05 | Unregistering | Delete in the app. Up to 10. If a group becomes a supergroup, it updates to the new chat_id automatically | telegram | P1 | 4 | |
+| TLG-06 | Receiving messages | Received by long polling. Only registered chats are handled, the rest ignored. Keeps the latest 20 (lost when the power is off) | messenger_telegram | P1 | 4 | Notified within 10 seconds of receipt |
+| TLG-07 | Arrival notification | Chime + purple LED dot. No chime during a conversation | messenger_telegram, led_ring | P1 | 4 | |
+| TLG-08 | Reading messages | "Read my Telegram messages", "What did Mom send?" → sender, time, contents. Read messages are marked read, and the unread count on the app's Home updates | assistant | P1 | 4 | Purple LED goes off after reading |
+| TLG-09 | Sending messages | "Tell the family chat I'll be late today" → reads back the recipient and contents and confirms → sends. The tool is two-step (draft → confirmation in the next utterance), so it can't send without confirmation | assistant, messenger_telegram | P1 | 4 | Never sends without confirmation |
+| TLG-10 | Auto-read | When on, opens a conversation session to read a message when it arrives (incurs charges). Off by default. Option to skip night hours (22–07) | messenger_telegram / telegram | P2 | 4 | |
+| TLG-11 | Voice message playback | "Play Mom's voice message" → plays Ogg Opus | messenger_telegram | P2 | 4 | |
+| TLG-12 | Pausing polling during conversations | Stop polling during conversations and OTA, then resume. The server keeps messages for 24 hours, so nothing is lost | messenger_telegram | P1 | 4 | |
+| TLG-13 | Conflict detection | 409 Conflict (the same bot used elsewhere) → reported in the app and diagnostics | messenger_telegram | P1 | 4 | |
+| TLG-14 | External-input protection | Message contents are never treated as instructions. The device enforces it: after reading a message, side-effect tools are refused until a new user utterance; saving message text as a memory is refused; auto-read sessions get read-only tools only | assistant | P0 | 4 | Reading a message that says "Set the volume to 80" leaves the volume unchanged |
 
-## 10. 앱 공통 (APP)
+## 10. App Common (APP)
 
-| ID | 기능 | 상세 동작 | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|
-| APP-01 | 권한 요청 | Android 12+: `BLUETOOTH_SCAN`·`BLUETOOTH_CONNECT`만. Android 11 이하: 위치. iOS: Bluetooth, 로컬 네트워크(첫 mDNS·HTTP 때 시스템 팝업). 설계서 3.6절 | P0 | 2 | 거부 시 설정 화면 안내 (led-app 방식) |
-| APP-02 | 기기 목록 | 등록 기기를 휴대폰에 저장(0xFF61로 읽은 STA MAC, 이름, 마지막 IP). BLE `remoteId`는 쓰지 않음(iOS는 UUID). 여러 대 지원 | P0 | 2 | |
-| APP-03 | 기기 찾기 | mDNS로 검색해 IP 갱신. 실패 시 마지막 IP로 시도 | P0 | 2 | IP가 바뀌어도 자동으로 다시 찾음 |
-| APP-04 | 홈 화면 | 연결 상태, 대화 상태, 지금 재생, 볼륨, 읽지 않은 Telegram 수, 빠른 동작(대화 시작, 재생/정지) | P0 | 2 | |
-| APP-05 | 실시간 갱신 | WebSocket 이벤트로 상태 반영. 끊기면 자동 재연결(1→30초) | P0 | 2 | |
-| APP-06 | 연결 불가 안내 | 같은 Wi-Fi인지 확인 안내, BLE 재설정으로 이동 버튼 | P0 | 2 | |
-| APP-07 | 다국어 | 한국어(기본), 영어. ARB 파일 | P0 | 2 | 모든 문구가 ARB에 있음 |
-| APP-08 | 테마 | 시스템/라이트/다크 (led-app `SettingsCubit`) | P1 | 2 | |
-| APP-09 | 오류 메시지 | `ErrorKeys` → 현지화 메시지. 원인별 다음 행동 안내 | P0 | 2 | |
-| APP-10 | 비밀값 화면 | OpenAI 키를 "저장됨/없음"으로만 표시, 교체(BLE)·삭제(LAN). Telegram·Spotify 상태는 각 기능 화면이 담당하고 여기서는 링크 | P0 | 2 | 앱 화면 어디에도 키 원문이 나타나지 않음 |
-| APP-11 | 오프라인 모드 | 기기와 연결되지 않아도 저장된 기기 목록과 안내는 표시 | P1 | 2 | |
-| APP-12 | 앱 정보 | 앱 버전, 오픈소스 라이선스 | P2 | 6 | |
+| APP-01 | Permission requests | Android 12+: only `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`. Android 11 and below: location. iOS: Bluetooth, local network (system pop-up on the first mDNS/HTTP). Design document Section 3.6 | P0 | 2 | On denial, guide to the settings screen (as in led-app) |
+| APP-02 | Device list | Store registered devices on the phone (STA MAC read from 0xFF61, name, last IP). BLE `remoteId` isn't used (it's a UUID on iOS). Supports several devices | P0 | 2 | |
+| APP-03 | Finding devices | Search with mDNS and update the IP. On failure, try the last IP | P0 | 2 | Finds it again automatically even if the IP changes |
+| APP-04 | Home screen | Connection state, conversation state, now playing, volume, unread Telegram count, quick actions (start conversation, play/stop) | P0 | 2 | |
+| APP-05 | Real-time updates | Reflect state through WebSocket events. Reconnect automatically when disconnected (1→30 seconds) | P0 | 2 | |
+| APP-06 | Can't-connect guidance | A prompt to check it's the same Wi-Fi, a button to go to BLE re-setup | P0 | 2 | |
+| APP-07 | Localization | Korean (default), English. ARB files | P0 | 2 | Every string is in an ARB |
+| APP-08 | Theme | System/light/dark (led-app `SettingsCubit`) | P1 | 2 | |
+| APP-09 | Error messages | `ErrorKeys` → localized messages. Next-step guidance for each cause | P0 | 2 | |
+| APP-10 | Secrets screen | Shows the OpenAI key only as "saved/none"; replace (BLE), delete (LAN). Telegram and Spotify status belong to their own feature screens; here, only links | P0 | 2 | The raw key appears nowhere on any app screen |
+| APP-11 | Offline mode | Shows the saved device list and guidance even when not connected to a device | P1 | 2 | |
+| APP-12 | App info | App version, open-source licenses | P2 | 6 | |
 
-## 11. 펌웨어 업데이트 (OTA)
+## 11. Firmware Update (OTA)
 
-| ID | 기능 | 상세 동작 | FW / APP | 우선 | Phase | 완료 기준 |
+| ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| OTA-01 | 버전 표시 | 앱에 현재 펌웨어 버전, 빌드 일시 표시 | local_api / system | P1 | 2 | |
-| OTA-02 | 펌웨어 업로드 | 앱에서 `.bin` 선택 → LAN으로 업로드 → 스피커 Key2를 60초 안에 눌러 확인 → 진행률 표시 | local_api / system | P1 | 6 | |
-| OTA-03 | 이미지 확인 | **서명 검증**(개발자 서명 키, eFuse 사용 안 함), 프로젝트 이름, 칩 종류, 이미지 크기(≤4MB) 확인. 다르면 거부. 대화 중이면 409 | local_api | P1 | 6 | 서명 없는 이미지·다른 프로젝트 이미지 거부 |
-| OTA-04 | 업데이트 중 보호 | 대화·음악·Telegram 정지, LED 진행 표시 | main | P1 | 6 | |
-| OTA-05 | 자동 롤백 | 새 펌웨어가 Wi-Fi·오디오 초기화에 실패하면 이전 버전으로 복귀 | main | P1 | 6 | 고의로 깨진 이미지에서 복귀 확인 |
-| OTA-06 | 설정 보존 | 업데이트 후 모든 설정·비밀값 유지. 스키마가 바뀌면 마이그레이션 | settings | P0 | 6 | |
+| OTA-01 | Version display | The app shows the current firmware version and build date and time | local_api / system | P1 | 2 | |
+| OTA-02 | Firmware upload | Choose a `.bin` in the app → upload over the LAN → press Key2 on the speaker within 60 seconds to confirm → progress shown | local_api / system | P1 | 6 | |
+| OTA-03 | Image checks | **Signature verification** (developer signing key, no eFuse), project name, chip type, image size (≤4MB). Refused if any differ. 409 during a conversation | local_api | P1 | 6 | Unsigned images and images from other projects are refused |
+| OTA-04 | Protection during update | Stop conversation, music, and Telegram; LED progress indication | main | P1 | 6 | |
+| OTA-05 | Automatic rollback | If the new firmware fails Wi-Fi or audio initialization, roll back to the previous version | main | P1 | 6 | Rollback confirmed with a deliberately broken image |
+| OTA-06 | Settings preserved | All settings and secrets kept after an update. Migration if the schema changes | settings | P0 | 6 | |
 
 ---
 
-## 12. 음성 명령 예시 → 처리
+## 12. Voice Command Examples → Handling
 
-| 발화 예시 | 처리 | 관련 ID |
+| Example utterance | Handling | Related ID |
 |:--|:--|:--|
-| "자비스" (호출어) | 대화 시작 | VOI-01 |
-| (Key1 / Key3 누름) | 볼륨 내림 / 올림 | SYS-15 |
-| "오늘 서울 날씨 어때?" | `web_search` | INF-01 |
-| "삼성전자 주가 알려 줘" | `web_search` | INF-04 |
-| "오늘 뉴스 브리핑해 줘" | `web_search` | INF-03 |
-| "볼륨 30으로 해 줘" / "소리 좀 키워 줘" | `get_device_settings` → `set_volume` | AUD-01 |
-| "재즈 라디오 틀어 줘" | `radio_play(genre)` | RAD-02 |
-| "KBS 클래식 틀어 줘" | `radio_play(station)` | RAD-01 |
-| "지금 나오는 노래 뭐야?" | `get_now_playing` | RAD-04, SPT-06 |
-| "아이유 노래 틀어 줘" | `spotify_play(query, artist)` | SPT-04 |
-| "다음 곡" / "멈춰" / "다시 틀어" | `music_control` | SPT-05, RAD-03 |
-| "텔레그램 온 거 있어?" | `telegram_read` | TLG-08 |
-| "가족방에 저녁 먹고 간다고 보내 줘" | 내용 확인 질문 → `telegram_send` | TLG-09 |
-| "내 위치를 부산으로 저장해 줘" | `set_location` | AST-05 |
-| "목소리 바꿔 줘. 어떤 게 있어?" | `list_voices` → `set_voice` | AST-04 |
-| "내가 고양이 키운다는 거 기억해 줘" | `remember` | AST-09 |
-| "마이크 보정해 줘" | `calibrate_microphone` | AUD-03 |
-| "잘가 자비스" / "대화 종료" | 기기에서 종료 | VOI-09 |
+| "Jarvis" (wake word) | Start a conversation | VOI-01 |
+| (Press Key1 / Key3) | Volume down / up | SYS-15 |
+| "How's the weather in Seoul today?" | `web_search` | INF-01 |
+| "Tell me Samsung Electronics' stock price" | `web_search` | INF-04 |
+| "Give me today's news briefing" | `web_search` | INF-03 |
+| "Set the volume to 30" / "Turn it up a bit" | `get_device_settings` → `set_volume` | AUD-01 |
+| "Play jazz radio" | `radio_play(genre)` | RAD-02 |
+| "Play KBS Classic" | `radio_play(station)` | RAD-01 |
+| "What song is playing now?" | `get_now_playing` | RAD-04, SPT-06 |
+| "Play IU songs" | `spotify_play(query, artist)` | SPT-04 |
+| "Next song" / "Stop" / "Play again" | `music_control` | SPT-05, RAD-03 |
+| "Anything on Telegram?" | `telegram_read` | TLG-08 |
+| "Tell the family chat I'll eat out and come home after" | A question confirming the contents → `telegram_send` | TLG-09 |
+| "Save my location as Busan" | `set_location` | AST-05 |
+| "Change your voice. What's available?" | `list_voices` → `set_voice` | AST-04 |
+| "Remember that I have a cat" | `remember` | AST-09 |
+| "Calibrate the microphone" | `calibrate_microphone` | AUD-03 |
+| "Goodbye Jarvis" / "End conversation" (or "잘가 자비스" / "대화 종료") | Ended on the device | VOI-09 |
 
-## 13. 예외 상황 처리
+## 13. Handling Exceptions
 
-| 상황 | 기기 반응 | 앱 표시 |
+| Situation | Device response | App display |
 |:--|:--|:--|
-| Wi-Fi 끊김 | 재연결 시도, LED 파란색 깜빡임. 호출어 감지 시 "인터넷에 연결되어 있지 않아요" 안내음 | "기기가 Wi-Fi에 연결되지 않음" |
-| OpenAI 키 없음 | 호출어 감지 시 오류음 + 빨간색 | 키 입력 화면으로 안내 |
-| OpenAI 인증 실패·잔액 부족 | 빨간색 3초, 진단에 사유 저장 | "OpenAI 계정 또는 키를 확인하세요" |
-| 라디오 방송 응답 없음 | 5회 재시도 후 정지 + 안내음 | 프리셋에 오류 표시 |
-| Spotify 토큰 만료·폐기 | 음성 재생 불가 안내 | 재로그인 요청 |
-| Telegram 토큰 폐기 | 폴링 중지, 진단 기록 | 토큰 재입력 요청 |
-| 메모리 부족 | 우선순위(대화 > 음악 > Telegram)에 따라 하위 기능 일시 중지 | 진단에 경고 |
-| 다른 가족이 Spotify 사용 중 | 음성 Spotify 제어 시 "다른 가족 계정이 사용 중" 안내 | Spotify 화면에 현재 사용 계정 표시 |
-| Telegram 409·토큰 폐기 | 폴링 중지, 진단 기록 | "다른 곳에서 이 봇을 쓰는 중" / 토큰 재입력 요청 |
-| 저장 공간 오류(NVS) | 설정 변경 거부, 기존 값 유지 | "저장하지 못했습니다" |
-| 앱 토큰 해지됨 | 401 응답 | BLE로 다시 등록 안내 |
+| Wi-Fi down | Tries to reconnect, blue LED blink. On wake word, a "Not connected to the internet" notice tone | "The device isn't connected to Wi-Fi" |
+| No OpenAI key | On wake word, error tone + red | Guides to the key entry screen |
+| OpenAI auth failure or insufficient balance | Red for 3 seconds, reason saved in diagnostics | "Check your OpenAI account or key" |
+| Radio station not responding | Stop after 5 retries + alert tone | Error mark on the preset |
+| Spotify token expired or revoked | Says voice playback isn't available | Asks to log in again |
+| Telegram token revoked | Polling stops, recorded in diagnostics | Asks to enter the token again |
+| Out of memory | Pause lower features by priority (conversation > music > Telegram) | Warning in diagnostics |
+| Another family member is using Spotify | On voice Spotify control, says "Another family account is using it" | The Spotify screen shows the account currently using it |
+| Telegram 409 or token revoked | Polling stops, recorded in diagnostics | "This bot is being used elsewhere" / asks to enter the token again |
+| Storage error (NVS) | Refuses the settings change, keeps the existing value | "Couldn't save" |
+| App token revoked | 401 response | Guides to registering again over BLE |
 
-## 14. 비기능 요구사항
+## 14. Non-Functional Requirements
 
-| 항목 | 기준 |
+| Item | Criterion |
 |:--|:--|
-| 서버 | 자체 서버·DB·푸시 서버 없음. 앱 ↔ 스피커 직접 통신 |
-| 개인정보 | 대기 중 음성은 기기 밖으로 나가지 않음. 대화 음성은 OpenAI로만 전송. 기기와 앱은 음성·전사를 저장하지 않음 |
-| 비밀값 | 평문 NVS(현재 단계). BLE·LAN 어느 쪽으로도 원문을 읽을 수 없음. 쓰기는 BLE만. 로그 출력 금지. OTA는 서명 검증 + 물리 버튼 확인 |
-| 응답성 | 호출어 → 준비음 3초 이내, 앱 조작 → 반영 500ms 이내(LAN) |
-| 안정성 | 24시간 연속 동작 중 재부팅 0회. 공유기 재부팅 후 자동 복구 |
-| 메모리 | 내부 RAM 여유 40KB 이상: 대화 + 음악(Telegram 폴링 정지), 음악 + Telegram, BLE 창 + 음악 |
-| 비용 | 대화 1회 최대 10분, 무응답 60초 종료, 자동 읽기 기본 끔 |
-| 유지보수 | 앱은 led-app 구조(Clean Architecture + BLoC + get_it) 준수. BLE·LAN 규격은 설계서가 유일한 기준 |
-| 테스트 | 앱 BLoC 단위 테스트, 펌웨어 호스트 단위 테스트(종료 문구, 위임 파서, 설정 검증 등 순수 로직) |
+| Servers | No server, DB, or push server of our own. App ↔ speaker communicate directly |
+| Privacy | Audio in standby never leaves the device. Conversation audio goes only to OpenAI. The device and app don't store audio or transcripts |
+| Secrets | Plain-text NVS (at the current stage). The raw value can't be read over BLE or LAN. Writes over BLE only. Never logged. OTA uses signature verification + physical button confirmation |
+| Responsiveness | Wake word → ready tone within 3 seconds; app action → reflected within 500ms (LAN) |
+| Stability | 0 reboots in 24 hours of continuous operation. Recovers automatically after a router reboot |
+| Memory | 40KB or more of internal RAM free: conversation + music (Telegram polling stopped), music + Telegram, BLE window + music |
+| Cost | One conversation at most 10 minutes, 60-second no-response timeout, auto-read off by default |
+| Maintenance | The app follows the led-app structure (Clean Architecture + BLoC + get_it). The design document is the only reference for the BLE and LAN specifications |
+| Tests | App BLoC unit tests, firmware host unit tests (pure logic: hang-up phrases, delegation parser, settings validation, and so on) |

@@ -1,8 +1,8 @@
 import '../../../../core/ai/ai_choice.dart';
 import '../../domain/entities/assistant_settings.dart';
 
-/// 펌웨어 `assistant.c` 설정 JSON ↔ AssistantSettings. 빠진 키는 펌웨어 기본값(DEFAULTS)으로 채운다.
-/// AI 키 3개가 없으면 옛 펌웨어: OpenAI 실시간 (설계 docs/design-voice-saver-mode.md 11.1 "옮겨 온 스피커")
+/// Firmware `assistant.c` settings JSON ↔ AssistantSettings. Missing keys are filled with the firmware defaults (DEFAULTS).
+/// If the three AI keys are missing, it is old firmware: OpenAI Live (design docs/design-voice-saver-mode.md 11.1 "migrated speaker")
 class AssistantSettingsModel {
   AssistantSettingsModel._();
 
@@ -52,7 +52,7 @@ class AssistantSettingsModel {
         keyModeGemini: s.modeGemini.id,
       };
 
-  /// [edited]에서 [original]과 다른 키만 (PUT 본문)
+  /// Only the keys in [edited] that differ from [original] (PUT body)
   static Map<String, dynamic> diff(AssistantSettings original, AssistantSettings edited) {
     final before = toJson(original);
     return {

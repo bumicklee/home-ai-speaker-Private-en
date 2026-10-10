@@ -1,8 +1,8 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * LED 링 표시 (설계서 2.15절 우선순위 표).
- * 표시 태스크가 33ms마다 현재 상태에서 가장 우선순위가 높은 표시 한 프레임을 그린다.
- * 상태 변경 함수는 어느 태스크에서 불러도 된다(값만 바꾸고 바로 돌아옴).
+ * LED ring display (design document, Section 2.15 priority table).
+ * Every 33ms the display task draws one frame of the highest-priority display for the current state.
+ * State-change functions may be called from any task (they only change a value and return right away).
  */
 #include "led_ring.h"
 
@@ -84,18 +84,18 @@ static void fill(rgb_t *px, rgb_t c)
     }
 }
 
-/* 우선순위 1–3 (밝기 0이어도 표시). 그렸으면 true */
+/* Priorities 1–3 (shown even at brightness 0). true if drawn */
 static bool render_critical(rgb_t *px, uint32_t now)
 {
     int stage = atomic_load(&s_key2_stage);
     if (stage == LED_KEY2_FACTORY) {
         if ((now / 100) % 2 == 0) {
-            fill(px, (rgb_t){60, 0, 0});        /* 빨간색 빠른 깜빡임 */
+            fill(px, (rgb_t){60, 0, 0});        /* fast red blink */
         }
         return true;
     }
     if (stage == LED_KEY2_WARN) {
-        /* 7초 → 10초 사이 3초 동안 빨간색이 하나씩 차오른다 */
+        /* red fills up one LED at a time over the 3 s from 7 s to 10 s */
         uint32_t elapsed = now - atomic_load(&s_key2_since);
         int lit = 1 + (int)(elapsed * BOARD_LED_COUNT / 3000);
         for (int i = 0; i < BOARD_LED_COUNT && i < lit; i++) {
@@ -103,10 +103,10 @@ static bool render_critical(rgb_t *px, uint32_t now)
         }
         return true;
     }
-    /* 2: OTA 진행 표시는 Phase 6 */
+    /* 2: OTA progress display is Phase 6 */
     if (before(atomic_load(&s_error_until), now)) {
         if ((now / 500) % 2 == 0) {
-            fill(px, (rgb_t){40, 0, 0});        /* 오류: 0.5초 간격 깜빡임 */
+            fill(px, (rgb_t){40, 0, 0});        /* error: blink every 0.5 s */
         }
         return true;
     }
@@ -117,69 +117,69 @@ static void render_normal(rgb_t *px, uint32_t now, float level)
 {
     int stage = atomic_load(&s_key2_stage);
     if (stage == LED_KEY2_BLE) {
-        fill(px, (rgb_t){0, 25, 40});           /* 3초 도달: 하늘색 링 */
+        fill(px, (rgb_t){0, 25, 40});           /* reached 3 s: sky-blue ring */
         return;
     }
     if (atomic_load(&s_ble_window)) {
         if ((now / 150) % 2 == 0) {
-            fill(px, (rgb_t){0, 25, 40});       /* BLE 창: 하늘색 빠른 깜빡임 */
+            fill(px, (rgb_t){0, 25, 40});       /* BLE window: fast sky-blue blink */
         }
         return;
     }
     if (atomic_load(&s_wifi_connecting)) {
         if ((now / 500) % 2 == 0) {
-            fill(px, (rgb_t){0, 0, 40});        /* Wi-Fi 연결 중: 파란색 깜빡임 */
+            fill(px, (rgb_t){0, 0, 40});        /* Wi-Fi connecting: blue blink */
         }
         return;
     }
     if (before(atomic_load(&s_wake_until), now)) {
-        fill(px, (rgb_t){0, 45, 0});            /* 호출어 감지: 초록색 번쩍임 */
+        fill(px, (rgb_t){0, 45, 0});            /* wake word detected: green flash */
         return;
     }
     int voice = atomic_load(&s_voice);
     if (voice == VOICE_WAKE_ACK || voice == VOICE_CONNECTING) {
-        px[(now / 140) % BOARD_LED_COUNT] = (rgb_t){35, 14, 0};    /* 연결 중: 주황색 회전 */
+        px[(now / 140) % BOARD_LED_COUNT] = (rgb_t){35, 14, 0};    /* connecting: orange spin */
         return;
     }
     if (voice == VOICE_LIVE || voice == VOICE_CLOSING) {
         if (level > 0) {
-            /* 응답 재생: 파란색 레벨 미터 */
+            /* playing reply: blue level meter */
             for (int i = 0; i < BOARD_LED_COUNT; i++) {
                 float f = fminf(1.0f, fmaxf(0, level * BOARD_LED_COUNT - i));
                 px[i] = (rgb_t){(uint8_t)(8 * f), (uint8_t)(22 * f), (uint8_t)(64 * f)};
             }
         } else {
-            fill(px, (rgb_t){0, 8, 12});        /* 듣는 중: 청록색 링 */
+            fill(px, (rgb_t){0, 8, 12});        /* listening: teal ring */
         }
         return;
     }
     int media = atomic_load(&s_media);
     if (media == MEDIA_BUFFERING) {
         if ((now / 800) % 2 == 0) {
-            fill(px, (rgb_t){10, 10, 10});      /* 음악 버퍼링: 흰색 느린 깜빡임 */
+            fill(px, (rgb_t){10, 10, 10});      /* music buffering: slow white blink */
         }
         return;
     }
     if (media == MEDIA_PLAYING && level > 0) {
         for (int i = 0; i < BOARD_LED_COUNT; i++) {
             float f = fminf(1.0f, fmaxf(0, level * BOARD_LED_COUNT - i));
-            uint8_t w = (uint8_t)(10 * f);      /* 음악 재생: 흰색 은은한 레벨 미터 */
+            uint8_t w = (uint8_t)(10 * f);      /* music playing: soft white level meter */
             px[i] = (rgb_t){w, w, w};
         }
         return;
     }
     if (atomic_load(&s_reminder)) {
         if ((now / 600) % 2 == 0) {
-            fill(px, (rgb_t){30, 12, 0});        /* 일정 알림을 대화로 전하지 못함: 주황색 느린 깜빡임 */
+            fill(px, (rgb_t){30, 12, 0});        /* schedule reminder not delivered as a conversation: slow orange blink */
         }
         return;
     }
     if (atomic_load(&s_unread)) {
-        px[0] = (rgb_t){20, 0, 30};             /* 읽지 않은 Telegram: 보라색 점 */
+        px[0] = (rgb_t){20, 0, 30};             /* unread Telegram: purple dot */
         return;
     }
     if (atomic_load(&s_wake_armed)) {
-        px[0] = (rgb_t){0, 2, 3};               /* 호출어 대기: 청록색 점 하나 */
+        px[0] = (rgb_t){0, 2, 3};               /* waiting for the wake word: one teal dot */
     }
 }
 
@@ -191,7 +191,7 @@ static void led_task(void *arg)
         uint32_t now = now_ms();
         fill(px, (rgb_t){0, 0, 0});
 
-        /* 재생 소리 크기 → 0–1 레벨. 떨어질 때는 천천히 줄인다 */
+        /* playback loudness → 0–1 level. Falls off slowly */
         unsigned peak = atomic_exchange(&s_level_peak, 0);
         float level = peak > 180 ? fminf(1.0f, sqrtf(peak / 18000.0f)) : 0;
         envelope = fmaxf(level, envelope * 0.78f);
@@ -203,16 +203,16 @@ static void led_task(void *arg)
         float scale = 1.0f;
         if (atomic_load(&s_booting)) {
             if ((now / 300) % 2 == 0) {
-                fill(px, (rgb_t){40, 30, 0});   /* 부팅: 노란색 깜빡임 (단독 표시) */
+                fill(px, (rgb_t){40, 30, 0});   /* boot: yellow blink (shown alone) */
             }
         } else if (!render_critical(px, now) && brightness > 0) {
             render_normal(px, now, envelope);
-            /* 색표는 기본 밝기 60% 기준 값이다 */
+            /* the color table values assume the default 60% brightness */
             scale = brightness / 60.0f;
         }
 
         for (int i = 0; i < BOARD_LED_COUNT; i++) {
-            /* 전류 제한: 채널 상한 128 (2.0절) */
+            /* current limit: channel cap 128 (Section 2.0) */
             uint32_t r = (uint32_t)fminf(BOARD_LED_CHANNEL_MAX, px[i].r * scale);
             uint32_t g = (uint32_t)fminf(BOARD_LED_CHANNEL_MAX, px[i].g * scale);
             uint32_t b = (uint32_t)fminf(BOARD_LED_CHANNEL_MAX, px[i].b * scale);
@@ -229,7 +229,7 @@ esp_err_t led_ring_init(void)
         .strip_gpio_num = BOARD_LED_GPIO,
         .max_leds = BOARD_LED_COUNT,
         .led_model = LED_MODEL_WS2812,
-        /* 기존 펌웨어·ESPHome·데모 코드는 RGB 순서. Phase 1에서 빨강 단색으로 눈 확인 */
+        /* The existing firmware, ESPHome and the demo code all use RGB order. Verify by eye with solid red in Phase 1 */
         .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_RGB,
     };
     const led_strip_rmt_config_t rmt_cfg = {

@@ -1,8 +1,8 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * ES7210(마이크 ADC)·ES8311(스피커 DAC) 제어.
- * 설정 방식은 실기기에서 동작한 기존 펌웨어(waveshare-ai-speaker-assistant)의
- * board_audio.c를 따른다: ES7210 마이크 4개 선택, ES8311 use_mclk=false, pa_pin=-1.
+ * ES7210 (mic ADC) and ES8311 (speaker DAC) control.
+ * The setup follows board_audio.c from the existing firmware (waveshare-ai-speaker-assistant)
+ * that worked on the real board: ES7210 with 4 mics selected, ES8311 use_mclk=false, pa_pin=-1.
  */
 #include "board.h"
 
@@ -19,7 +19,7 @@ static const char *TAG = "CODEC";
 static esp_codec_dev_handle_t s_adc;    /* ES7210 */
 static esp_codec_dev_handle_t s_dac;    /* ES8311 */
 
-/* esp_codec_dev의 주소 상수는 8비트 표기다 (7비트 0x40 → 0x80, 0x18 → 0x30) */
+/* esp_codec_dev address constants use 8-bit notation (7-bit 0x40 → 0x80, 0x18 → 0x30) */
 _Static_assert(ES7210_CODEC_DEFAULT_ADDR == (BOARD_I2C_ADDR_ES7210 << 1), "ES7210 address mismatch");
 _Static_assert(ES8311_CODEC_DEFAULT_ADDR == (BOARD_I2C_ADDR_ES8311 << 1), "ES8311 address mismatch");
 
@@ -45,7 +45,7 @@ static esp_err_t open_adc(i2s_chan_handle_t rx, const esp_codec_dev_sample_info_
         return ESP_ERR_NO_MEM;
     }
 
-    /* 콜드 부팅 때 마이크가 안 켜진다는 보고가 있어, 열고 나서 레지스터를 읽어 확인한다 (2.19절) */
+    /* there are reports of the mic not coming up on a cold boot, so read a register after opening to confirm (Section 2.19) */
     for (int attempt = 1; attempt <= 3; attempt++) {
         int reg = -1;
         if (esp_codec_dev_open(s_adc, (esp_codec_dev_sample_info_t *)fmt) == ESP_CODEC_DEV_OK &&
@@ -69,7 +69,7 @@ static esp_err_t open_dac(i2s_chan_handle_t tx, const esp_codec_dev_sample_info_
         .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,
         .ctrl_if = audio_codec_new_i2c_ctrl(&ctrl_cfg),
         .gpio_if = audio_codec_new_gpio(),
-        .pa_pin = -1,           /* 앰프는 TCA9555 EXIO8로 따로 켠다 */
+        .pa_pin = -1,           /* the amp is turned on separately via TCA9555 EXIO8 */
         .use_mclk = false,
     };
     if (!codec_cfg.ctrl_if || !codec_cfg.gpio_if) {
@@ -89,7 +89,7 @@ static esp_err_t open_dac(i2s_chan_handle_t tx, const esp_codec_dev_sample_info_
 
 esp_err_t board_codec_open(i2s_chan_handle_t tx, i2s_chan_handle_t rx, uint32_t sample_rate)
 {
-    /* 32비트 슬롯 2개. ES7210은 슬롯 하나에 16비트 샘플 두 개를 넣어 4채널이 된다 */
+    /* two 32-bit slots. The ES7210 packs two 16-bit samples into each slot, giving 4 channels */
     const esp_codec_dev_sample_info_t fmt = {
         .sample_rate = sample_rate,
         .channel = 2,
@@ -123,7 +123,7 @@ esp_err_t board_codec_set_volume(int volume)
         volume = 0;
     }
     if (volume > APP_VOLUME_MAX) {
-        volume = APP_VOLUME_MAX;    /* 높은 볼륨에서 스피커가 찌그러진다 (2.19절) */
+        volume = APP_VOLUME_MAX;    /* the speaker distorts at high volume (Section 2.19) */
     }
     return esp_codec_dev_set_out_vol(s_dac, volume) == ESP_CODEC_DEV_OK ? ESP_OK : ESP_FAIL;
 }
@@ -141,6 +141,6 @@ esp_err_t board_codec_set_mic_gain(float db)
 
 esp_err_t board_codec_set_mic_mute(bool mute)
 {
-    /* 게인 0으로는 음소거가 안 된다 (0dB는 원래 크기). 코덱 음소거를 쓴다 */
+    /* gain 0 doesn't mute (0dB is unity). Use the codec mute */
     return esp_codec_dev_set_in_mute(s_adc, mute) == ESP_CODEC_DEV_OK ? ESP_OK : ESP_FAIL;
 }

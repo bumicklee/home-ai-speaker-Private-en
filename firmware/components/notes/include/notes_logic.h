@@ -1,6 +1,6 @@
 /**
  * @file notes_logic.h
- * @brief notes 모듈의 순수 로직 (날짜·UTF-8·검색·id·문구). ESP-IDF에 기대지 않는다 (Mac에서 시험, tool_guard.c와 같은 방식)
+ * @brief Pure logic for the notes module (dates, UTF-8, search, id, phrases). No ESP-IDF dependency (tested on a Mac, same approach as tool_guard.c)
  */
 #pragma once
 
@@ -12,42 +12,42 @@
 extern "C" {
 #endif
 
-/* ── 달력 (Howard Hinnant day-number 공식) ────────────────────────────── */
+/* ── Calendar (Howard Hinnant day-number formula) ─────────────────────── */
 long notes_days_from_civil(int y, int m, int d);
 void notes_civil_from_days(long z, int *y, int *m, int *d);
 bool notes_is_leap_year(int y);
-/** y-m-d가 그레고리력에 실제 있는 날인지(윤년 2월 포함). y는 1970-2200만 받는다 */
+/** Whether y-m-d is a real Gregorian date (including February in leap years). y accepts only 1970-2200 */
 bool notes_valid_calendar_date(int y, int m, int d);
-/** 요일 0=일 1=월 … 6=토 */
+/** Weekday 0=Sun 1=Mon … 6=Sat */
 int notes_weekday(int y, int m, int d);
 
-/* ── start/end 문자열 ─────────────────────────────────────────────────── */
+/* ── start/end strings ────────────────────────────────────────────────── */
 /**
- * "YYYY-MM-DD" 또는 "YYYY-MM-DDTHH:MM"과 실제 날짜·시각인지 검사한다(자릿수까지 정확히).
- * 통과하면 true, y/m/d/hh/mm을 채운다(all_day면 hh=mm=0). 실패하면 값을 바꾸지 않는다.
+ * Checks for "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" and a real date and time (exact digit counts too).
+ * On success returns true and fills y/m/d/hh/mm (hh=mm=0 if all_day). On failure the values are left unchanged.
  */
 bool notes_parse_start(const char *s, int *y, int *m, int *d, int *hh, int *mm, bool *all_day);
 
-/** 일정의 기준(절대) 분. 하루 종일이면 all_day_hh:all_day_mm을 쓴다. 뺄셈·비교에만 쓴다 */
+/** Base (absolute) minute of an event. For an all-day event, uses all_day_hh:all_day_mm. Use only for subtraction and comparison */
 int64_t notes_base_minutes(int y, int m, int d, int hh, int mm, bool all_day, int all_day_hh, int all_day_mm);
 
 /* ── UTF-8 ────────────────────────────────────────────────────────────── */
 bool notes_utf8_valid(const char *s, size_t len);
-/** s를 max바이트 이하로 자르되 글자 중간을 자르지 않는다(out은 max+1바이트 이상 버퍼) */
+/** Truncates s to at most max bytes without cutting a character in half (out must be a buffer of at least max+1 bytes) */
 void notes_utf8_truncate(const char *s, size_t max, char *out);
 
-/* ── 검색 ─────────────────────────────────────────────────────────────── */
-/** 대소문자(ASCII)·공백 무시하고 haystack에 needle이 들어 있는지. needle이 비었으면 true */
+/* ── Search ───────────────────────────────────────────────────────────── */
+/** Whether needle is in haystack, ignoring (ASCII) case and spaces. true if needle is empty */
 bool notes_search_match(const char *haystack, const char *needle);
 
-/* ── id·문구 ──────────────────────────────────────────────────────────── */
-/** 무작위 32비트 값에서 "n_"+16진 8자 id를 만든다(out은 11바이트 이상) */
+/* ── id and phrases ───────────────────────────────────────────────────── */
+/** Builds an id of "n_" + 8 hex chars from a random 32-bit value (out must be at least 11 bytes) */
 void notes_id_from_random(uint32_t r, char out[11]);
 bool notes_id_looks_valid(const char *id);
-/** 0,10,30,60,120,1440분은 짧은 문구, 그 밖엔 분/시간/일 단위로(모두 영어: 비서 모델이 읽는 데이터) */
+/** 0, 10, 30, 60, 120, 1440 minutes get short phrases; others are in minutes/hours/days (all English: data the assistant model reads) */
 void notes_remind_phrase(int minutes, char *out, size_t cap);
 
-/** 날짜·UTF-8·검색·id·기준시각 계산 셀프테스트 (ESP-IDF 없이도 cc로 컴파일·실행됨) */
+/** Self-test for dates, UTF-8, search, id, and base-time computation (compiles and runs with cc even without ESP-IDF) */
 bool notes_selftest(void);
 
 #ifdef __cplusplus

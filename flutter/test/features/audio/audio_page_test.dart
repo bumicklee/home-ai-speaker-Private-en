@@ -42,7 +42,7 @@ void main() {
     await stream.close();
   });
 
-  // 카드 셋이 한 화면에 다 보이게
+  // so all three cards fit on one screen
   void tall(WidgetTester tester) {
     tester.view.physicalSize = const Size(400, 1600);
     tester.view.devicePixelRatio = 1;

@@ -1,6 +1,6 @@
 /*
- * 설정 그룹 JSON ↔ 기기 설정 (설계서 2.14절 /api/v1/settings/{group}, BLE settings.get/set).
- * 부분 수정: 요청에 있는 키만 바꾼다. 하나라도 틀리면 아무것도 바꾸지 않는다.
+ * Settings group JSON ↔ device settings (design document Section 2.14 /api/v1/settings/{group}, BLE settings.get/set).
+ * Partial update: only the keys in the request change. If any one of them is wrong, nothing changes.
  */
 #include "device_api.h"
 
@@ -20,7 +20,7 @@ static void notify(app_setting_t key)
     app_events_post(APP_EVT_SETTINGS_CHANGED, &key, sizeof(key), 0);
 }
 
-/* 정수 값이 있으면 범위를 확인해 out에 넣는다. 없으면 그대로. 타입·범위가 틀리면 false */
+/* If the integer value is present, check its range and put it in out. If absent, leave out as is. Wrong type or range → false */
 static bool take_int(const cJSON *obj, const char *key, int min, int max, int *out)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(obj, key);
@@ -47,7 +47,7 @@ static bool take_bool(const cJSON *obj, const char *key, bool *out)
     return true;
 }
 
-/* 허용된 키만 들어 있는지 */
+/* Whether only allowed keys are present */
 static bool only_keys(const cJSON *obj, const char *const *keys, size_t n)
 {
     if (!cJSON_IsObject(obj)) {
@@ -94,7 +94,7 @@ static esp_err_t audio_set(const cJSON *v)
         !take_int(v, "duck_db", 0, 40, &a.duck_db) || !take_bool(v, "spotify_pause_on_voice", &a.sp_pause_voice)) {
         return ESP_ERR_INVALID_ARG;
     }
-    /* 덕킹·Spotify 값을 먼저 저장하고, 볼륨·마이크는 적용 함수가 각자 저장한다 */
+    /* Save the ducking and Spotify values first; the volume and mic apply functions each save their own */
     a.volume = audio_core_get_volume();
     a.mic_gain = mic_gain();
     a.auto_gain = mic_auto_gain();
@@ -153,7 +153,7 @@ static esp_err_t assistant_set(const cJSON *v)
     if (!cJSON_IsObject(v)) {
         return ESP_ERR_INVALID_ARG;
     }
-    /* 현재 설정에 요청 값을 덮어쓴 뒤 assistant_save가 전체를 검증한다 (모르는 키가 있으면 키 개수로 거부) */
+    /* Overwrite the current settings with the request values, then assistant_save validates the whole set (an unknown key is rejected by the key count) */
     cJSON *merged = assistant_settings();
     if (!merged) {
         return ESP_ERR_NO_MEM;
@@ -172,11 +172,11 @@ static esp_err_t assistant_set(const cJSON *v)
         }
     }
     /*
-     * 키 검사 (docs/design-voice-saver-mode.md 11.1): ai_provider를 "이번 요청에서" 키가 없는 회사로 바꾸려
-     * 하면 거절. 앱이 화면에서 막지만 스피커도 한 번 더 막는다. LAN 409 NO_API_KEY, BLE
-     * {"ok":false,"error":"NO_API_KEY"} (local_api.c put_settings·ble_cmd.c err_code가
-     * ESP_ERR_NOT_ALLOWED를 NO_API_KEY로 바꾼다). ai_provider를 건드리지 않는 요청(이름 바꾸기 등)은
-     * 나중에 그 키가 지워졌더라도 여기서 막지 않는다 — 그건 대화 시작 때(live_voice_start) 막는다.
+     * Key check (docs/design-voice-saver-mode.md 11.1): a request that switches ai_provider "in this request" to a provider
+     * with no key is refused. The app blocks it on screen, but the speaker blocks it once more. LAN 409 NO_API_KEY, BLE
+     * {"ok":false,"error":"NO_API_KEY"} (local_api.c put_settings and ble_cmd.c err_code turn
+     * ESP_ERR_NOT_ALLOWED into NO_API_KEY). A request that does not touch ai_provider (renaming, etc.) is not
+     * blocked here even if that key was deleted later; that case is blocked when a conversation starts (live_voice_start).
      */
     if (cJSON_HasObjectItem(v, "ai_provider")) {
         const cJSON *provider = cJSON_GetObjectItemCaseSensitive(merged, "ai_provider");
@@ -219,7 +219,7 @@ static esp_err_t led_set(const cJSON *v)
     return err;
 }
 
-/* ── 공개 API ─────────────────────────────────────────────── */
+/* ── Public API ───────────────────────────────────────────── */
 
 cJSON *device_settings_get(const char *group)
 {

@@ -1,9 +1,9 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * 기존 펌웨어 wake_word.c 이식. 바뀐 점:
- * - live_voice·LED·USB를 직접 부르지 않고, 감지 결과를 APP_EVT_WAKE_DETECTED로 보낸다
- * - 설정은 settings 모듈(NVS wake 네임스페이스)에 저장하고 메모리에 캐시한다
- * - 대화 중 일시정지는 wake_pause/wake_resume으로 명시적으로 요청받는다
+ * Port of the original firmware's wake_word.c. What changed:
+ * - Doesn't call live_voice, the LED, or USB directly; sends the detection result as APP_EVT_WAKE_DETECTED
+ * - Settings are saved through the settings module (NVS wake namespace) and cached in memory
+ * - Pausing during a conversation is requested explicitly through wake_pause/wake_resume
  */
 #include "wake.h"
 
@@ -27,15 +27,15 @@
 static const char *TAG = "WAKE";
 
 #define FRAME_SAMPLES  256
-#define QUEUE_FRAMES   32     /* 약 0.5초 (PSRAM) */
-#define STATS_MS       60000  /* 진단 로그 주기 (튜닝 끝나면 1분) */
+#define QUEUE_FRAMES   32     /* about 0.5 s (PSRAM) */
+#define STATS_MS       60000  /* diagnostic log interval (1 minute now that tuning is done) */
 #define COOLDOWN_MS    3000
 #define TEST_MS        60000
-/* 발화 진단: 호출어 입력(증폭 후)이 이보다 크면 "소리 들림", 이만큼 조용하면 끝 */
+/* Utterance diagnostics: wake-word input (after gain) above this counts as "sound heard"; this quiet means it ended */
 #define UTTER_ON       3000
 #define UTTER_OFF      1000
 #define UTTER_GAP_MS   600
-#define UTTER_MIN_MS   200    /* 짧은 딸깍 소리는 남기지 않는다 (콘솔 입력을 덜 방해하게) */
+#define UTTER_MIN_MS   200    /* short clicks are not logged (so they get in the way of console input less) */
 
 typedef struct {
     size_t count;
@@ -46,17 +46,17 @@ static settings_wake_t s_cfg;
 static SemaphoreHandle_t s_lock;
 static QueueHandle_t s_audio;
 static atomic_bool s_running;           /* wake_start ~ wake_stop */
-static atomic_bool s_available;         /* 모델이 올라가 듣는 중 */
+static atomic_bool s_available;         /* model loaded and listening */
 static atomic_bool s_pause_requested, s_pause_done;
-static atomic_bool s_task_alive;        /* 모델을 못 올려 태스크가 끝났으면 false */
+static atomic_bool s_task_alive;        /* false if the model couldn't be loaded and the task ended */
 static atomic_uint s_test_until;
 static atomic_uint s_detections, s_dropped;
-static atomic_uint s_fed_peak;          /* 게인을 준 뒤 최대 진폭 (진단) */
-static atomic_int s_gain_q8 = 256 * 4;  /* 디지털 게인 (Q8, 256 = 1배). wake_set_config가 갱신 */
+static atomic_uint s_fed_peak;          /* peak amplitude after gain (diagnostics) */
+static atomic_int s_gain_q8 = 256 * 4;  /* digital gain (Q8, 256 = 1x). Updated by wake_set_config */
 
 static int gain_q8_from_db(int db)
 {
-    /* 10^(db/20) × 256 — 3dB 단위 표로 (부동소수점 없이) */
+    /* 10^(db/20) × 256 — as a table in 3dB steps (no floating point) */
     static const int table[] = {256, 362, 511, 722, 1020, 1441, 2035, 2875, 4062};   /* 0,3,…,24 dB */
     db = db < 0 ? 0 : (db > 24 ? 24 : db);
     return table[db / 3];
@@ -112,7 +112,7 @@ esp_err_t wake_test(bool enable)
 bool wake_pause(void)
 {
     if (!atomic_load(&s_task_alive)) {
-        return true;    /* 쥐고 있는 메모리가 없다 */
+        return true;    /* holding no memory */
     }
     atomic_store(&s_pause_done, false);
     atomic_store(&s_pause_requested, true);
@@ -139,7 +139,7 @@ esp_err_t wake_stop(void)
     return ESP_OK;
 }
 
-/* 마이크 태스크에서 불린다. 막지 않고, 큐가 차면 버린다 */
+/* Called from the mic task. Never blocks; drops the frame when the queue is full */
 static void wake_feed(const int16_t *samples, size_t count)
 {
     if (!atomic_load(&s_available)) {
@@ -149,9 +149,9 @@ static void wake_feed(const int16_t *samples, size_t count)
         size_t n = count > FRAME_SAMPLES ? FRAME_SAMPLES : count;
         wake_frame_t f = {.count = n};
         /*
-         * 호출어 입력에만 디지털 게인을 준다. 실기기에서 "Jarvis"를 말할 때 최대 진폭이 500–1,100
-         * (최대의 2–3%)뿐이라 WakeNet이 감지하지 못했다 (책 6장 버그 4). 대화 업로드는 그대로 둔다.
-         * 넘치는 값은 잘라 낸다(찌그러짐보다 놓침이 더 나쁘다).
+         * Digital gain is applied to the wake-word input only. On the real board, saying "Jarvis" gave a peak amplitude of only 500–1,100
+         * (2–3% of maximum), so WakeNet couldn't detect it (Chapter 6, Bug 4). The conversation upload is left as is.
+         * Values that overflow are clipped (a missed detection is worse than distortion).
          */
         int g = atomic_load(&s_gain_q8);
         unsigned peak = atomic_load(&s_fed_peak);
@@ -177,8 +177,8 @@ static void wake_feed(const int16_t *samples, size_t count)
 static srmodel_list_t *s_models;
 
 /*
- * 스택이 PSRAM이라 플래시 작업(NVS·파티션 매핑)을 하면 안 된다 (책 7장 7.3절).
- * 모델 목록은 wake_init()이 main 태스크에서 미리 연다.
+ * The stack is in PSRAM, so it must not do flash work (NVS, partition mapping) (Chapter 7, Section 7.3).
+ * The model list is opened ahead of time by wake_init() in the main task.
  */
 static void wake_task(void *arg)
 {
@@ -189,10 +189,10 @@ static void wake_task(void *arg)
     size_t used = 0;
     int16_t *buffer = NULL;
     uint32_t cooldown = now_ms() + COOLDOWN_MS, seen_dropped = 0;
-    /* 진단: 실시간을 따라가는지 (chunk 하나 처리 시간 < chunk 길이여야 한다) */
+    /* Diagnostics: is it keeping up with real time (processing one chunk must take less than the chunk's length) */
     uint32_t stat_since = now_ms(), stat_frames = 0, stat_detects = 0, stat_max_us = 0;
     uint64_t stat_total_us = 0;
-    /* 발화 하나(소리가 났다 그친 구간)마다 "감지 안 됨"을 남긴다. 말했는데 못 알아들을 때 크기·길이를 본다 */
+    /* For each utterance (a stretch where sound started and stopped), log "not detected". When you spoke and it missed, check loudness and length */
     bool utter = false;
     uint32_t utter_start = 0, utter_last = 0;
     int utter_peak = 0;
@@ -203,7 +203,7 @@ static void wake_task(void *arg)
         bool testing = wake_is_testing();
         bool paused = atomic_load(&s_pause_requested) || !atomic_load(&s_running) || (!cfg.enabled && !testing);
         if (paused) {
-            /* 모델을 내려 메모리를 돌려준다 (대화 중 TLS용) */
+            /* Unload the model to give the memory back (for TLS during a conversation) */
             atomic_store(&s_available, false);
             if (model) {
                 engine->destroy(model);
@@ -267,7 +267,7 @@ static void wake_task(void *arg)
         }
 
         if (sensitivity != cfg.sensitivity) {
-            /* 50%가 제조사 기본 문턱값. 높을수록 민감하다 */
+            /* 50% is the manufacturer's default threshold. Higher is more sensitive */
             engine->reset_det_threshold(model);
             float threshold = engine->get_det_threshold(model, 1) + (50 - cfg.sensitivity) * 0.004f;
             threshold = threshold < 0.4f ? 0.4f : (threshold > 0.95f ? 0.95f : threshold);
@@ -296,7 +296,7 @@ static void wake_task(void *arg)
         if (depth > stat_queue_max) {
             stat_queue_max = depth;
         }
-        /* 프레임을 잃었으면 만들던 조각만 버린다 (큐에 쌓인 소리는 살린다) */
+        /* If a frame was lost, drop only the chunk being built (keep the sound already queued) */
         if (seen_dropped != atomic_load(&s_dropped)) {
             seen_dropped = atomic_load(&s_dropped);
             used = 0;
@@ -346,7 +346,7 @@ static void wake_task(void *arg)
             if (detected > 0 && (int32_t)(now_ms() - cooldown) >= 0) {
                 cooldown = now_ms() + COOLDOWN_MS;
                 xQueueReset(s_audio);
-                utter = false;      /* 감지됐으니 이 발화는 로그하지 않는다 */
+                utter = false;      /* detected, so don't log this utterance */
                 unsigned count = atomic_fetch_add(&s_detections, 1) + 1;
                 ESP_LOGI(TAG, "wake word detected (%u)", count);
                 if (wake_is_testing()) {
@@ -374,9 +374,9 @@ esp_err_t wake_init(void)
     s_models = esp_srmodel_init(APP_PART_MODEL);
     if (!s_models) {
         ESP_LOGE(TAG, "wake models unavailable; Key2 still starts a conversation");
-        return ESP_OK;      /* 태스크 없음: wake_pause()는 바로 성공한다 */
+        return ESP_OK;      /* no task: wake_pause() succeeds immediately */
     }
-    audio_core_set_wake_sink(wake_feed);    /* 조용할 때는 원본 마이크, 스피커가 소리를 내면 AEC 출력 */
+    audio_core_set_wake_sink(wake_feed);    /* raw microphone when quiet, AEC output while the speaker is playing */
     atomic_store(&s_task_alive, true);
     return xTaskCreatePinnedToCoreWithCaps(wake_task, "wake", 12288, NULL, 4, NULL, 0,
                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;

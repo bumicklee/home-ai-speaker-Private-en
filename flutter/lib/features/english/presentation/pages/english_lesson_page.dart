@@ -11,7 +11,7 @@ import '../bloc/lesson_cubit.dart';
 import 'english_report_page.dart';
 import 'english_texts.dart';
 
-/// 수업 중 (디자인 "수업 중": 프리토킹 + 선생님이 고쳐 준 표현)
+/// During the lesson (design "In Lesson": free talking + expressions the tutor corrected)
 class EnglishLessonPage extends StatelessWidget {
   const EnglishLessonPage({super.key, this.initial});
 
@@ -40,11 +40,11 @@ class _LessonView extends StatelessWidget {
         final lesson = s.lesson;
         if (lesson == null) return;
         if (lesson.isSummarizing || lesson.isDone) {
-          // 수업이 끝나면 정리 화면으로 (정리 중이어도 넘어가서 기다린다)
+          // When the lesson ends, go to the summary screen (go even while it is summarizing, and wait there)
           Navigator.pushReplacement(
               context, MaterialPageRoute<void>(builder: (_) => EnglishReportPage(initial: lesson)));
         } else if (lesson.state == 'idle') {
-          // 수업 세션이 열리지 않음 (연결 실패 등): 코스 화면으로
+          // The lesson session did not open (connection failure etc.): back to the course screen
           Navigator.pop(context);
         }
       },
@@ -130,7 +130,7 @@ class _LessonView extends StatelessWidget {
   }
 }
 
-/// 고쳐 준 표현 + 발음 팁 (정리 화면에서도 쓴다)
+/// Corrected expressions + pronunciation tips (also used on the summary screen)
 class _CorrectionsCard extends StatelessWidget {
   const _CorrectionsCard({required this.lesson});
 

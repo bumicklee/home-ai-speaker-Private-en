@@ -1,222 +1,222 @@
-# 작업 방식 양식
+# Working-Method Templates
 
-책 부록 K의 범용 템플릿(T-01~T-08), 리뷰 프롬프트(PR-01~PR-03), RCA 양식(PD-03), 기획·설계·인수인계를 처음 만드는 장별 프롬프트를 `/speaker-method` 인자별로 모았다. 괄호 안을 내 것으로 바꿔 쓴다. 프롬프트는 책과 같은 글이다.
+The general templates (T-01–T-08), review prompts (PR-01–PR-03), and RCA format (PD-03) from Appendix K of the book, plus the chapter prompts that first create the plan, design, and handoff documents, collected by `/speaker-method` argument. Replace the parts in parentheses with your own. The prompts are the same text as in the book.
 
-| 인자 | 양식 |
+| Argument | Templates |
 |:--|:--|
-| `plan` | 새 기능 기획서 1쪽: T-01, P02-01, P02-02, P21-01 |
-| `design` | 설계서 절 쓰기: T-02, P20-02, P21-02 |
-| `handoff` | 인수인계 문서 갱신: T-07, P02-03, P02-04 |
-| `rca` | 장애 분석 보고서: T-05, PD-03, T-06 |
-| `review` | 기존 코드와 대조하는 적대적 리뷰: PR-01 |
-| `security` | 보안 관점 리뷰: T-04, PR-02, PR-03 |
-| (인자 없이) | 공통: T-03 구현 요청, T-08 커밋 요청 |
+| `plan` | One-page plan document for a new feature: T-01, P02-01, P02-02, P21-01 |
+| `design` | Writing a design document section: T-02, P20-02, P21-02 |
+| `handoff` | Updating the handoff document: T-07, P02-03, P02-04 |
+| `rca` | Failure analysis report: T-05, PD-03, T-06 |
+| `review` | Adversarial review against the existing code: PR-01 |
+| `security` | Review from a security perspective: T-04, PR-02, PR-03 |
+| (no argument) | Common: T-03 implementation request, T-08 commit request |
 
-새 기능을 처음부터 만들 때는 `plan` → `design` → T-03(구현) → `review`·`security` → `rca`(문제가 생기면) → T-08(커밋) → `handoff` 순서로 쓴다.
+When building a new feature from scratch, use them in this order: `plan` → `design` → T-03 (implementation) → `review`, `security` → `rca` (if a problem comes up) → T-08 (commit) → `handoff`.
 
-## `plan` — 새 기능 기획서 1쪽
+## `plan` — One-Page Plan Document for a New Feature
 
-범용 양식은 T-01이다. P02-01·P02-02는 2장에서 처음 기획서와 기능표를 만들 때, P21-01은 다 쓴 기획서를 검토받을 때 쓴다.
+The general template is T-01. Use P02-01 and P02-02 when you first create the plan document and feature table in Chapter 2, and P21-01 when you want a finished plan document reviewed.
 
-### T-01 새 기능 기획서 1쪽
+### T-01 One-page plan document for a new feature
 ```text
-기준 문서: 이 책 2장의 기획서 템플릿, docs/01-plan/ 의 기존 기능표.
-(기능 이름) 기획서 1쪽을 docs/01-plan/(슬러그).plan.md 로 써 줘. 목표(누가, 언제, 무엇을), 성공 기준(로그 한 줄이나 소리·LED로 확인 가능한 문장), 범위 제외, 위험, 결정할 것(답 칸은 "미정").
-바꾸면 안 되는 것: 서버 없는 구조, Android 앱, 기존 기능의 동작. 코드는 쓰지 마. 결정은 내가 한다.
-확인 방법: A4 1쪽(약 60줄) 안. 성공 기준마다 확인할 로그나 행동이 붙어 있어야 한다.
+Reference document: the plan document template in Chapter 2 of this book, the existing feature table in docs/01-plan/.
+Write a one-page plan document for (feature name) as docs/01-plan/(slug).plan.md. Goal (who, when, what), success criteria (sentences confirmable by one log line or a sound or LED), out of scope, risks, decisions to make (answer column "undecided").
+Do not change: the server-free design, the Android app, the behavior of existing features. Don't write code. I make the decisions.
+How to verify: within one A4 page (about 60 lines). Each success criterion must have the log or behavior to check attached.
 ```
 
-### P02-01 기획서 1쪽 · 2장 2.3절
+### P02-01 One-page plan document · Chapter 2, Section 2.3
 ```text
-기준 문서: 이 책 2장의 기획서 템플릿. 내 메모(0장에서 적은 "우리 집이 원하는 기능" 목록)를 붙인다.
-docs/01-plan/home-speaker.plan.md 를 템플릿 순서대로 써 줘. 1절 목표 표에는 내 메모의 기능을 F1~F7로 넣고, 우선순위는 비워 둬(내가 정한다). 6절 결정 D1~D8은 이 책 2장의 질문을 그대로 두고 답 칸을 "미정"으로 둬.
-바꾸면 안 되는 것: 대상 보드(Waveshare ESP32-S3-AUDIO-Board), ESP-IDF v5.5, 서버 없는 구조. 내 메모에 없는 기능을 추가하지 않는다.
-확인 방법: 1쪽(A4 기준 약 60줄) 안에 들어가야 한다. 넘으면 2절 참조 자료와 8절 리스크를 줄여라.
+Reference document: the plan document template in Chapter 2 of this book. I'm attaching my notes (the "features our family wants" list from Chapter 0).
+Write docs/01-plan/home-speaker.plan.md in the template's order. In the goals table of section 1, put the features from my notes as F1–F7 and leave the priority empty (I'll decide). For decisions D1–D8 in section 6, keep the questions from Chapter 2 of this book as they are and set the answer column to "undecided".
+Do not change: the target board (Waveshare ESP32-S3-AUDIO-Board), ESP-IDF v5.5, the server-free design. Do not add features that are not in my notes.
+How to verify: it must fit on one page (about 60 lines on A4). If it runs over, trim the section 2 references and the section 8 risks.
 ```
-**확인 방법** `wc -l docs/01-plan/home-speaker.plan.md`. **막히면** 메모에 없는 기능이 들어갔으면: "내 메모의 줄과 기획서 1절 표를 나란히 놓고, 메모에 없는 줄을 지워 줘."
+**How to verify** `wc -l docs/01-plan/home-speaker.plan.md`. **If you get stuck** If a feature that isn't in your notes got in: "Put the lines of my notes and the section 1 table of the plan side by side, and delete the lines that aren't in my notes."
 
-### P02-02 기능표 초안 · 2장 2.3절
+### P02-02 Feature table draft · Chapter 2, Section 2.3
 ```text
-기준 문서: 방금 쓴 home-speaker.plan.md 1절과 이 책 2장의 기능표 템플릿.
-docs/01-plan/home-speaker.features.md 에 F1~F7을 영역 코드(SYS, PRV, VOI, AST, RAD, TLG, APP, OTA)로 나눠 기능 ID를 붙여 줘. 영역별 기능 수 표를 맨 위에 둬. 우선순위 열은 전부 "P?"로 비워 둬.
-바꾸면 안 되는 것: ID 규칙 '영역-번호'. 완료 기준은 반드시 눈·귀·로그로 확인할 수 있는 문장으로 쓴다("동작한다"는 금지).
-확인 방법: 표의 줄 수와 맨 위 집계가 일치해야 한다. grep -c '^| [A-Z]\{3\}-' 로 세어서 보여 줘.
+Reference document: section 1 of the home-speaker.plan.md you just wrote and the feature table template in Chapter 2 of this book.
+In docs/01-plan/home-speaker.features.md, split F1–F7 by area code (SYS, PRV, VOI, AST, RAD, TLG, APP, OTA) and assign feature IDs. Put a table of feature counts per area at the top. Leave the whole priority column as "P?".
+Do not change: the ID rule 'area-number'. Completion criteria must be sentences you can verify by eye, ear, or log ("it works" is forbidden).
+How to verify: the number of rows in the table must match the tally at the top. Count with grep -c '^| [A-Z]\{3\}-' and show me.
 ```
-**확인 방법** 내가 같은 `grep -c`를 돌려 숫자를 맞춰 본다. **막히면** "동작한다"가 남았으면: "완료 기준 열에서 '동작', '정상', '잘'이 들어간 칸을 찾아 로그 한 줄이나 소리·LED로 바꿔 줘."
+**How to verify** Run the same `grep -c` yourself and compare the numbers. **If you get stuck** If "it works" is still there: "Find the cells in the completion criteria column that contain 'works', 'normal', or 'fine', and replace them with a log line or a sound or LED."
 
-### P21-01 새 기능 기획서 검토 · 21장 21.3절
-**언제** 졸업 과제(안부 확인)를 시작할 때. 기획서는 T-01로 먼저 쓴다.
+### P21-01 Reviewing a new feature's plan document · Chapter 21, Section 21.3
+**When** When starting the graduation project (wellness check). Write the plan document first with T-01.
 ```text
-docs/01-plan/wellness-check.plan.md 를 읽고 세 가지만 답해 줘. (1) 성공 기준이 로그 한 줄로 확인 가능한가. (2) "범위 제외"에 빠진 위험이 있는가(예: Wi-Fi가 하루 종일 끊긴 경우). (3) 기존 기능표의 ID 체계에 맞는 ID를 F1~F4에 붙여 줘.
-바꾸면 안 되는 것: 기획서 본문. 제안만 표로.
-확인 방법: 표(항목 | 지금 | 제안 | 이유).
+Read docs/01-plan/wellness-check.plan.md and answer three things only. (1) Can the success criteria be confirmed by a single log line? (2) Is there a risk missing from "out of scope" (for example, Wi-Fi down all day)? (3) Assign F1–F4 IDs that fit the existing feature table's ID scheme.
+Do not change: the plan document body. Proposals only, in a table.
+How to verify: a table (item | now | proposal | reason).
 ```
-**확인 방법** 표를 읽고 받아들일 것만 내가 기획서에 옮긴다. **막히면** 제안이 기획서를 고쳐 버렸으면 `git checkout -- docs/01-plan/wellness-check.plan.md`로 되돌린다.
+**How to verify** Read the table and carry only what you accept into the plan document. **If you get stuck** If the proposal modified the plan document, revert with `git checkout -- docs/01-plan/wellness-check.plan.md`.
 
-## `design` — 설계서 절 쓰기
+## `design` — Writing a Design Document Section
 
-범용 양식은 T-02다. P20-02는 메모를 설계서 1쪽으로 바꾼 예, P21-02는 다 쓴 설계서를 기존 설계서와 대조해 검증하는 예다. 설계서를 쓴 뒤 구현은 T-03(맨 아래 "공통")으로 요청한다.
+The general template is T-02. P20-02 is an example of turning notes into a one-page design document, and P21-02 is an example of validating a finished design document against the existing one. After writing the design document, request the implementation with T-03 ("Common" at the bottom).
 
-### T-02 설계서 절 쓰기
+### T-02 Writing a design document section
 ```text
-기준 문서: docs/01-plan/(슬러그).plan.md, 설계서 docs/design.md 의 (관련 절 이름들), 실제 코드 (관련 폴더).
-docs/design-(슬러그).md 를 써 줘. 절: 데이터, 펌웨어(어느 컴포넌트, 새 태스크 여부, 메모리 위치), LAN·BLE API(경로·JSON·오류 코드), 앱, 로그(무엇을 찍고 무엇을 찍지 않는지), 시험(셀프테스트·실기기).
-바꾸면 안 되는 것: 기존 설계서와 코드. 설계서와 코드가 다르면 코드를 기준으로 쓰고 다른 점을 표로 따로 적어.
-확인 방법: 모든 새 API에 오류 응답이 있고, 모든 새 버퍼에 위치(내부 RAM/PSRAM)가 적혀 있어야 한다. 끝에 '남은 질문' 절.
-```
-
-### P20-02 긴급 모드 설계서 · 20장 20.3절
-```text
-할 일 목록에 적어 둔 '긴급 모드' 메모를 바탕으로 긴급 모드 설계서 1쪽을 docs/design-emergency-mode.md 로 써 줘. 코드는 쓰지 마라.
-기준 문서: 할 일 목록의 '긴급 모드' 메모(동작·감지 단어·한계·하지 않는 것·구현 메모), 15장에서 만든 텔레그램 툴 보호(tool_guard TLG-14), 설계서(docs/design.md)의 'LAN API' 절.
-바꾸면 안 되는 것: TLG-14 보호는 긴급 툴만 예외로 둔다. 119 직접 전화·문자는 하지 않는다. "스피커를 주된 신고 수단으로 안내하지 않는다"를 설계서 첫 줄에 쓴다.
-확인 방법: 설계서에 (1) 동작 5단계, (2) 감지 단어 묶음 표, (3) 한계 5가지, (4) 하지 않는 것, (5) 펌웨어·앱·시험 메모가 있어야 한다. 그 이상은 쓰지 않는다.
-```
-**확인 방법** 다섯 묶음이 있는지 내가 읽는다. 첫 줄 문장을 확인한다. **막히면** 설계서가 신고 기능을 약속하는 문장을 쓰면 지우게 한다.
-
-### P21-02 설계서 검증 · 21장 21.3절
-**언제** 설계서를 T-02로 쓴 뒤.
-```text
-docs/design-wellness-check.md 를 설계서 docs/design.md 의 'LAN API' 절, docs/design-notes-schedule.md 의 '알림 엔진' 절, API 규격 문서의 설정(GET/PUT /settings/{그룹}) 절과 '어디에 무엇이 저장되나' 절과 대조해 줘.
-찾을 것: (1) 설정 그룹 추가 규칙에 어긋나는 곳, (2) 알림 엔진 틱에 끼울 때 기존 일정 알림과 같은 분에 몰리면 어떻게 되는지, (3) NVS 키 이름 충돌.
-바꾸면 안 되는 것: 기존 설계서. 코드도 쓰지 마라.
-확인 방법: 표(절 | 문제 | 근거 파일:절 | 고칠 문장).
-```
-**확인 방법** "고칠 문장" 열을 내가 골라 설계서에 반영한다. **막히면** NVS 키 이름은 15자 제한이 있다. 충돌 검사에 이 제한도 넣으라고 덧붙인다.
-
-## `handoff` — 인수인계 문서 갱신
-
-세션을 끝내기 전에 T-07을 보낸다. P02-03·P02-04는 2장에서 HANDOFF와 CLAUDE.md를 처음 만들 때 쓴다.
-
-### T-07 인수인계(HANDOFF) 갱신
-```text
-기준 문서: 이 책 2장의 HANDOFF 템플릿과 지금 docs/HANDOFF.md.
-이번 세션에서 한 일로 docs/HANDOFF.md 를 갱신해 줘.
-- 머리 상태 한 줄을 바꿔.
-- 3절에 이번에 내가 확정한 결정을 더해(내가 말한 것만).
-- 4절에 리뷰에서 제안했지만 내가 확인하지 않은 것을 옮겨.
-- 7절에서 끝난 일은 지우지 말고 취소선 + ✅로. 각 항목에 "실기기 미검증"인지 표시.
-- 다음 세션이 가장 먼저 할 일 하나를 7절 맨 위에.
-바꾸면 안 되는 것: "다음 세션은 이 문서부터 읽는다" 줄, 5절의 커밋 규칙. 비밀값은 쓰지 마.
-확인 방법: git diff docs/HANDOFF.md 만 보여 줘.
+Reference document: docs/01-plan/(slug).plan.md, the (names of related sections) of the design document docs/design.md, the actual code in (related folder).
+Write docs/design-(slug).md. Sections: data, firmware (which component, whether a new task, memory location), LAN and BLE API (routes, JSON, error codes), app, logs (what is printed and what is not), tests (self-test, real board).
+Do not change: the existing design documents and code. Where the design document and the code differ, write based on the code and put the differences in a separate table.
+How to verify: every new API has an error response, and every new buffer has its location (internal RAM/PSRAM) written down. An 'Open Questions' section at the end.
 ```
 
-### P02-03 인수인계 문서 만들기 · 2장 2.3절
+### P20-02 Emergency mode design document · Chapter 20, Section 20.3
 ```text
-기준 문서: 이 책 2장의 HANDOFF 템플릿.
-docs/HANDOFF.md 를 만들어 줘. 상태는 "문서만 있음, 코드 없음". 7절 다음에 할 일은 "4장 펌웨어 골격" 하나만.
-바꾸면 안 되는 것: 머리의 "다음 세션은 이 문서부터 읽는다" 한 줄. 5절에 "커밋은 내가 요청할 때만 만든다"를 넣는다.
-확인 방법: 파일을 만든 뒤 git status 만 보여 주고 커밋은 하지 마라.
+Based on the 'emergency mode' note in the to-do list, write a one-page emergency mode design document as docs/design-emergency-mode.md. Don't write code.
+Reference document: the 'emergency mode' note in the to-do list (behavior, trigger words, limits, what it doesn't do, implementation notes), the Telegram tool protection from Chapter 15 (tool_guard TLG-14), the 'LAN API' section of the design document (docs/design.md).
+Do not change: the TLG-14 protection makes an exception only for the emergency tool. No direct calls or texts to 119 (emergency services). Write "the speaker is not presented as the primary way to call for help" on the first line of the design document.
+How to verify: the design document must have (1) the 5 steps of behavior, (2) a table of trigger word groups, (3) 5 limits, (4) what it doesn't do, (5) firmware, app, and test notes. Write nothing beyond that.
 ```
-**확인 방법** `head -5 docs/HANDOFF.md`. **막히면** 이후 세션마다 T-07로 갱신한다.
+**How to verify** Read it yourself for the five groups. Check the first-line sentence. **If you get stuck** If the design document writes a sentence promising an emergency-call feature, have it deleted.
 
-### P02-04 CLAUDE.md 만들기 · 2장 2.3절
+### P21-02 Validating the design document · Chapter 21, Section 21.3
+**When** After writing the design document with T-02.
 ```text
-기준 문서: 이 책 2장의 CLAUDE.md 템플릿과 docs/HANDOFF.md.
-저장소 맨 위에 CLAUDE.md 를 만들어 줘. 먼저 읽을 것, 빌드·시험 명령, 코딩 규칙(설계서 '코딩 규칙' 절을 가리키기만), 비밀값 규칙, 범위(Android만, 스토어 배포 없음), Git 규칙 여섯 묶음으로.
-바꾸면 안 되는 것: 한 화면 안. 설계서 내용을 옮겨 적지 말고 절 이름으로 가리킨다. 마지막 줄은 "보안을 낮추는 변경은 위험·남는 보호·되돌리는 법을 먼저 설명하고 내 결정을 기다린다".
-확인 방법: 새 세션을 열어 "커밋 규칙이 뭐야?"라고 물었을 때 이 파일의 문장으로 답해야 한다.
+Check docs/design-wellness-check.md against the 'LAN API' section of the design document docs/design.md, the 'Reminder Engine' section of docs/design-notes-schedule.md, and the settings (GET/PUT /settings/{group}) section and the 'Where everything is stored' section of the API spec document.
+Find: (1) places that violate the rule for adding a settings group, (2) what happens when it hooks into the reminder engine tick and lands in the same minute as an existing schedule reminder, (3) NVS key name collisions.
+Do not change: the existing design documents. Don't write code either.
+How to verify: a table (section | problem | source file:section | sentence to fix).
 ```
-**확인 방법** 새 세션에서 직접 물어본다. **막히면** 파일이 길어지면: "CLAUDE.md에서 설계서·HANDOFF에 이미 있는 내용을 지우고 그 문서를 가리키는 한 줄로 바꿔 줘."
+**How to verify** Choose from the "sentence to fix" column and apply it to the design document yourself. **If you get stuck** NVS key names are limited to 15 characters. Add that this limit should be part of the collision check.
 
-## `rca` — 장애 분석 보고서
+## `handoff` — Updating the Handoff Document
 
-로그를 받으면 T-05로 시간 순서와 원인·결과를 먼저 가른다. 원인 분석 문서는 PD-03 양식으로 고치기 전에 쓰기 시작하고, 고친 뒤 T-06으로 마무리한다.
+Send T-07 before ending a session. Use P02-03 and P02-04 when you first create HANDOFF and CLAUDE.md in Chapter 2.
 
-### T-05 로그 분석
+### T-07 Updating the handoff (HANDOFF)
 ```text
-로그를 붙인다(타임스탬프 그대로, 자르지 않음). (로그)
-(무엇을 했는지) 했더니 (무엇이 보였다/안 보였다).
-1) 시간 순서로 무슨 일이 있었는지 줄 번호 없이 타임스탬프로 짚어 설명해 줘.
-2) 오류·경고 줄마다 "원인인가, 결과인가"를 표시해.
-3) 지금 펌웨어에 이 로그 문구가 있는지 grep 으로 확인해(옛 펌웨어 로그일 수 있다).
-아직 고치지 마.
-```
-
-### PD-03 RCA 문서 쓰기
-```text
-docs/rca_<슬러그>.md 에 원인 분석 문서를 써 줘. 기준: 이 책 19장의 RCA 양식(문제 하나면 양식 A, 여러 개가 얽혔으면 양식 B).
-머리: 작성일, 대상 펌웨어 커밋(git rev-parse --short HEAD 결과), 상태 한 줄.
-양식 A: 증상(로그 그대로, 전후 5줄) | 직접 원인 | 근본 원인 | 키운 원인 | 영향 | 조치 | 남은 일. 그 뒤 시간 순서, 무엇이 아니었나, 왜 개발 중에 못 잡았나, 확인 방법(기대 로그), 재발 방지 표.
-바꾸면 안 되는 것: 직접 원인과 근본 원인을 같은 문장으로 쓰지 마. 상태는 "빌드 통과"와 "✅ 실기기 확인"을 구분해. 내가 실기기에서 보지 않은 것은 "실기기 확인 필요"로 둬.
-확인 방법: 재발 방지 표에 "로그를 추가했다" 또는 "셀프테스트에 넣었다"가 적어도 한 줄.
-```
-**확인 방법** 코드를 고치기 전에 쓰기 시작한다. 고친 뒤 상태 열만 갱신한다.
-
-### T-06 RCA 작성
-```text
-방금 고친 문제로 RCA를 써 줘. PD-03 양식을 따른다.
-붙이는 것: 증상 로그, 고친 diff 요약, 확인 로그(있으면).
-상태는 내가 실기기에서 본 것만 "✅ 실기기 확인"으로. 재발 방지 표에 다음에 더 빨리 찾게 해 줄 로그나 셀프테스트를 한 줄 이상.
+Reference document: the HANDOFF template in Chapter 2 of this book and the current docs/HANDOFF.md.
+Update docs/HANDOFF.md with what was done in this session.
+- Change the one-line status at the top.
+- Add the decisions I settled this time to section 3 (only what I said).
+- Move what the review proposed but I haven't confirmed to section 4.
+- In section 7, don't delete finished items; strike them through and add ✅. Mark each item as "not verified on hardware" where that applies.
+- Put the one thing the next session should do first at the top of section 7.
+Do not change: the line "The next session reads this document first", the commit rule in section 5. Don't write secrets.
+How to verify: show only git diff docs/HANDOFF.md.
 ```
 
-## `review` — 기존 코드와 대조하는 적대적 리뷰
-
-리뷰한 세션과 고치는 세션을 나눈다. 받은 표에서 고칠 줄을 고른 뒤 T-03으로 고치게 한다.
-
-### PR-01 주석과 코드를 한 줄씩 대조
-**언제** 검증된 코드를 옮긴 직후(6장 방식).
+### P02-03 Creating the handoff document · Chapter 2, Section 2.3
 ```text
-너는 리뷰어다. 코드를 고치지 말고 보고만 해라.
-대상: firmware/components/live_voice/, firmware/components/assistant/.
-기준: 각 소스 파일 머리 주석의 "그대로 둔 것 / 바뀐 것"을 먼저 읽어라.
-할 일: 머리 주석과 코드를 한 줄씩 대조해, (1) 바뀌었는데 주석에 적히지 않은 곳, (2) 세션 번호·상태 플래그·실패 표시의 순서가 달라진 곳, (3) 태스크 두 개가 같은 변수를 잠금 없이 만지는 곳을 찾아라.
-출력: 표(파일·함수 | 주석이 말하는 동작 | 지금 동작 | 영향 | 심각도). 추정이면 "추정"이라고 써라.
-바꾸면 안 되는 것: 아무것도 수정하지 않는다.
-확인 방법: 표의 각 줄에 재현 순서를 한 줄 붙여라. 내가 로그로 확인한다.
+Reference document: the HANDOFF template in Chapter 2 of this book.
+Create docs/HANDOFF.md. The status is "docs only, no code". The only item under section 7, next steps, is "Chapter 4 firmware skeleton".
+Do not change: the one line at the top, "The next session reads this document first". Put "Commits are made only when I ask" in section 5.
+How to verify: after creating the file, show only git status and don't commit.
 ```
-**확인 방법** 받은 표에서 내가 고칠 줄을 고른 뒤 T-03으로 고치게 한다. 리뷰한 세션과 고치는 세션을 나눈다.
+**How to verify** `head -5 docs/HANDOFF.md`. **If you get stuck** Update it with T-07 in every later session.
 
-## `security` — 보안 관점 리뷰
-
-범용 양식은 T-04, 이 책 스피커에 맞춘 예가 PR-02다. 보호를 풀어 달라고 하고 싶을 때는 PR-03 순서를 지킨다.
-
-### T-04 리뷰 요청 (보안 관점)
+### P02-04 Creating CLAUDE.md · Chapter 2, Section 2.3
 ```text
-너는 보안 리뷰어다. 코드를 고치지 말고 보고만 해라.
-대상: (폴더·파일). 기준: (라이브러리 소스 경로)와 설계서의 '(절 이름)' 절.
-질문: ① 밖에서 들어오는 입력만으로 기능을 멈추거나 메모리를 다 쓰게 할 수 있는가. ② 비밀값이 지워지지 않고 남는 버퍼·로그가 있는가. ③ 버퍼보다 큰 입력이 오면 무슨 일이 나는가. ④ 이 코드가 도는 태스크의 스택이 충분한가. ⑤ 외부 글이 AI 지시로 둔갑하는 길이 있는가.
-출력: 표(문제 | 어떻게 일어나나 | 필요한 조건 | 고칠 방법 후보). 근거는 파일과 함수 이름. 재현 방법을 한 줄씩.
+Reference document: the CLAUDE.md template in Chapter 2 of this book and docs/HANDOFF.md.
+Create CLAUDE.md at the top of the repository, in six groups: what to read first, build and test commands, coding rules (only point to the 'Coding Rules' section of the design document), secrets rules, scope (Android only, no store release), and Git rules.
+Do not change: it fits on one screen. Don't copy the contents of the design document; point to it by section name. The last line is "For any change that lowers security, first explain the risk, the protection that remains, and how to revert, then wait for my decision".
+How to verify: when I open a new session and ask "What are the commit rules?", the answer must be in this file's words.
 ```
+**How to verify** Ask it yourself in a new session. **If you get stuck** If the file grows long: "In CLAUDE.md, delete what's already in the design document or HANDOFF and replace it with one line that points to that document."
 
-### PR-02 보안 관점 리뷰 (ESP-IDF 소스와 대조)
-**언제** BLE·LAN·텔레그램처럼 밖에서 입력이 들어오는 코드를 만든 뒤.
+## `rca` — Failure Analysis Report
+
+When you get a log, first sort out the time order and the causes and effects with T-05. Start the root cause analysis document in the PD-03 format before fixing anything, and wrap it up with T-06 after the fix.
+
+### T-05 Log analysis
 ```text
-너는 보안 리뷰어다. 코드를 고치지 말고 보고만 해라.
-대상: firmware/components/messenger_telegram/, firmware/components/assistant/tool_guard.c, firmware/components/local_api/.
-기준: ESP-IDF v5.5 소스(~/esp/esp-idf-v5.5/components/esp_http_client/, esp_http_server/, nvs_flash/)와 설계서 docs/design.md 의 'BLE GATT 규격' 절과 'LAN API' 절.
-질문 다섯 가지에 답해라. ① 등록하지 않은 낯선 사람이 봇에 메시지를 보내는 것만으로 기능을 멈추거나 메모리를 다 쓰게 할 수 있는가. ② API 키·봇 토큰이 복사된 뒤 지워지지 않는 버퍼가 있는가(BUSY·오류 경로 포함). ③ 응답이 버퍼보다 크면 무슨 일이 나는가. ④ TLS + JSON 해석을 하는 태스크의 스택이 충분한가(IDF 예제의 값과 비교). ⑤ 메시지 본문이 AI 지시로 둔갑하는 길이 남아 있는가.
-출력: 표(문제 | 어떻게 일어나나 | 공격자가 필요한 조건 | 고칠 방법 후보). IDF 소스를 근거로 들 때는 파일과 함수 이름을 적어라.
-확인 방법: 각 문제마다 "이렇게 하면 재현된다"를 curl이나 텔레그램 메시지 예로 써라.
-```
-**확인 방법** 만들 때 이 리뷰가 찾은 것: 긴 메시지 10개로 텔레그램이 영원히 멈추는 길, 에코로 보호가 풀리는 길, 스택 부족. 고칠 수 없는 한계(라이브러리가 토큰 사본을 지우지 않고 해제)는 한계로 문서에 남긴다.
-
-### PR-03 보안을 낮추는 변경을 요청할 때
-**언제** "제한을 풀어 줘" 같은 요청을 하고 싶을 때. Claude Code의 자동 검사가 거부했을 때도.
-```text
-(풀고 싶은 제한)을 풀고 싶다. 아직 바꾸지 마.
-표로 답해 줘: (1) 무엇이 약해지는가, (2) 그대로 남는 보호는 무엇인가, (3) 공격자가 이 틈을 쓰려면 무엇이 필요한가, (4) 되돌리는 방법(파일·함수 이름).
-선택지는 셋 이상(지금 유지 / 일부만 풀기 / 전부 풀기)으로, 각각의 위험을 적어.
-내가 고른 뒤에만 적용하고, 적용하면 설계서와 HANDOFF에 결정과 남은 위험을 적어.
-```
-**확인 방법** 만들 때 텔레그램 답장 보호를 풀 때 이 순서를 밟았다(2장, 19장 19.5절). 자동 검사가 거부해도 확인을 끄는 쪽으로 가지 않는다.
-
-## 공통 — 구현과 커밋
-
-설계서가 있으면 T-03으로 한 단계씩 구현을 요청하고, 확인이 끝나면 T-08로 커밋을 요청한다. 커밋은 내가 요청할 때만 한다.
-
-### T-03 구현 요청
-```text
-기준 문서: 설계서 docs/design-(슬러그).md 의 '(절 이름)' 절, 비슷한 기존 코드 (파일 경로).
-(무엇을) 구현해 줘. (만들 파일과 함수)
-바꾸면 안 되는 것: (기존 함수 이름·인자, 설정 키와 기본값, 의존 방향, 실시간 엔진 등 건드리면 안 되는 것). 큰 버퍼는 PSRAM. 비밀값·내용은 로그에 남기지 마.
-확인 방법: idf.py build 경고 0 (또는 flutter analyze 0, flutter test 통과). 순수 계산은 따로 파일로 빼서 Mac 셀프테스트 PASS. 실기기에서 볼 기대 로그 줄을 목록으로. 커밋은 하지 마.
+I'm pasting the log (timestamps intact, not trimmed). (log)
+I did (what I did) and saw (what I saw / didn't see).
+1) Explain what happened in time order, pointing to timestamps rather than line numbers.
+2) Mark each error and warning line as "cause or effect".
+3) Check with grep whether these log strings exist in the current firmware (it could be a log from old firmware).
+Don't fix anything yet.
 ```
 
-### T-08 커밋 요청
+### PD-03 Write an RCA document
 ```text
-git status 와 git diff --stat 을 보여 줘.
-비밀값(키, 토큰, 비밀번호, certificates/ 아래 파일, sdkconfig)이 스테이징에 없는지 확인하고, 있으면 멈추고 알려 줘.
-문제가 없으면 이번 변경만 한 커밋으로 만들어 줘. 메시지는 첫 줄에 무엇을 했는지 한 줄, 빈 줄, 본문에 바뀐 이유와 확인한 것(빌드·테스트·실기기 여부). 기능 ID가 있으면 넣어.
-push 는 하지 마.
+Write a root cause analysis document at docs/rca_<slug>.md. Reference: the RCA format in Chapter 19 of this book (format A for a single problem, format B when several are entangled).
+Header: date written, target firmware commit (the output of git rev-parse --short HEAD), one-line status.
+Format A: symptom (log as is, 5 lines before and after) | direct cause | root cause | contributing cause | impact | fix | remaining work. Then the timeline, what it wasn't, why it wasn't caught during development, how to verify (expected logs), and a recurrence prevention table.
+Do not change: don't write the direct cause and the root cause as the same sentence. Distinguish "build passes" from "✅ verified on hardware" in the status. Leave anything I haven't seen on the real board as "needs hardware check".
+How to verify: the recurrence prevention table has at least one line saying "added a log" or "added to the self-test".
+```
+**How to verify** Start writing it before fixing the code. After the fix, update only the status column.
+
+### T-06 Writing an RCA
+```text
+Write an RCA for the problem just fixed. Follow the PD-03 format.
+Attached: the symptom log, a summary of the fix diff, the verification log (if any).
+Mark as "✅ verified on hardware" only what I saw on the real board. In the recurrence prevention table, at least one line with a log or self-test that will find this faster next time.
+```
+
+## `review` — Adversarial Review Against the Existing Code
+
+Keep the review session and the fixing session separate. Pick the lines to fix from the table you get back, then have them fixed with T-03.
+
+### PR-01 Compare comments and code line by line
+**When** Right after porting verified code (the Chapter 6 approach).
+```text
+You are a reviewer. Don't modify code; report only.
+Target: firmware/components/live_voice/, firmware/components/assistant/.
+Reference: first read the "kept as is / changed" notes in each source file's header comment.
+To do: compare the header comment with the code line by line and find (1) places that changed but aren't noted in the comment, (2) places where the order of session number, state flags, and failure marking has changed, (3) places where two tasks touch the same variable without a lock.
+Output: a table (file·function | behavior the comment describes | current behavior | impact | severity). Label conjecture "conjecture".
+Do not change: modify nothing.
+How to verify: attach a one-line reproduction sequence to each row of the table. I'll confirm with logs.
+```
+**How to verify** Pick the rows you'll fix from the table you receive, then have them fixed with T-03. Keep the reviewing session and the fixing session separate.
+
+## `security` — Review from a Security Perspective
+
+The general template is T-04, and PR-02 is the version fitted to this book's speaker. When you want to ask for a protection to be lifted, follow the PR-03 sequence.
+
+### T-04 Review request (security perspective)
+```text
+You are a security reviewer. Don't modify code; report only.
+Target: (folders and files). Reference: (library source path) and the '(section name)' section of the design document.
+Questions: ① Can outside input alone stop a feature or exhaust memory? ② Is there a buffer or log where a secret remains unerased? ③ What happens when input larger than the buffer arrives? ④ Is the stack of the task running this code sufficient? ⑤ Is there a path by which outside text is turned into an AI instruction?
+Output: a table (problem | how it happens | conditions needed | fix candidates). Evidence as file and function names. One reproduction line each.
+```
+
+### PR-02 Security review (against ESP-IDF source)
+**When** After building code that takes input from outside, like BLE, LAN, and Telegram.
+```text
+You are a security reviewer. Don't modify code; report only.
+Target: firmware/components/messenger_telegram/, firmware/components/assistant/tool_guard.c, firmware/components/local_api/.
+Reference: the ESP-IDF v5.5 source (~/esp/esp-idf-v5.5/components/esp_http_client/, esp_http_server/, nvs_flash/) and the 'BLE GATT Specification' and 'LAN API' sections of the design document docs/design.md.
+Answer five questions. ① Can an unregistered stranger stop a feature or exhaust memory just by sending the bot a message? ② Is there a buffer where an API key or bot token isn't erased after being copied (including the BUSY and error paths)? ③ What happens when a response is larger than the buffer? ④ Is the stack of the task doing TLS + JSON parsing sufficient (compare with the IDF example values)? ⑤ Is there still a path by which a message body is turned into an AI instruction?
+Output: a table (problem | how it happens | what the attacker needs | fix candidates). When citing IDF source, give the file and function names.
+How to verify: for each problem, write "this is how to reproduce it" as a curl or Telegram message example.
+```
+**How to verify** What this review found during the build: a way to stall Telegram forever with 10 long messages, a way to bypass protection via echo, and a stack shortage. Limits that can't be fixed (the library frees its copy of the token without erasing it) are documented as limits.
+
+### PR-03 When requesting a change that lowers security
+**When** When you want to ask for something like "lift the restriction". Also when Claude Code's automatic check has refused.
+```text
+I want to lift (the restriction to lift). Don't change it yet.
+Answer in a table: (1) what gets weaker, (2) what protection remains as is, (3) what an attacker needs to use this gap, (4) how to revert (file and function names).
+Give three or more options (keep as is / lift partially / lift entirely), with the risk of each.
+Apply only after I choose, and when you do, record the decision and the remaining risk in the design document and HANDOFF.
+```
+**How to verify** During the build I followed this sequence when lifting the Telegram reply protection (Chapter 2; Chapter 19, Section 19.5). Even when the automatic check refuses, don't go toward turning the check off.
+
+## Common — Implementation and Commit
+
+Once there is a design document, request the implementation one step at a time with T-03, and when verification is done, request the commit with T-08. Commits happen only when you ask.
+
+### T-03 Implementation request
+```text
+Reference document: the '(section name)' section of the design document docs/design-(slug).md, similar existing code at (file path).
+Implement (what). (files and functions to create)
+Do not change: (existing function names and arguments, settings keys and defaults, dependency direction, the Live engine, and anything else that must not be touched). Large buffers in PSRAM. Don't log secrets or content.
+How to verify: idf.py build with 0 warnings (or flutter analyze 0, flutter test passes). Separate pure computation into its own file with a Mac self-test PASS. A list of the expected log lines to see on the real board. Don't commit.
+```
+
+### T-08 Commit request
+```text
+Show me git status and git diff --stat.
+Check that no secrets (keys, tokens, passwords, files under certificates/, sdkconfig) are staged; if any are, stop and tell me.
+If there are no problems, make this change alone into one commit. Message: one line on the first line saying what was done, a blank line, then a body with why it changed and what was verified (build, tests, whether on the real board). Include the feature ID if there is one.
+Don't push.
 ```

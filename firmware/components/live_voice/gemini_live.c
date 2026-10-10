@@ -1,29 +1,29 @@
 /*
- * Gemini Live(3단계) 음성 세션: BidiGenerateContent WebSocket으로 듣기·생각·도구 호출·말하기를 한 연결에서
- * 한다(docs/design-voice-saver-mode.md 2.5·16.4절, 3단계. 2026-10 ai.google.dev/api/live,
+ * Gemini Live (stage 3) voice session: listening, thinking, tool calls and speaking all happen over one BidiGenerateContent
+ * WebSocket connection (docs/design-voice-saver-mode.md Sections 2.5 and 16.4, stage 3. Checked 2026-10 against ai.google.dev/api/live,
  * /gemini-api/docs/live-api/get-started-websocket, /gemini-api/docs/live-api/tools,
- * /gemini-api/docs/live-api/capabilities 확인). live_voice.c(gpt-live-1)와 같은 구조를 따른다: 세션 태스크
- * 1개(연결·마이크 업로드) + 응답 해석 태스크 1개(esp_websocket_client, ws_stack_reserve 내부 RAM 요령도
- * 그대로). 다른 점:
- *   - 메시지 모양은 gemini_live_proto.c(순수 로직, 셀프테스트)만 안다.
- *   - 백엔드 위임이 없다 — 모델이 도구를 직접 부르면(toolCall) 응답 해석 태스크가 바로 실행하고
- *     (assistant_execute, tool_guard 그대로) toolResponse로 돌려준다. gemini-3.8-live는 비동기(NON_BLOCKING)
- *     도구 호출을 지원한다는 근거를 문서에서 찾지 못해 막힌 채로 두고, 대신 지시문에 "오래 걸리는 도구는
- *     먼저 짧게 말하라"고 적었다(요청 4). 응답 해석 태스크 안에서 실행하므로 그동안 세션 루프(마이크 업로드)는
- *     막히지 않는다.
- *   - 끼어들기는 서버 VAD가 serverContent.interrupted로 알려준다 — 재생 큐만 비우면 된다(요청 3).
- *   - 가운데 버튼(Key2) 짧게는 live_voice_barge_in()의 기본 분기(실시간과 같음, saver만 따로 처리)가 이미
- *     live_voice_stop()을 부르므로 이 파일은 따로 처리하지 않는다.
- *   - 인증은 WebSocket 업그레이드 헤더 x-goog-api-key로 보낸다(URL의 ?key=는 로그·프록시에 남을 수 있어
- *     피한다 — gemini.saver의 x-goog-api-key와 같은 이유, 2026-10 forum/문서 확인: 헤더도 받아 준다).
+ * /gemini-api/docs/live-api/capabilities). Follows the same structure as live_voice.c (gpt-live-1): one session task
+ * (connection, mic upload) + one response-parsing task (esp_websocket_client, with the same ws_stack_reserve internal RAM
+ * trick). Differences:
+ *   - Only gemini_live_proto.c (pure logic, self-tested) knows the message shapes.
+ *   - No backend delegation. When the model calls a tool directly (toolCall), the response-parsing task runs it right away
+ *     (assistant_execute, tool_guard unchanged) and returns a toolResponse. I found no evidence in the docs that
+ *     gemini-3.8-live supports asynchronous (NON_BLOCKING) tool calls, so calls stay blocking; instead the instructions say
+ *     "for slow tools, say something short first" (request 4). It runs in the response-parsing task, so the session loop
+ *     (mic upload) is not blocked meanwhile.
+ *   - Barge-in: the server VAD reports it with serverContent.interrupted; just clear the playback queue (request 3).
+ *   - A short press of the center button (Key2) already calls live_voice_stop() through the default branch of
+ *     live_voice_barge_in() (same as Live mode; only saver is handled separately), so this file does nothing extra.
+ *   - Authentication goes in the x-goog-api-key WebSocket upgrade header (?key= in the URL is avoided because it can end up
+ *     in logs and proxies; same reason as x-goog-api-key in gemini.saver. Checked 2026-10 in the forum/docs: the header is accepted).
  *
- * 알려진 한계(문서화, 요청 4): toolCallCancellation은 응답 해석 태스크가 메시지를 하나씩 순서대로 처리하고
- * 그 안에서 도구를 동기 실행하므로, 같은 toolCall 메시지를 처리하는 도중에는 그 뒤에 온 취소를 볼 수 없다
- * (처리 전에 이미 큐에 들어와 있던 취소만 거른다). gemini-3.8-live가 동기 호출만 지원한다는 점과 맞물려
- * 실제로 취소가 늦게 와서 못 거르는 경우는 드물 것으로 본다.
+ * Known limitation (documented, request 4): the response-parsing task handles messages one at a time in order and runs tools
+ * synchronously inside that, so while handling a toolCall message it cannot see a toolCallCancellation that arrives later
+ * (it filters only cancellations already queued before handling). Since gemini-3.8-live supports only synchronous calls,
+ * a cancellation actually arriving too late to filter should be rare.
  *
- * 로그는 LIVE와 같은 모양만 남긴다(GLIVE: limits …, 10초 진단, 연결·종료 사유, 도구 횟수). 받아쓴 글자·
- * AI 대답·키는 절대 로그에 남기지 않는다.
+ * Logs keep only the same shapes as LIVE (GLIVE: limits …, 10-second diagnostics, connection and end reasons, tool counts).
+ * Transcribed text, AI replies and keys are never logged.
  */
 #include "gemini_live.h"
 
@@ -62,10 +62,10 @@ static const char *TAG = "GLIVE";
     "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 #define GEMINI_LIVE_PATH "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
-#define MESSAGE_MAX          (128 * 1024)   /* live_voice.c와 같은 여유(음성·도구 조각이 봉투에 같이 옴) */
+#define MESSAGE_MAX          (128 * 1024)   /* same headroom as live_voice.c (audio and tool chunks arrive in one envelope) */
 #define INPUT_QUEUE_FRAMES   64
 #define INPUT_FRAME_SAMPLES  512
-#define INPUT_BATCH_SAMPLES  1024            /* 64ms @16kHz, LIVE 업로드 묶음과 같은 크기 */
+#define INPUT_BATCH_SAMPLES  1024            /* 64ms @16kHz, same size as the LIVE upload batch */
 #define OUTBOUND_QUEUE       6
 #define STARTUP_TIMEOUT_MS   20000
 #define CONNECT_TIMEOUT_MS   20000
@@ -73,9 +73,9 @@ static const char *TAG = "GLIVE";
 #define CLOCK_WAIT_MS        20000
 #define CANCELLED_ID_MAX     8
 #define CANCELLED_ID_LEN     40
-/* live_voice.c와 같다: esp_websocket_client가 만드는 내부 태스크의 스택(내부 RAM). 한 번에 하나의
- * WebSocket만 열리므로(openai.live·gemini.live가 동시에 돌지 않음, s_busy로 보장) 같은 예약 자리
- * (voice_shared_reserve_release/take, live_voice.c 소유)를 그대로 나눠 쓴다 */
+/* Same as live_voice.c: the stack of the internal task esp_websocket_client creates (internal RAM). Only one
+ * WebSocket is open at a time (openai.live and gemini.live never run together, guaranteed by s_busy), so the same reserved
+ * spot (voice_shared_reserve_release/take, owned by live_voice.c) is shared as is */
 #define WS_TASK_STACK        12288
 
 typedef struct {
@@ -83,20 +83,20 @@ typedef struct {
     int16_t samples[INPUT_FRAME_SAMPLES];
 } input_frame_t;
 
-static QueueHandle_t     s_inputs;          /* 마이크 → 업로드 */
-static QueueHandle_t     s_responses;       /* WebSocket 수신 → 해석 태스크 (char*) */
-static QueueHandle_t     s_outbound;        /* 해석 태스크(도구 응답) → 세션 태스크 (char*, 완성된 JSON) */
+static QueueHandle_t     s_inputs;          /* mic → upload */
+static QueueHandle_t     s_responses;       /* WebSocket receive → parsing task (char*) */
+static QueueHandle_t     s_outbound;        /* parsing task (tool responses) → session task (char*, complete JSON) */
 static SemaphoreHandle_t s_responses_idle;
 static SemaphoreHandle_t s_pending_lock;
-static char             *s_pending_text;     /* gemini_live_text()가 넣는 글 (PSRAM, 세션이 소비) */
+static char             *s_pending_text;     /* text queued by gemini_live_text() (PSRAM, consumed by the session) */
 
 static atomic_bool s_ws_connected, s_failed, s_session_active;
 static char       *s_message;
 static size_t      s_message_used;
 static int         s_message_opcode;
 
-/* 고정 버퍼는 모두 PSRAM (2026-10-07 실기기: 내부 RAM에 두었더니 부팅 뒤 여유가 15KB → 9.9KB로 줄어
- * 텔레그램 TLS가 "esp-aes: Failed to allocate memory"). gemini_live_init에서 잡는다 */
+/* All fixed buffers live in PSRAM (2026-10-07, real board: with them in internal RAM, headroom after boot fell from 15KB → 9.9KB
+ * and Telegram TLS failed with "esp-aes: Failed to allocate memory"). Allocated in gemini_live_init */
 static char (*s_cancelled_ids)[CANCELLED_ID_LEN];
 static int16_t *s_batch;            /* INPUT_BATCH_SAMPLES */
 #define KEY_BUF_LEN     513
@@ -105,7 +105,7 @@ static char *s_key, *s_headers;
 static int   s_cancelled_next;
 static saver_resample_t s_resampler;
 static hangup_phrase_t  s_hangup;
-static atomic_uint s_tools_total;    /* 세션 전체 도구 실행 횟수 (종료 로그용) */
+static atomic_uint s_tools_total;    /* tool runs over the whole session (for the end log) */
 
 typedef enum { ACT_START, ACT_AUDIO, ACT_IN_TEXT, ACT_OUT_TEXT, ACT_TOOL, ACT_COUNT } activity_t;
 static const char *const ACT_NAMES[ACT_COUNT] = {"start", "speaker audio", "heard speech", "assistant text",
@@ -126,7 +126,7 @@ static void touch_activity(activity_t why)
     atomic_fetch_add(&s_act_count[why], 1);
 }
 
-/* 고정 문구만 기록한다 (live_voice.c의 fail()과 같다) */
+/* Logs fixed phrases only (same as fail() in live_voice.c) */
 static void fail(const char *text, app_error_t code)
 {
     bool expected = false;
@@ -155,12 +155,12 @@ static void remember_cancelled(const char *id)
     s_cancelled_next = (s_cancelled_next + 1) % CANCELLED_ID_MAX;
 }
 
-/* ── 응답 해석 ────────────────────────────────────────────── */
+/* ── Response parsing ────────────────────────────────────────────── */
 
-/* modelTurn의 inlineData(24kHz PCM, base64)를 디코딩해 16kHz로 바꿔 재생 큐에 넣는다 */
+/* Decode modelTurn's inlineData (24kHz PCM, base64), convert it to 16kHz, and put it in the playback queue */
 static void handle_audio_inline(const char *b64, size_t b64_len)
 {
-    uint8_t *pcm = heap_caps_malloc(b64_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   /* 디코딩 결과 <= 길이 */
+    uint8_t *pcm = heap_caps_malloc(b64_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   /* decoded size <= length */
     size_t pcm_len = pcm ? gemini_base64_decode(b64, b64_len, pcm, b64_len) : SIZE_MAX;
     if (!pcm || pcm_len == SIZE_MAX || (pcm_len % 2)) {
         fail("Invalid voice audio", APP_ERR_VOICE_INTERNAL);
@@ -169,7 +169,7 @@ static void handle_audio_inline(const char *b64, size_t b64_len)
     }
     const int16_t *pcm24 = (const int16_t *)pcm;
     size_t samples24 = pcm_len / 2;
-    /* 무음 조각은 활동으로 안 센다 (서버가 말이 끝난 뒤에도 무음을 계속 보낼 수 있다. 책 16장 버그 2, 18장 18.3절) */
+    /* Silent chunks don't count as activity (the server may keep sending silence after speech ends. Chapter 16, Bug 2; Chapter 18, Section 18.3) */
     for (size_t i = 0; i < samples24; i++) {
         if (pcm24[i] > 200 || pcm24[i] < -200) {
             touch_activity(ACT_AUDIO);
@@ -188,9 +188,9 @@ static void handle_audio_inline(const char *b64, size_t b64_len)
     free(pcm);
 }
 
-/* toolCall.functionCalls[]를 순서대로 실행하고(assistant_execute, tool_guard 그대로) 한 번에 돌려준다.
- * 모델이 응답을 기다리는 동안(동기 호출)이라 이 함수가 도는 동안 세션 루프의 마이크 업로드는 막히지 않는다
- * (이 함수는 응답 해석 태스크에서만 돈다, 세션 태스크와 다른 태스크) */
+/* Runs toolCall.functionCalls[] in order (assistant_execute, tool_guard unchanged) and returns them all at once.
+ * The model waits for the response (synchronous call), and while this function runs the session loop's mic upload is not blocked
+ * (this function runs only in the response-parsing task, a different task from the session task) */
 static void handle_tool_calls(const cJSON *calls)
 {
     touch_activity(ACT_TOOL);
@@ -207,7 +207,7 @@ static void handle_tool_calls(const cJSON *calls)
         }
         if (is_cancelled(id->valuestring)) {
             ignored++;
-            continue;      /* 요청 4: 취소된 id는 결과를 무시한다 (머리말의 한계 설명 참고) */
+            continue;      /* request 4: ignore results for cancelled ids (see the limitation in the header comment) */
         }
         char *args_text = args ? cJSON_PrintUnformatted(args) : NULL;
         cJSON *result = h && h->execute_tool ? h->execute_tool(name->valuestring, args_text ? args_text : "{}") : NULL;
@@ -227,7 +227,7 @@ static void handle_tool_calls(const cJSON *calls)
         cJSON_Delete(responses);
         return;
     }
-    char *text = gemini_live_build_tool_response(responses);     /* responses 소유권을 가져간다 */
+    char *text = gemini_live_build_tool_response(responses);     /* takes ownership of responses */
     if (!text || xQueueSend(s_outbound, &text, pdMS_TO_TICKS(250)) != pdTRUE) {
         free(text);
         if (!voice_shared_stopping()) {
@@ -264,7 +264,7 @@ static void parse_message(const char *text)
         if (content && !voice_shared_stopping()) {
             bool interrupted = gemini_live_is_interrupted(content);
             if (interrupted) {
-                audio_core_voice_clear();      /* 서버 VAD 끼어들기 (요청 3): 재생 중이던 소리만 비운다 */
+                audio_core_voice_clear();      /* server VAD barge-in (request 3): clear only the audio that was playing */
             }
             const live_voice_handlers_t *h = voice_shared_handlers();
             const char *in_text = gemini_live_transcript_text(content, true);
@@ -276,7 +276,7 @@ static void parse_message(const char *text)
                 if (live_voice_ready()) {
                     hangup_phrase_feed(&s_hangup, in_text, now_ms());
                     if (h && h->on_user_input) {
-                        h->on_user_input();     /* TLG-14: inputAudioTranscription이 "사람이 새로 말함" 신호 */
+                        h->on_user_input();     /* TLG-14: inputAudioTranscription is the "person spoke again" signal */
                     }
                 }
             }
@@ -293,7 +293,7 @@ static void parse_message(const char *text)
                 handle_audio_inline(b64, b64_len);
             }
             if (interrupted || gemini_live_is_turn_complete(content)) {
-                saver_resample_reset(&s_resampler);   /* 턴 경계: 다음 오디오는 새로 이어 붙인다 */
+                saver_resample_reset(&s_resampler);   /* turn boundary: the next audio starts a fresh join */
             }
         }
         const cJSON *calls = gemini_live_tool_calls(root);
@@ -323,7 +323,7 @@ static void response_task(void *arg)
                 parse_message(text);
                 free(text);
             } else {
-                xSemaphoreGive(s_responses_idle);    /* 세션 종료 장벽 */
+                xSemaphoreGive(s_responses_idle);    /* session-end barrier */
             }
         }
         if (live_voice_ready() && hangup_phrase_ready(&s_hangup, now_ms())) {
@@ -335,7 +335,7 @@ static void response_task(void *arg)
     }
 }
 
-/* ── WebSocket 이벤트 (live_voice.c의 websocket_event()와 같은 모양) ─────────────── */
+/* ── WebSocket events (same shape as websocket_event() in live_voice.c) ─────────────── */
 
 static void queue_message(void)
 {
@@ -379,7 +379,7 @@ static void websocket_event(void *arg, esp_event_base_t base, int32_t id, void *
         atomic_store(&s_ws_connected, false);
         return;
     }
-    /* 서버가 연결을 닫으면 닫는 코드·이유를 남긴다 (설정 거절 등 원인 확인용. 이유는 서버의 오류 문구로, 대화 내용이 아님) */
+    /* When the server closes the connection, log the close code and reason (to find causes like a rejected setup. The reason is the server's error text, not conversation content) */
     if (id == WEBSOCKET_EVENT_DATA && event->op_code == 8) {
         int code = event->data_len >= 2 ? (((uint8_t)event->data_ptr[0]) << 8) | (uint8_t)event->data_ptr[1] : 0;
         int reason_len = event->data_len > 2 ? event->data_len - 2 : 0;
@@ -388,8 +388,8 @@ static void websocket_event(void *arg, esp_event_base_t base, int32_t id, void *
         return;
     }
     /*
-     * Gemini Live는 JSON 메시지를 이진(binary, op 2) 프레임으로 보낸다. 글자(op 1)만 받았더니 setupComplete를 버려
-     * "Voice startup timed out"으로 끝났다 (2026-10-07 실기기). 글자·이진 모두 JSON으로 받는다. op 0은 이어지는 조각
+     * Gemini Live sends JSON messages as binary (op 2) frames. Accepting only text (op 1) threw away setupComplete and
+     * ended in "Voice startup timed out" (2026-10-07, real board). Accept both text and binary as JSON. op 0 is a continuation fragment
      */
     if (id != WEBSOCKET_EVENT_DATA || (event->op_code != 1 && event->op_code != 2 && event->op_code != 0)) {
         return;
@@ -412,7 +412,7 @@ static void websocket_event(void *arg, esp_event_base_t base, int32_t id, void *
     }
 }
 
-/* ── 마이크 피드 (live_voice.c의 live_voice_feed()와 같다: 막지 않고, 밀리면 오래된 소리를 버린다) ── */
+/* ── Mic feed (same as live_voice_feed() in live_voice.c: never blocks; when backed up, drops the oldest audio) ── */
 
 static void gemini_live_feed(const int16_t *samples, size_t count)
 {
@@ -433,7 +433,7 @@ static void gemini_live_feed(const int16_t *samples, size_t count)
     }
 }
 
-/* 최대 INPUT_BATCH_SAMPLES(64ms)까지 묶어 realtimeInput.audio 하나로 보낸다 */
+/* Batch up to INPUT_BATCH_SAMPLES (64ms) into one realtimeInput.audio */
 static bool upload_audio(esp_websocket_client_handle_t client, input_frame_t *frame)
 {
     int16_t *batch = s_batch;
@@ -458,7 +458,7 @@ static bool upload_audio(esp_websocket_client_handle_t client, input_frame_t *fr
     return ok;
 }
 
-/* ── 세션 ─────────────────────────────────────────────────── */
+/* ── Session ─────────────────────────────────────────────────── */
 
 static bool wait_flag(atomic_bool *flag, uint32_t timeout_ms)
 {
@@ -547,7 +547,7 @@ static void run_session(void)
             instructions = strdup("Answer briefly and naturally for speech.");
         }
         cJSON *tools = h->build_saver_tools ? h->build_saver_tools() : NULL;
-        gemini_tools = gemini_schema_convert_tools(tools);   /* 같은 도구 목록을 Gemini 모양으로 (요청 4) */
+        gemini_tools = gemini_schema_convert_tools(tools);   /* the same tool list in Gemini shape (request 4) */
         cJSON_Delete(tools);
         setup_text = gemini_live_build_setup(APP_GEMINI_LIVE_MODEL_DEFAULT, gemini_tts_voice(voice), instructions,
                                              gemini_tools, search);
@@ -593,7 +593,7 @@ static void run_session(void)
     }
     esp_websocket_register_events(client, WEBSOCKET_EVENT_ANY, websocket_event, tls);
     voice_shared_set_status("Connecting to Gemini");
-    voice_shared_reserve_release();    /* 맡아 둔 내부 RAM 자리를 웹소켓 태스크 스택이 쓰게 한다 */
+    voice_shared_reserve_release();    /* let the WebSocket task stack use the reserved internal RAM spot */
     if (esp_websocket_client_start(client) != ESP_OK || !wait_flag(&s_ws_connected, CONNECT_TIMEOUT_MS)) {
         fail("Gemini connection failed", APP_ERR_VOICE_CONNECT);
         goto cleanup;
@@ -623,7 +623,7 @@ static void run_session(void)
             fail("Voice startup timed out", APP_ERR_VOICE_CONNECT);
             break;
         }
-        /* 무응답 시간: 실제로 들리는 비서 소리가 나가는 동안만 활동으로 본다 (LIVE와 같다. 책 16장 버그 2) */
+        /* Idle time: count as activity only while audible assistant audio is going out (same as LIVE. Chapter 16, Bug 2) */
         if (live_voice_ready() && audio_core_voice_playing()) {
             touch_activity(ACT_AUDIO);
         }
@@ -647,7 +647,7 @@ static void run_session(void)
             break;
         }
 
-        /* 기기가 보내는 글(알림·자동 읽기·마이크 보정 안내, 요청 5): clientContent로 */
+        /* Text the device sends (reminders, auto-read, mic calibration guidance; request 5): as clientContent */
         xSemaphoreTake(s_pending_lock, portMAX_DELAY);
         char *pending = s_pending_text;
         s_pending_text = NULL;
@@ -665,7 +665,7 @@ static void run_session(void)
             }
         }
 
-        /* 도구 응답 (응답 해석 태스크가 넣어 둔 것) */
+        /* Tool responses (queued by the response-parsing task) */
         char *out = NULL;
         if (xQueueReceive(s_outbound, &out, 0) == pdTRUE) {
             size_t n = strlen(out);
@@ -703,7 +703,7 @@ cleanup:
     if (tls) {
         esp_transport_destroy(tls);
     }
-    /* 해석 태스크가 남은 메시지를 다 처리할 때까지 기다린 뒤 다음 세션을 허용한다 (live_voice.c와 같다) */
+    /* Wait until the parsing task has handled the remaining messages, then allow the next session (same as live_voice.c) */
     char *barrier = NULL;
     xQueueSend(s_responses, &barrier, portMAX_DELAY);
     xSemaphoreTake(s_responses_idle, portMAX_DELAY);
@@ -721,7 +721,7 @@ cleanup:
     ESP_LOGI(TAG, "session ended: %s (tools %u)", limit_reason ? limit_reason : (failed ? "error" : "stopped"),
              tools_total);
     net_set_power_save(true);
-    voice_shared_reserve_take();    /* 호출어 모델을 다시 올리기 전에 자리를 맡는다 */
+    voice_shared_reserve_take();    /* reserve the spot before reloading the wake-word model */
     wake_resume();
     voice_shared_end(true);
 }
@@ -757,7 +757,7 @@ esp_err_t gemini_live_text(const char *text)
     xSemaphoreGive(s_pending_lock);
     const live_voice_handlers_t *h = voice_shared_handlers();
     if (h && h->on_user_input) {
-        h->on_user_input();     /* 글로 보낸 요청도 사용자 입력이다 (live_voice_text()와 같다) */
+        h->on_user_input();     /* a request sent as text is user input too (same as live_voice_text()) */
     }
     return ESP_OK;
 }
@@ -783,8 +783,8 @@ esp_err_t gemini_live_init(void)
         return ESP_ERR_NO_MEM;
     }
     ESP_ERROR_CHECK(audio_core_add_mic_sink(gemini_live_feed));
-    /* 응답 해석·재생 큐 넣기·도구 실행 → 스택은 PSRAM (XIP from PSRAM이라 도구의 플래시 쓰기도 됨, tool_worker와 같음).
-     * 도구(라디오 검색 HTTPS 등)를 이 태스크에서 바로 실행하므로 tool_worker와 같은 12KB (8KB면 넘칠 수 있음) */
+    /* Response parsing, playback-queue enqueue, tool execution → stack in PSRAM (XIP from PSRAM, so tool flash writes work too; same as tool_worker).
+     * Tools (radio search HTTPS etc.) run directly in this task, so 12KB like tool_worker (8KB could overflow) */
     if (xTaskCreatePinnedToCoreWithCaps(response_task, "gemini_rx", 12288, NULL, 5, NULL, 0,
                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         return ESP_ERR_NO_MEM;

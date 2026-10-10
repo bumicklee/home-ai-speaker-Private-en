@@ -1,20 +1,20 @@
 /*
- * Telegram 롱폴링 (설계서 2.11절).
+ * Telegram long polling (design document Section 2.11).
  *
- * 1. getMe로 봇 이름을 얻고 deleteWebhook을 한 번 부른다
- * 2. getUpdates를 반복한다 (allowed_updates=["message"], offset = 마지막 update_id + 1)
- * 3. /pair 코드 → 대화방 등록, 등록된 대화방 메시지 → 링버퍼 + 알림 이벤트, 나머지 무시
- * 4. 409 → conflict, 401 → token_invalid, 그 밖의 오류 → 1초부터 60초까지 늘려 재시도
+ * 1. Get the bot name with getMe and call deleteWebhook once
+ * 2. Repeat getUpdates (allowed_updates=["message"], offset = last update_id + 1)
+ * 3. /pair code → register the chat; message from a registered chat → ring buffer + notification event; ignore the rest
+ * 4. 409 → conflict, 401 → token_invalid, other errors → retry with a delay growing from 1 s to 60 s
  *
- * 설계와 다른 점: 롱폴링 대기를 50초 대신 25초로 한다. 대화를 시작할 때 진행 중인 요청을
- * 다른 태스크에서 안전하게 끊을 수 없어서(esp_http_client는 스레드 안전하지 않음),
- * 폴링이 멈출 때까지 걸리는 최대 시간을 줄이려는 것이다.
+ * Difference from the design: the long-poll wait is 25 s instead of 50 s. When a conversation starts, the request
+ * in progress can't be safely cut off from another task (esp_http_client isn't thread-safe),
+ * so this shortens the longest time it takes for polling to stop.
  *
- * 토큰은 URL에 들어간다. URL·응답 본문·메시지 내용은 로그에 남기지 않는다.
+ * The token is part of the URL. URLs, response bodies, and message contents are never logged.
  *
- * 알려진 한계: esp_http_client는 URL의 경로(/bot<토큰>/…)를 내부에 복사하고, 정리할 때 0으로 지우지 않고
- * free만 한다(IDF 5.5 esp_http_client.c _clear_connection_info). 그래서 토큰 사본이 해제된 힙에 잠시
- * 남는다. 우리 코드에서 고칠 수 없다. 힙 내용을 밖으로 내보내는 기능(코어 덤프 등)을 켜지 않는다.
+ * Known limitation: esp_http_client copies the URL path (/bot<token>/…) internally, and on cleanup it doesn't zero it,
+ * it only frees it (IDF 5.5 esp_http_client.c _clear_connection_info). So a copy of the token lingers briefly
+ * in freed heap. Our code can't fix this. Don't enable anything that exports heap contents (core dumps and the like).
  */
 #include <inttypes.h>
 #include <stdatomic.h>
@@ -69,14 +69,14 @@ typedef struct {
 static atomic_int s_state = TG_OFF;
 static atomic_bool s_started, s_paused, s_token_changed;
 static char s_bot[64];
-static SemaphoreHandle_t s_lock;     /* 링버퍼·등록 코드 */
-static tg_msg_t *s_ring;             /* PSRAM, TG_RING_SIZE개 */
+static SemaphoreHandle_t s_lock;     /* ring buffer and pairing code */
+static tg_msg_t *s_ring;             /* PSRAM, TG_RING_SIZE slots */
 static int s_ring_next;
 static char s_pair_code[7];
 static int64_t s_pair_expires;
 static int s_pair_tries;
 
-/* ── 상태 ─────────────────────────────────────────────────── */
+/* ── State ─────────────────────────────────────────────────── */
 
 const char *telegram_state_name(tg_state_t state)
 {
@@ -121,8 +121,8 @@ static esp_err_t on_http(esp_http_client_event_t *evt)
 }
 
 /*
- * Bot API 호출. 토큰은 여기서만 꺼내 URL을 만들고 바로 지운다.
- * 돌려주는 값: HTTP 상태 (네트워크 오류면 -1). out에 응답 JSON (호출한 쪽이 cJSON_Delete).
+ * Bot API call. The token is taken out only here to build the URL, then wiped right away.
+ * Returns: HTTP status (-1 on a network error). Response JSON in out (caller does cJSON_Delete).
  */
 static int api_call(const char *method, const char *query, const char *json_body, size_t response_cap,
                     int timeout_ms, cJSON **out, int64_t *first_update_id)
@@ -175,7 +175,7 @@ static int api_call(const char *method, const char *query, const char *json_body
     if (status > 0 && body.used) {
         body.buf[body.used] = '\0';
         *out = cJSON_Parse(body.buf);
-        /* 응답이 버퍼보다 커서 잘렸으면 해석에 실패한다. 건너뛸 수 있게 첫 update_id만 찾아 둔다 */
+        /* if the response was truncated because it's bigger than the buffer, parsing fails. Find just the first update_id so it can be skipped */
         const char *p = (!*out && first_update_id) ? strstr(body.buf, "\"update_id\":") : NULL;
         if (p) {
             *first_update_id = strtoll(p + 12, NULL, 10);
@@ -210,7 +210,7 @@ esp_err_t telegram_send(int64_t chat_id, const char *text)
     return ok ? ESP_OK : ESP_FAIL;
 }
 
-/* ── 링버퍼 ───────────────────────────────────────────────── */
+/* ── Ring buffer ───────────────────────────────────────────── */
 
 static int count_unread_locked(void)
 {
@@ -238,7 +238,7 @@ static void store_message(int64_t chat_id, const char *alias, const char *from, 
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     tg_msg_t *m = &s_ring[s_ring_next];
-    s_ring_next = (s_ring_next + 1) % TG_RING_SIZE;    /* 20개가 넘으면 가장 오래된 것을 덮는다 */
+    s_ring_next = (s_ring_next + 1) % TG_RING_SIZE;    /* past 20, overwrite the oldest */
     memset(m, 0, sizeof(*m));
     m->used = true;
     m->chat_id = chat_id;
@@ -248,7 +248,7 @@ static void store_message(int64_t chat_id, const char *alias, const char *from, 
     strlcpy(m->text, text, sizeof(m->text));
     int unread = count_unread_locked();
     xSemaphoreGive(s_lock);
-    ESP_LOGI(TAG, "message stored (%d unread)", unread);   /* 내용은 남기지 않는다 */
+    ESP_LOGI(TAG, "message stored (%d unread)", unread);   /* never log the content */
     post_unread(unread);
 }
 
@@ -275,7 +275,7 @@ cJSON *telegram_read(const char *target, int count)
     time_t now = time(NULL);
 
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    /* 최신 것부터 count개를 고른 뒤, 오래된 것부터 읽어 주도록 순서를 뒤집는다 */
+    /* pick count messages starting from the newest, then reverse the order so they're read oldest first */
     int picked[TG_RING_SIZE], n = 0;
     for (int k = 1; k <= TG_RING_SIZE && n < count; k++) {
         int i = (s_ring_next - k + TG_RING_SIZE) % TG_RING_SIZE;
@@ -299,11 +299,11 @@ cJSON *telegram_read(const char *target, int count)
     int unread = count_unread_locked();
     xSemaphoreGive(s_lock);
     cJSON_AddNumberToObject(out, "unread_remaining", unread);
-    post_unread(unread);    /* 다 읽었으면 보라색 LED가 꺼진다 (TLG-08) */
+    post_unread(unread);    /* when all are read, the purple LED goes off (TLG-08) */
     return out;
 }
 
-/* ── 등록 (/pair) ─────────────────────────────────────────── */
+/* ── Pairing (/pair) ──────────────────────────────────────── */
 
 esp_err_t telegram_begin_pairing(char code[7])
 {
@@ -320,7 +320,7 @@ esp_err_t telegram_begin_pairing(char code[7])
     return ESP_OK;
 }
 
-/* "/pair 123456" 또는 "/pair@봇이름 123456". 명령이면 true (코드 확인 결과는 *matched) */
+/* "/pair 123456" or "/pair@botname 123456". true if it's the command (code check result in *matched) */
 static bool parse_pair(const char *text, bool *matched)
 {
     if (strncmp(text, "/pair", 5) != 0) {
@@ -330,7 +330,7 @@ static bool parse_pair(const char *text, bool *matched)
     if (*p == '@') {
         size_t n = strcspn(p + 1, " ");
         if (strlen(s_bot) != n || strncasecmp(p + 1, s_bot, n)) {
-            return false;   /* 다른 봇에게 한 명령 */
+            return false;   /* command for another bot */
         }
         p += 1 + n;
     }
@@ -344,16 +344,16 @@ static bool parse_pair(const char *text, bool *matched)
     bool active = s_pair_code[0] && esp_timer_get_time() < s_pair_expires && s_pair_tries < PAIR_MAX_TRIES;
     *matched = active && strncmp(p, s_pair_code, 6) == 0 && (p[6] == '\0' || p[6] == ' ');
     if (active && !*matched && ++s_pair_tries >= PAIR_MAX_TRIES) {
-        s_pair_code[0] = '\0';      /* 5번 틀리면 무효 */
+        s_pair_code[0] = '\0';      /* invalid after 5 wrong tries */
     }
     if (*matched) {
-        s_pair_code[0] = '\0';      /* 1회용 */
+        s_pair_code[0] = '\0';      /* single use */
     }
     xSemaphoreGive(s_lock);
     return true;
 }
 
-/* ── 업데이트 처리 ────────────────────────────────────────── */
+/* ── Update handling ───────────────────────────────────────── */
 
 static void person_name(const cJSON *who, char *out, size_t len)
 {
@@ -372,7 +372,7 @@ static const char *message_text(const cJSON *msg)
     if (cJSON_IsString(t)) {
         return t->valuestring;
     }
-    /* 음성 메시지 재생(TLG-11)은 P2. 지금은 종류만 알린다 */
+    /* voice message playback (TLG-11) is P2. For now, report only the kind */
     if (cJSON_HasObjectItem(msg, "voice")) {
         return "(voice message)";
     }
@@ -404,7 +404,7 @@ static void handle_message(const cJSON *msg)
     bool matched = false;
     if (parse_pair(text, &matched)) {
         if (!matched) {
-            return;     /* 틀린 코드에는 답하지 않는다 (코드 추측에 힌트를 주지 않게) */
+            return;     /* no reply to a wrong code (so guessing gets no hints) */
         }
         const cJSON *type = cJSON_GetObjectItem(chat, "type"), *title = cJSON_GetObjectItem(chat, "title");
         char name[64];
@@ -414,8 +414,8 @@ static void handle_message(const cJSON *msg)
             person_name(chat, name, sizeof(name));
         }
         esp_err_t err = tg_chat_add(chat_id, name, cJSON_IsString(type) ? type->valuestring : "private");
-        telegram_send(chat_id, err == ESP_OK ? "등록되었습니다. 이제 이 대화방의 메시지를 스피커가 받습니다."
-                                             : "등록할 수 없습니다. 대화방이 10개를 넘었습니다.");
+        telegram_send(chat_id, err == ESP_OK ? "Registered. This speaker will now receive messages from this chat."
+                                             : "Cannot register: 10 chats are already registered (the maximum).");
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "chat paired");
             app_events_post(APP_EVT_TG_PAIRED, &chat_id, sizeof(chat_id), 0);
@@ -425,7 +425,7 @@ static void handle_message(const cJSON *msg)
 
     char alias[TG_ALIAS_MAX + 1];
     if (!tg_chat_registered(chat_id, alias)) {
-        return;     /* 등록하지 않은 대화방은 무시 (TLG-06) */
+        return;     /* ignore unregistered chats (TLG-06) */
     }
     char from[48];
     person_name(cJSON_GetObjectItem(msg, "from"), from, sizeof(from));
@@ -433,13 +433,13 @@ static void handle_message(const cJSON *msg)
     store_message(chat_id, alias, from[0] ? from : alias, text, cJSON_IsNumber(date) ? (uint32_t)date->valuedouble : 0);
 }
 
-/* 성공하면 처리한 업데이트 수, 실패하면 HTTP 상태(음수가 아니면) 또는 -1 */
+/* On success, the number of updates handled; on failure, the HTTP status (if non-negative) or -1 */
 static int poll_once(int *status_out)
 {
     /*
-     * 보통 10개씩 받는다. 응답이 64KB를 넘어 잘리면(낯선 사람이 긴 메시지를 여러 개 보내는 경우 등)
-     * 같은 offset으로 영원히 같은 묶음을 받게 된다. 그래서 잘리면 1개씩 받고, 1개도 해석이
-     * 안 되면 그 update를 건너뛴다.
+     * Normally fetch 10 at a time. If the response exceeds 64KB and is truncated (e.g. a stranger sends several long messages),
+     * the same offset would return the same batch forever. So when truncated, fetch one at a time, and if even one
+     * can't be parsed, skip that update.
      */
     static int limit = 10;
     char query[160];
@@ -491,7 +491,7 @@ static bool connect_bot(void)
 {
     cJSON *resp = NULL;
     int status = api_call("getMe", NULL, NULL, SEND_RESPONSE, 10000, &resp, NULL);
-    if (status == 401 || status == 404) {   /* 404: 토큰 형식이 틀리면 Telegram이 404를 준다 */
+    if (status == 401 || status == 404) {   /* 404: Telegram returns 404 when the token format is wrong */
         cJSON_Delete(resp);
         set_state(TG_TOKEN_INVALID);
         return false;
@@ -505,7 +505,7 @@ static bool connect_bot(void)
     if (!ok) {
         return false;
     }
-    /* 같은 봇을 Webhook으로 쓰던 곳이 있으면 그 연동은 끊긴다 (앱 안내: 전용 봇을 만드세요) */
+    /* anything that used this bot via webhook loses that integration (the app tells users to create a dedicated bot) */
     api_call("deleteWebhook", NULL, NULL, SEND_RESPONSE, 10000, &resp, NULL);
     cJSON_Delete(resp);
     ESP_LOGI(TAG, "bot connected (stack free min %u B)", (unsigned)uxTaskGetStackHighWaterMark(NULL));
@@ -515,7 +515,7 @@ static bool connect_bot(void)
 static void on_settings(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (*(const app_setting_t *)data == APP_SETTING_SECRETS) {
-        atomic_store(&s_token_changed, true);   /* 토큰을 새로 쓰거나 지움 → 다시 연결 */
+        atomic_store(&s_token_changed, true);   /* token written or erased → reconnect */
     }
 }
 
@@ -544,7 +544,7 @@ static void poll_task(void *arg)
             set_state(TG_CONNECTING);
             connected = connect_bot();
             if (!connected) {
-                invalid_token = telegram_state() == TG_TOKEN_INVALID;   /* 토큰이 바뀔 때까지 쉰다 */
+                invalid_token = telegram_state() == TG_TOKEN_INVALID;   /* rest until the token changes */
                 vTaskDelay(pdMS_TO_TICKS(backoff));
                 backoff = backoff * 2 > RETRY_MAX_MS ? RETRY_MAX_MS : backoff * 2;
                 continue;
@@ -563,7 +563,7 @@ static void poll_task(void *arg)
             invalid_token = true;
             continue;
         }
-        /* 진단: 실패 원인이 내부 RAM 부족인지 가르려고 그 순간의 여유를 같이 남긴다 (2026-10-04 DNS 202 반복) */
+        /* diagnostics: log the free memory at that moment to tell whether the failure is an internal RAM shortage (2026-10-04, repeated DNS 202) */
         ESP_LOGW(TAG, "poll failed (HTTP %d), retry in %lu ms (internal free %u, largest %u)", status,
                  (unsigned long)backoff, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
@@ -584,7 +584,7 @@ esp_err_t telegram_init(void)
         return err;
     }
     app_events_subscribe(APP_EVT_SETTINGS_CHANGED, on_settings, NULL);
-    /* TLS + 최대 64KB 응답 JSON 해석 (응답 버퍼는 PSRAM) */
+    /* TLS + parsing up to 64KB of response JSON (response buffer in PSRAM) */
     return xTaskCreatePinnedToCoreWithCaps(poll_task, "telegram", 12288, NULL, 3, NULL, 0, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS ? ESP_OK
                                                                                          : ESP_ERR_NO_MEM;
 }

@@ -1,5 +1,5 @@
 name: aispeaker
-description: "가족용 AI 스피커(Jarvis) 설정·제어 앱"
+description: "Setup and control app for the family AI speaker (Jarvis)"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

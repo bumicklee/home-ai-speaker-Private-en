@@ -1,6 +1,6 @@
-/// 기기별 LAN API 클라이언트 (설계서 2.14, 3.2절).
-/// baseUrl·토큰을 기기 단위로 묶는다. 토큰 갱신 인터셉터 없음 (401 = 해지).
-/// 연결 실패면 mDNS로 IP를 다시 찾아 한 번 재시도한다.
+/// Per-device LAN API client (design document Sections 2.14, 3.2).
+/// Bundles baseUrl and token per device. No token-refresh interceptor (401 = revoked).
+/// If the connection fails, find the IP again via mDNS and retry once.
 library;
 
 import 'dart:async';
@@ -26,7 +26,7 @@ class DeviceApiClient {
   final DeviceResolver? _resolver;
   DeviceEndpoint _endpoint;
 
-  /// IP가 바뀌었을 때 저장하라고 알린다
+  /// Notifies the caller to save the IP when it changes
   final void Function(DeviceEndpoint)? onEndpointChanged;
 
   DeviceEndpoint get endpoint => _endpoint;
@@ -34,7 +34,7 @@ class DeviceApiClient {
   void _apply() {
     _dio.options
       ..baseUrl = _endpoint.baseUri.toString()
-      // Origin 헤더를 보내면 기기가 거부한다 (브라우저 차단용). Dio는 보내지 않는다
+      // The device rejects requests with an Origin header (to block browsers). Dio doesn't send one
       ..headers = {'Authorization': 'Bearer ${_endpoint.token}'};
   }
 
@@ -46,7 +46,7 @@ class DeviceApiClient {
 
   Future<T> delete<T>(String path) => _run(() => _dio.delete<T>(path));
 
-  /// OTA 등 큰 업로드. Content-Length 필수 (기기가 크기를 먼저 확인)
+  /// Large uploads such as OTA. Content-Length required (the device checks the size first)
   Future<T> upload<T>(String path, Stream<List<int>> data, int length,
           {void Function(int sent, int total)? onProgress, Duration timeout = const Duration(minutes: 5)}) =>
       _run(() => _dio.post<T>(path,
@@ -57,7 +57,7 @@ class DeviceApiClient {
             receiveTimeout: timeout,
           ),
           onSendProgress: onProgress),
-          retry: false); // 스트림은 다시 보낼 수 없다
+          retry: false); // A stream can't be sent again
 
   Future<T> _run<T>(Future<Response<T>> Function() call, {bool retry = true}) async {
     try {
@@ -104,7 +104,7 @@ class DeviceApiClient {
   }
 }
 
-/// 기기마다 클라이언트 하나 (DI는 이 팩토리만 등록)
+/// One client per device (DI registers only this factory)
 class DeviceApiClientFactory {
   DeviceApiClientFactory({this.resolver});
 

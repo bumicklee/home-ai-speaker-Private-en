@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""lib/l10n/parts/<기능>_<언어>.arb 를 합쳐 lib/l10n/app_<언어>.arb 를 만든다.
+"""Merge lib/l10n/parts/<feature>_<lang>.arb into lib/l10n/app_<lang>.arb.
 
-기능마다 문구 파일을 따로 두어, 여러 기능을 동시에 만들 때 같은 ARB를 고치며 부딪치지 않게 한다.
-키가 겹치면 실패한다. 실행: python3 tool/merge_arb.py && flutter gen-l10n
+Each feature keeps its own string file, so several features built at the same time never collide editing one ARB.
+Fails on duplicate keys. Run: python3 tool/merge_arb.py && flutter gen-l10n
 """
 import json, pathlib, sys
 

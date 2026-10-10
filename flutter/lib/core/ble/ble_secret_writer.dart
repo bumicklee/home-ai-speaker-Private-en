@@ -1,5 +1,5 @@
-/// 비밀값·등록 명령 공통 처리. provisioning·keys·telegram·spotify가 모두 이것만 쓴다
-/// (기능마다 BLE 코드를 중복하지 않는다. 설계서 3.2절). 비밀값은 LAN으로 보내지 않는다 (D6).
+/// Shared handling of secrets and registration commands. provisioning, keys, telegram, and spotify all use only this
+/// (no duplicated BLE code per feature; design document Section 3.2). Secrets are never sent over LAN (D6).
 library;
 
 import '../ai/ai_choice.dart';
@@ -26,7 +26,7 @@ class DeviceInfo {
         secrets: {
           for (final e in (j['secrets'] as Map<String, dynamic>? ?? const {}).entries) e.key: e.value == true,
         },
-        // 옛 펌웨어(ai 없음)는 openai.live만
+        // Old firmware (no ai) supports only openai.live
         ai: AiStatus.fromJson(j['ai']),
       );
 
@@ -37,10 +37,10 @@ class DeviceInfo {
   final bool wifiConnected;
   final Map<String, bool> secrets;
 
-  /// 지금 쓰는 AI와 이 펌웨어가 할 수 있는 조합 (`/status.ai`와 같은 모양)
+  /// The AI in use now and the combinations this firmware supports (same shape as `/status.ai`)
   final AiStatus ai;
 
-  /// 펌웨어 규격이 앱보다 새로우면 앱 업데이트가 필요하다
+  /// If the firmware's spec is newer than the app's, the app needs an update
   bool get needsAppUpdate => protocolVersion > BleProtocol.protocolVersion;
 }
 
@@ -62,8 +62,8 @@ class BleSecretWriter {
 
   Future<void> eraseSecret(String key) => _channel.request(BleOp.secretErase, {'key': key});
 
-  /// 휴대폰 등록. 가득 차면 [BleCommandException] `PHONES_FULL` (data['phones'] 목록) →
-  /// 사용자 확인 뒤 [evict]를 붙여 다시 부른다
+  /// Registers the phone. When full, throws [BleCommandException] `PHONES_FULL` (list in data['phones']) →
+  /// after the user confirms, call again with [evict]
   Future<PairResult> pair({required String phoneId, required String phoneName, String? evict}) async {
     final r = await _channel.request(BleOp.apiPair, {
       'phone_id': phoneId,
@@ -73,7 +73,7 @@ class BleSecretWriter {
     return PairResult(token: r['token'] as String, phoneId: r['phone_id'] as String? ?? phoneId);
   }
 
-  /// 저장 후 기기가 바로 토큰 갱신을 시도해 결과를 준다
+  /// After saving, the device immediately tries to refresh the token and returns the result
   Future<void> linkSpotify({required String clientId, required String refreshToken}) =>
       _channel.request(BleOp.spotifyLink, {'client_id': clientId, 'refresh_token': refreshToken});
 
@@ -85,6 +85,6 @@ class BleSecretWriter {
   Future<void> setSettings(String group, Map<String, Object?> value) =>
       _channel.request(BleOp.settingsSet, {'group': group, 'value': value});
 
-  /// 쓴 값 적용, BLE 창 닫기, 재부팅 없음
+  /// Apply written values, close the BLE window, no reboot
   Future<void> close() => _channel.request(BleOp.provClose);
 }

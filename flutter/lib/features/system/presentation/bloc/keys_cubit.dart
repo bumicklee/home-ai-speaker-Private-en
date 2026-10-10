@@ -20,17 +20,17 @@ class KeysState extends Equatable {
 
   final bool loaded;
 
-  /// 휴대폰(KeyVault)에 기억해 둔 값. 키 → 값 (없으면 빠짐)
+  /// Values remembered on the phone (KeyVault). key → value (absent if none)
   final Map<String, String> onPhone;
 
-  /// 스피커 저장 여부 (`/status` secrets). 연결이 안 되면 null
+  /// Whether the speaker has each key saved (`/status` secrets). null if it can't connect
   final Map<String, bool>? onSpeaker;
   final Failure? speakerFailure;
 
-  /// BLE로 보내는 중인 키
+  /// Key being sent over BLE
   final String? sending;
 
-  /// LAN 삭제 중
+  /// Deleting over LAN
   final bool busy;
 
   KeysState copyWith({
@@ -54,18 +54,18 @@ class KeysState extends Equatable {
   List<Object?> get props => [loaded, onPhone, onSpeaker, speakerFailure, sending, busy];
 }
 
-/// 키 관리: 이 휴대폰에 기억한 키(KeyVault)와 스피커에 저장된 키.
-/// 스피커로 보낼 때는 BLE만 쓴다 (D6). 지우기는 LAN `DELETE /keys/{key}`
+/// Key management: keys remembered on this phone (KeyVault) and keys saved on the speaker.
+/// Sending to the speaker uses BLE only (D6). Deleting uses LAN `DELETE /keys/{key}`
 class KeysCubit extends Cubit<KeysState> {
   KeysCubit(this._repo, this._vault) : super(const KeysState());
 
   final SystemRepository _repo;
   final KeyVault _vault;
 
-  /// 화면에서 다루는 키 (스피커 `secret.set` 이름)
+  /// Keys handled on this screen (speaker `secret.set` names)
   static const keys = [SecretKey.openai, SecretKey.gemini, SecretKey.telegramBot];
 
-  /// 뒤 4자리만 보인다
+  /// Show only the last 4 characters
   static String mask(String value) => '••••${value.substring(max(0, value.length - 4))}';
 
   Future<void> load() async {
@@ -83,14 +83,14 @@ class KeysCubit extends Cubit<KeysState> {
     );
   }
 
-  /// 이 휴대폰에서만 지운다 (스피커의 키는 그대로)
+  /// Delete from this phone only (the speaker's key stays)
   Future<void> forgetOnPhone(String key) async {
     await _save(key, null);
     if (isClosed) return;
     emit(state.copyWith(onPhone: {...state.onPhone}..remove(key)));
   }
 
-  /// 스피커 키 바꾸기 (BLE). 성공하면 휴대폰에도 기억한다
+  /// Change the speaker's key (BLE). On success, also remember it on the phone
   Future<Failure?> sendToSpeaker(String key, String value) async {
     emit(state.copyWith(sending: () => key));
     final r = await _repo.sendKeyOverBle(key, value);
@@ -110,7 +110,7 @@ class KeysCubit extends Cubit<KeysState> {
     return null;
   }
 
-  /// 스피커에서 지우기 (LAN). 휴대폰에 기억한 값은 그대로
+  /// Delete from the speaker (LAN). The value remembered on the phone stays
   Future<Failure?> deleteOnSpeaker(String key) async {
     emit(state.copyWith(busy: true));
     final r = await _repo.deleteSpeakerKey(key);

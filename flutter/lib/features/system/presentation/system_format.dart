@@ -1,17 +1,17 @@
-/// 시스템 화면의 값 → 문구 (테스트하기 쉽게 화면 밖에 둔다)
+/// System screen values → text (kept outside the screen so they're easy to test)
 library;
 
 import '../../../l10n/app_localizations.dart';
 import '../domain/entities/system_status.dart';
 
-/// "3시간 12분", 하루가 넘으면 "2일 3시간"
+/// "3시간 12분" (3 h 12 min); over a day, "2일 3시간" (2 days 3 h)
 String formatUptime(AppLocalizations l, Duration d) {
   if (d.inDays > 0) return l.sysUptimeDays(d.inDays, d.inHours % 24);
   if (d.inHours > 0) return l.sysUptimeHours(d.inHours, d.inMinutes % 60);
   return l.sysUptimeMinutes(d.inMinutes);
 }
 
-/// "좋음 (-51 dBm)", 연결 안 됐으면 "연결 안 됨"
+/// "좋음 (-51 dBm)" (Good), or "연결 안 됨" (Not connected) if not connected
 String formatWifi(AppLocalizations l, int? rssi) {
   if (rssi == null) return l.sysWifiNone;
   return switch (WifiBand.fromRssi(rssi)) {

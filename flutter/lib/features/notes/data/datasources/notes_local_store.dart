@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../domain/entities/note.dart';
 import '../models/note_model.dart';
 
-/// 폰에 두는 사본: 앱 문서 폴더의 `notes_<deviceId>.json` (`{rev, items, settings}`)
+/// Copy kept on the phone: `notes_<deviceId>.json` in the app documents folder (`{rev, items, settings}`)
 class NotesLocalStore {
   NotesLocalStore({Future<Directory> Function()? directory}) : _directory = directory ?? getApplicationDocumentsDirectory;
 
@@ -17,7 +17,7 @@ class NotesLocalStore {
     return File('${(await _directory()).path}/notes_$safe.json');
   }
 
-  /// 없거나 깨졌으면 빈 사본
+  /// Empty copy if missing or corrupt
   Future<NotesCache> read(String deviceId) async {
     try {
       final f = await _file(deviceId);
@@ -29,7 +29,7 @@ class NotesLocalStore {
     }
   }
 
-  /// 임시 파일에 쓰고 이름을 바꾼다 (쓰다 앱이 꺼져도 이전 사본이 남게)
+  /// Writes to a temp file and renames it (so the previous copy survives if the app dies mid-write)
   Future<void> write(String deviceId, NotesCache cache) async {
     final f = await _file(deviceId);
     final tmp = File('${f.path}.tmp');

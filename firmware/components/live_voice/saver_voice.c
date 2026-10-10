@@ -1,12 +1,12 @@
 /**
  * @file saver_voice.c
- * @brief 절약 모드(OpenAI) 음성 엔진: 듣기(VAD) → 받아쓰기 → 글자 AI(도구) → 음성 합성 (docs/design-voice-saver-mode.md 11.6)
+ * @brief Saver mode (OpenAI) voice engine: listen (VAD) -> transcription -> text model (tools) -> speech synthesis (docs/design-voice-saver-mode.md 11.6)
  *
- * live_voice.c가 engine을 고른 뒤 깨우는 자기 태스크에서 전체 대화 루프를 돈다(세션 한 번 = 한 번의
- * 호출). 바쁨·상태·준비·무응답/최대 시간은 live_voice.c가 들고 있는 값을 saver_voice.h의 작은 전달
- * 함수로만 쓴다(voice_shared_*). 실시간(gpt-live-1) 경로는 전혀 건드리지 않는다.
+ * Runs the whole conversation loop in its own task, which live_voice.c wakes after choosing the engine (one session = one
+ * call). Busy, state, ready, and idle/max time use the values live_voice.c holds, only through the small pass-through
+ * functions in saver_voice.h (voice_shared_*). The Live (gpt-live-1) path is not touched at all.
  *
- * 로그는 단계별 시간·횟수만 남긴다. 받아쓴 글자·AI 대답·텔레그램 내용은 절대 로그에 남기지 않는다.
+ * Logs record only per-step times and counts. Transcribed text, AI replies, and Telegram content are never logged.
  */
 #include "saver_voice.h"
 
@@ -44,27 +44,27 @@
 
 static const char *TAG = "SAVER";
 
-/* ── 상수 ─────────────────────────────────────────────────── */
+/* ── Constants ─────────────────────────────────────────────────── */
 
 #define SAVER_VAD_FRAME_MS      20
 #define SAVER_VAD_FRAME_SAMPLES (AUDIO_SAMPLE_RATE * SAVER_VAD_FRAME_MS / 1000)   /* 320 @16kHz */
 /*
- * 2026-10-04 실기기: 말을 전혀 못 알아들음. 메아리 제거 뒤 소리가 작고(최대값 600~1,400) VAD 모드 3(가장 엄격)이
- * 사람 말을 조용함으로 봤다. 호출어처럼 4배(+12dB) 키워서 VAD와 받아쓰기에 쓰고, 모드를 낮추고,
- * VAD가 놓쳐도 소리가 충분히 크면 말로 본다(크기 기준).
+ * 2026-10-04 on real hardware: speech was not recognized at all. After echo cancellation the audio was quiet (peak 600-1,400) and VAD mode 3 (strictest)
+ * treated speech as silence. Like the wake word, boost 4x (+12dB) for VAD and transcription, lower the mode,
+ * and treat loud enough sound as speech even when VAD misses it (loudness rule).
  */
 #define SAVER_INPUT_GAIN        4
 #define SAVER_VAD_MODE          VAD_MODE_1
-#define SAVER_SPEECH_RMS        700       /* 키운 뒤 RMS. 이보다 크면 말 */
-#define SAVER_START_FRAMES      3         /* 큰 소리가 연속 3조각(60ms) 이상이어야 말 시작 (문소리 등 무시) */
+#define SAVER_SPEECH_RMS        700       /* RMS after boost. Above this is speech */
+#define SAVER_START_FRAMES      3         /* speech starts only after 3 loud chunks (60ms) in a row (ignores door sounds etc.) */
 /*
- * 2026-10-04 실기기 2차: WebRTC VAD가 조용할 때도 정확히 절반의 조각을 "말"이라고 했다
- * ("listen 5 s: frames 250, vad speech 125, loud 0, peak 120"). 그래서 말 끝(0.7초 조용)이 오지 않아
- * 받아쓰기로 못 넘어갔다. 끝점 판단은 소리 크기(RMS)만 쓰고, VAD 값은 진단 로그에만 남긴다.
+ * 2026-10-04 on real hardware, second round: WebRTC VAD called exactly half the chunks "speech" even in silence
+ * ("listen 5 s: frames 250, vad speech 125, loud 0, peak 120"). So end of speech (0.7 s of silence) never came
+ * and it never moved on to transcription. Endpointing uses loudness (RMS) only; VAD values go to the diagnostic log only.
  */
 #define SAVER_PREROLL_MS        300
 #define SAVER_PREROLL_SAMPLES   (AUDIO_SAMPLE_RATE * SAVER_PREROLL_MS / 1000)     /* 4800 */
-#define SAVER_PCM_MAX_SAMPLES   (31 * AUDIO_SAMPLE_RATE)   /* 31초 > 30초 최대 발화 + 여유 */
+#define SAVER_PCM_MAX_SAMPLES   (31 * AUDIO_SAMPLE_RATE)   /* 31 s > 30 s max utterance + margin */
 #define SAVER_PCM_MAX_BYTES     (SAVER_PCM_MAX_SAMPLES * sizeof(int16_t))
 
 #define SAVER_STT_URL   "https://api.openai.com/v1/audio/transcriptions"
@@ -86,8 +86,8 @@ static const char *TAG = "SAVER";
 #define WAV_HEADER_LEN   44
 
 #define STT_RESPONSE_CAP  4096
-/* 응답에는 보낸 지시문·도구 목록이 그대로 되돌아오고(15~20KB), 웹 검색이면 출처까지 붙는다.
- * 16KB였을 때 넘친 부분이 버려져 해석이 실패하고 대답이 비었다 (2026-10-04 실기기: "tts 0.0 s"). PSRAM이라 넉넉히 */
+/* The response echoes back the instructions and tool list we sent (15-20KB), plus sources for a web search.
+ * At 16KB the overflow was dropped, parsing failed, and the reply was empty (2026-10-04 on real hardware: "tts 0.0 s"). PSRAM, so be generous */
 #define LLM_RESPONSE_CAP  (256 * 1024)
 #define TOOL_MAX_ROUNDS   4
 #define HISTORY_MAX_TURNS 20
@@ -97,42 +97,42 @@ static const char *TAG = "SAVER";
 #define CONSECUTIVE_FAIL_MAX 3
 
 /*
- * Gemini 절약 모드 (docs/design-voice-saver-mode.md stage 2). understanding+reply를 한 번에 하므로(2.5절) 받아쓰기
- * 단계가 따로 없다 — 대신 소리를 바로 generateContent에 넣고, 모델이 맨 처음 반드시 report_transcript를
- * 부르게 해서(toolConfig mode ANY) 받아쓴 글도 함께 받는다(종료 문구·TLG-14·잡음 필터에 필요, 11.6절).
- * 구조化 출력(responseSchema)은 함수 호출과 같이 못 써서(2026-10 ai.google.dev 확인) 이 방식을 골랐다.
+ * Gemini Saver mode (docs/design-voice-saver-mode.md stage 2). Understanding + reply happen in one call (Section 2.5), so there is no
+ * separate transcription step. Instead the audio goes straight into generateContent, and the model must call
+ * report_transcript first (toolConfig mode ANY), so we get the transcript too (needed for hang-up phrases, TLG-14, noise filter; Section 11.6).
+ * Structured output (responseSchema) can't be combined with function calling (checked at ai.google.dev, 2026-10), hence this approach.
  */
 #define GEMINI_URL_FMT          "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
-#define GEMINI_RESPONSE_CAP     (256 * 1024)   /* 이해+도구 응답: LLM_RESPONSE_CAP과 같은 이유(15.5절) */
-#define GEMINI_TTS_RESPONSE_CAP (512 * 1024)   /* base64 오디오라 더 크다 (요청 10) */
-#define GEMINI_MAX_AUDIO_SAMPLES (15 * AUDIO_SAMPLE_RATE)  /* 발화 30초 전부를 base64로 올리면 PSRAM·시간이
-    부담(1.3MB 안팎) → 15초로 자른다(요청 1 메모). 보통 발화는 훨씬 짧아 실제로는 거의 안 걸린다 */
-#define GEMINI_TRANSCRIBE_TIMEOUT_MS 25000  /* 오디오 업로드 포함이라 다른 호출보다 여유 있게 */
+#define GEMINI_RESPONSE_CAP     (256 * 1024)   /* understanding + tool response: same reason as LLM_RESPONSE_CAP (Section 15.5) */
+#define GEMINI_TTS_RESPONSE_CAP (512 * 1024)   /* larger because of base64 audio (request 10) */
+#define GEMINI_MAX_AUDIO_SAMPLES (15 * AUDIO_SAMPLE_RATE)  /* uploading a full 30 s utterance as base64 costs PSRAM and time
+    (about 1.3MB) -> cut to 15 s (request 1 note). Normal utterances are much shorter, so this rarely applies */
+#define GEMINI_TRANSCRIBE_TIMEOUT_MS 25000  /* includes the audio upload, so longer than other calls */
 #define GEMINI_TOOL_TIMEOUT_MS  20000
 #define GEMINI_TTS_TIMEOUT_MS   25000
 
-/* ── 녹음 버퍼 (PSRAM, multipart 앞뒤를 미리 자리 잡아 둔다: 복사 한 번 없이 그대로 POST) ── */
+/* ── Recording buffer (PSRAM, with room for the multipart head and tail reserved up front: POSTed as is, without a single copy) ── */
 
-static uint8_t *s_rec_buf;      /* STT_PREAMBLE + WAV_HEADER + PCM(최대) + STT_TAIL */
+static uint8_t *s_rec_buf;      /* STT_PREAMBLE + WAV_HEADER + PCM (max) + STT_TAIL */
 static size_t   s_rec_capacity;
-static int16_t *s_preroll;      /* 작은 원형 버퍼, 항상 최근 0.3초 */
+static int16_t *s_preroll;      /* small ring buffer, always the latest 0.3 s */
 static size_t   s_preroll_write;
 static bool     s_preroll_full;
 
-/* ── 세션 공유 상태 (마이크 태스크 ↔ saver 태스크) ───────────── */
+/* ── Shared session state (mic task <-> saver task) ───────────── */
 
 static vad_handle_t     s_vad;
 static saver_endpoint_t s_endpoint;
 static int16_t          s_carry[SAVER_VAD_FRAME_SAMPLES];
 static size_t           s_carry_used;
-static _Atomic size_t   s_rec_len_samples;     /* 마이크 태스크가 기록 중인 길이 */
-static atomic_bool      s_listening;           /* true일 때만 마이크 싱크가 녹음한다 (11.5: 말하는 동안은 안 받음) */
+static _Atomic size_t   s_rec_len_samples;     /* length the mic task is recording */
+static atomic_bool      s_listening;           /* the mic sink records only when true (11.5: no input while speaking) */
 static QueueHandle_t    s_utterances;          /* depth 1: saver_utterance_t, xQueueOverwrite */
-static atomic_bool      s_barge;               /* Key2: 지금 재생 멈추기 */
-static atomic_bool      s_session_active;      /* 세션 진행 중 (listening/thinking/speaking 통틀어) */
+static atomic_bool      s_barge;               /* Key2: stop current playback */
+static atomic_bool      s_session_active;      /* session in progress (listening/thinking/speaking combined) */
 
 static SemaphoreHandle_t s_pending_lock;
-static char             *s_pending_text;       /* saver_voice_text()가 넣는 알림 문장 (PSRAM, 세션이 소비) */
+static char             *s_pending_text;       /* reminder sentence put in by saver_voice_text() (PSRAM, consumed by the session) */
 
 typedef struct {
     saver_endpoint_result_t reason;
@@ -144,7 +144,7 @@ typedef struct {
     char text[TURN_TEXT_MAX];
 } saver_turn_t;
 
-static saver_turn_t *s_history;     /* PSRAM, HISTORY_MAX_TURNS개 원형 */
+static saver_turn_t *s_history;     /* PSRAM, ring of HISTORY_MAX_TURNS */
 static int           s_history_count, s_history_next;
 
 static uint32_t now_ms(void)
@@ -152,7 +152,7 @@ static uint32_t now_ms(void)
     return (uint32_t)(esp_timer_get_time() / 1000);
 }
 
-/* ── 마이크 싱크: VAD → 끝점 판단 → 녹음 버퍼/프리롤 ──────────── */
+/* ── Mic sink: VAD -> endpointing -> recording buffer/pre-roll ──────────── */
 
 static int16_t *pcm_region(void)
 {
@@ -170,7 +170,7 @@ static void preroll_push(const int16_t *samples, size_t n)
     }
 }
 
-/* 프리롤 전체를 시간 순서대로 녹음 버퍼 맨 앞에 복사한다 (말이 막 시작된 순간) */
+/* Copy the whole pre-roll, in time order, to the front of the recording buffer (the moment speech starts) */
 static size_t preroll_commit(int16_t *dst)
 {
     size_t count = s_preroll_full ? SAVER_PREROLL_SAMPLES : s_preroll_write;
@@ -194,12 +194,12 @@ static void append_pcm(const int16_t *samples, size_t n)
     }
 }
 
-/* 진단: 듣는 동안 5초마다 소리 크기·말 감지 횟수 (내용 없음) */
+/* Diagnostics: loudness and speech-detection counts every 5 s while listening (no content) */
 static volatile unsigned s_diag_frames, s_diag_vad, s_diag_loud;
 static unsigned s_loud_run;
 static volatile int s_diag_peak;
 
-/* 마이크 태스크에서 불린다. 막지 않는다(VAD 한 프레임 처리는 가볍다) */
+/* Called from the mic task. Never blocks (processing one VAD frame is light) */
 static void saver_voice_feed(const int16_t *samples, size_t count)
 {
     if (!atomic_load(&s_listening)) {
@@ -216,7 +216,7 @@ static void saver_voice_feed(const int16_t *samples, size_t count)
             break;
         }
         s_carry_used = 0;
-        /* 4배 키우기 (넘치면 자름) + 크기 재기 */
+        /* Boost 4x (clip on overflow) + measure loudness */
         int peak = 0;
         uint64_t sq = 0;
         for (int i = 0; i < SAVER_VAD_FRAME_SAMPLES; i++) {
@@ -232,7 +232,7 @@ static void saver_voice_feed(const int16_t *samples, size_t count)
         vad_state_t v = s_vad ? vad_process(s_vad, s_carry, AUDIO_SAMPLE_RATE, SAVER_VAD_FRAME_MS) : VAD_SILENCE;
         bool loud = rms > SAVER_SPEECH_RMS;
         s_loud_run = loud ? s_loud_run + 1 : 0;
-        /* 말이 시작되기 전에는 큰 소리가 연속 3조각 이상이어야, 시작된 뒤에는 큰 소리 한 조각이면 말 */
+        /* Before speech starts, 3 loud chunks in a row are needed; after it starts, one loud chunk counts as speech */
         bool speech = s_endpoint.in_speech ? loud : s_loud_run >= SAVER_START_FRAMES;
         s_diag_frames++;
         s_diag_vad += v == VAD_SPEECH;
@@ -257,12 +257,12 @@ static void saver_voice_feed(const int16_t *samples, size_t count)
     }
 }
 
-/* ── HTTP 공통 ────────────────────────────────────────────── */
+/* ── HTTP common ────────────────────────────────────────────── */
 
 typedef struct {
     char  *buf;
     size_t used, cap;
-    bool   truncated;   /* 그릇이 넘쳐 뒷부분을 버렸다 */
+    bool   truncated;   /* the buffer overflowed and the tail was dropped */
 } body_t;
 
 static esp_err_t collect_body(esp_http_client_event_t *evt)
@@ -287,14 +287,14 @@ static void set_auth(esp_http_client_handle_t client, const char *key)
     memset(auth, 0, sizeof(auth));
 }
 
-/* Gemini: 키를 URL(?key=)에 넣으면 접속 로그·프록시에 그대로 남을 수 있어 헤더로 보낸다 (요청 7) */
+/* Gemini: a key in the URL (?key=) can end up in access logs and proxies, so send it in a header (request 7) */
 static void set_gemini_auth(esp_http_client_handle_t client, const char *key)
 {
     esp_http_client_set_header(client, "x-goog-api-key", key);
 }
 
-/* 지금 설정의 ai_provider가 gemini인가. live_voice.c의 read_voice_choice()와 같은 이유로 직접 읽는다
- * (assistant를 REQUIRES할 수 없다, saver_voice.h 머리말 참고). 못 읽으면 false(OpenAI, 안전한 기본값) */
+/* Is the current ai_provider setting gemini? Read directly for the same reason as read_voice_choice() in live_voice.c
+ * (can't REQUIRE assistant, see the saver_voice.h header). If unreadable, false (OpenAI, safe default) */
 static bool provider_is_gemini(void)
 {
     size_t len = 4096;
@@ -310,7 +310,7 @@ static bool provider_is_gemini(void)
     return gemini;
 }
 
-/* ── 받아쓰기 (multipart, 미리 자리 잡은 버퍼를 그대로 POST) ── */
+/* ── Transcription (multipart, POST the pre-laid-out buffer as is) ── */
 
 static void put_le32(uint8_t *p, uint32_t v) { p[0]=v; p[1]=v>>8; p[2]=v>>16; p[3]=v>>24; }
 static void put_le16(uint8_t *p, uint16_t v) { p[0]=v; p[1]=v>>8; }
@@ -333,7 +333,7 @@ static void build_wav_header(uint8_t *h, uint32_t pcm_bytes)
     put_le32(h + 40, pcm_bytes);
 }
 
-/* 성공하면 text_out에 받아쓴 글(널 종료), 실패하면 false. text_out[0]='\0'이면 빈 결과 */
+/* On success text_out holds the transcript (NUL-terminated); false on failure. text_out[0]='\0' means an empty result */
 static bool stt_transcribe(const char *key, size_t sample_count, char *text_out, size_t text_cap)
 {
     text_out[0] = '\0';
@@ -387,7 +387,7 @@ static bool stt_transcribe(const char *key, size_t sample_count, char *text_out,
     return ok;
 }
 
-/* ── 글자 AI (Responses, 도구 반복) ───────────────────────── */
+/* ── Text model (Responses, tool loop) ───────────────────────── */
 
 static void history_reset(void)
 {
@@ -425,7 +425,7 @@ static void history_append_input(cJSON *input)
     }
 }
 
-/* output[] 배열에서 function_call들과 최종 글을 모은다. calls는 호출한 쪽이 cJSON_Delete */
+/* Collect function_calls and the final text from the output[] array. Caller does cJSON_Delete on calls */
 static cJSON *scan_output(const cJSON *output, char *text_out, size_t text_cap)
 {
     cJSON *calls = cJSON_CreateArray();
@@ -460,8 +460,8 @@ static cJSON *scan_output(const cJSON *output, char *text_out, size_t text_cap)
 }
 
 /*
- * 한 턴(사용자가 말한 것 하나) 전체: 도구 호출까지 최대 TOOL_MAX_ROUNDS번 왕복한다.
- * 반환: 말할 최종 글 (text_out, 비어 있을 수 있음). tools_used에 이번 턴에 실행한 도구 수.
+ * One whole turn (one thing the user said): up to TOOL_MAX_ROUNDS round trips including tool calls.
+ * Returns: the final text to speak (text_out, may be empty). tools_used gets the number of tools run this turn.
  */
 static bool llm_turn(const char *key, const char *instructions, const cJSON *tools, const char *user_text,
                      char *text_out, size_t text_cap, int *tools_used)
@@ -532,7 +532,7 @@ static bool llm_turn(const char *key, const char *instructions, const cJSON *too
         free(resp);
         const cJSON *output = cJSON_GetObjectItemCaseSensitive(j, "output");
         if (body.truncated || !j || !cJSON_IsArray(output)) {
-            /* 내용은 남기지 않고 크기·상태만 */
+            /* size and status only, no content */
             ESP_LOGW(TAG, "ai response unusable: %u B%s%s", (unsigned)body.used, body.truncated ? ", truncated" : "",
                      !j ? ", parse failed" : (!cJSON_IsArray(output) ? ", no output" : ""));
         }
@@ -547,7 +547,7 @@ static bool llm_turn(const char *key, const char *instructions, const cJSON *too
             ok = true;
             break;
         }
-        /* 도구 호출 결과를 입력에 붙여 다시 묻는다 (최대 TOOL_MAX_ROUNDS번) */
+        /* Append tool results to the input and ask again (up to TOOL_MAX_ROUNDS times) */
         cJSON *call;
         cJSON_ArrayForEach(call, calls) {
             cJSON_AddItemToArray(input, cJSON_Duplicate(call, true));
@@ -573,18 +573,18 @@ static bool llm_turn(const char *key, const char *instructions, const cJSON *too
     return ok;
 }
 
-/* ── Gemini: 이해+대답+도구를 한 번에 (docs/design-voice-saver-mode.md stage 2) ──
+/* ── Gemini: understanding + reply + tools in one go (docs/design-voice-saver-mode.md stage 2) ──
  *
- * generateContent(모델 gemini-3.1-flash-lite)에 소리(WAV, base64 inlineData)를 바로 넣는다. OpenAI처럼
- * 받아쓰기를 따로 하지 않는 대신, 맨 처음 라운드에서 report_transcript 함수만 부르게 강제해(toolConfig
- * mode ANY + allowedFunctionNames) 받아쓴 글도 함께 받는다 — 종료 문구·TLG-14 보호·잡음 필터가 받아쓴
- * 글이 필요해서다. (구조화 출력 responseSchema는 함수 호출과 같이 못 쓴다, 2026-10 ai.google.dev 확인.)
- * 그 뒤 라운드(최대 TOOL_MAX_ROUNDS)는 보통 도구 호출(AUTO)로 llm_turn()과 같은 모양이다.
+ * Puts the audio (WAV, base64 inlineData) straight into generateContent (model gemini-3.1-flash-lite). Instead of a separate
+ * transcription like OpenAI, the first round forces a call to report_transcript only (toolConfig
+ * mode ANY + allowedFunctionNames) to get the transcript too, because the hang-up phrases, TLG-14 guard, and noise filter
+ * need the transcript. (Structured output responseSchema can't be combined with function calling, checked at ai.google.dev 2026-10.)
+ * Later rounds (up to TOOL_MAX_ROUNDS) are normal tool calls (AUTO), shaped like llm_turn().
  *
- * contents 배열 하나를 두 함수가 이어서 채운다(gemini_transcribe_turn → gemini_tool_turn), llm_turn()의
- * input 배열과 같은 구실: 모델 차례(함수 호출들, thoughtSignature가 있으면 그 필드까지 그대로)를 다음
- * 요청에 그대로 돌려준다 — 직접 손대지 않고 받은 parts를 통째로 복사해 넣으므로 thoughtSignature가 있어도
- * 그대로 보존된다.
+ * One contents array is filled by two functions in turn (gemini_transcribe_turn -> gemini_tool_turn), serving the same role as
+ * llm_turn()'s input array: the model turn (function calls, including thoughtSignature if present) is returned as is in the next
+ * request. The received parts are copied whole without editing, so any thoughtSignature
+ * is preserved.
  */
 
 static void gemini_add_decl(cJSON *decls, const char *json)
@@ -664,8 +664,8 @@ static void gemini_add_system_instruction(cJSON *req, const char *instructions)
     cJSON_AddItemToArray(parts, part);
 }
 
-/* 녹음 버퍼의 WAV(헤더+PCM, STT용으로 잡아 둔 자리를 그대로 재사용)를 base64로 contents에 사용자 차례로 넣는다.
- * 전체 발화(최대 30초)를 다 올리면 PSRAM·시간 부담이 커서 15초로 자른다 (메모리 노트, 요청 1) */
+/* Put the recording buffer's WAV (header + PCM, reusing the spot laid out for STT) into contents as a base64 user turn.
+ * Uploading the whole utterance (up to 30 s) costs too much PSRAM and time, so it is cut to 15 s (memory note, request 1) */
 static void gemini_append_user_audio(cJSON *contents, size_t sample_count)
 {
     size_t capped = sample_count > GEMINI_MAX_AUDIO_SAMPLES ? GEMINI_MAX_AUDIO_SAMPLES : sample_count;
@@ -674,7 +674,7 @@ static void gemini_append_user_audio(cJSON *contents, size_t sample_count)
                  (unsigned)(sample_count / AUDIO_SAMPLE_RATE), (unsigned)(capped / AUDIO_SAMPLE_RATE));
     }
     size_t pcm_bytes = capped * sizeof(int16_t);
-    uint8_t *wav = s_rec_buf + STT_PREAMBLE_LEN;   /* STT multipart용으로 미리 잡아 둔 헤더+PCM 자리 재사용 */
+    uint8_t *wav = s_rec_buf + STT_PREAMBLE_LEN;   /* reuse the header + PCM spot laid out for the STT multipart */
     build_wav_header(wav, (uint32_t)pcm_bytes);
     size_t wav_len = WAV_HEADER_LEN + pcm_bytes;
 
@@ -698,7 +698,7 @@ static void gemini_append_user_audio(cJSON *contents, size_t sample_count)
     cJSON_AddItemToArray(contents, turn);
 }
 
-/* 역사(OpenAI의 history_append_input과 같은 자리, Gemini 모양으로) */
+/* History (same place as OpenAI's history_append_input, in Gemini shape) */
 static void gemini_append_history(cJSON *contents)
 {
     int start = s_history_count < HISTORY_MAX_TURNS ? 0 : s_history_next;
@@ -715,10 +715,10 @@ static void gemini_append_history(cJSON *contents)
 }
 
 /*
- * 라운드 0: report_transcript만 부르도록 강제한다(mode ANY). 성공하면 contents에 모델 차례(함수 호출,
- * thoughtSignature 포함 그대로)와 그 결과(단순 ack) 차례를 이어 붙여 둔다 — 그래서 바로 gemini_tool_turn()을
- * 이어 부를 수 있다. 모델이 report_transcript를 안 부르면(네트워크 실패 포함) 실패로 본다(받아쓰기 실패와 같은
- * 취급, CONSECUTIVE_FAIL_MAX에 들어간다).
+ * Round 0: force a call to report_transcript only (mode ANY). On success, append to contents the model turn (function call,
+ * with thoughtSignature as is) and its result (simple ack) turn, so gemini_tool_turn() can be called
+ * right after. If the model doesn't call report_transcript (including network failure), it counts as a failure (treated like
+ * a transcription failure, counted toward CONSECUTIVE_FAIL_MAX).
  */
 static bool gemini_transcribe_turn(const char *key, const char *instructions, cJSON *contents, char *transcript_out,
                                    size_t cap)
@@ -764,7 +764,7 @@ static bool gemini_transcribe_turn(const char *key, const char *instructions, cJ
         if (cJSON_IsString(t)) {
             snprintf(transcript_out, cap, "%s", t->valuestring);
         }
-        /* 모델 차례(받은 parts 그대로, thoughtSignature 포함)를 이어 붙이고, 더미 결과로 확인해 준다 */
+        /* Append the model turn (received parts as is, including thoughtSignature) and acknowledge it with a dummy result */
         cJSON *model_turn = cJSON_CreateObject();
         cJSON_AddStringToObject(model_turn, "role", "model");
         cJSON_AddItemToObject(model_turn, "parts", cJSON_Duplicate(parts, true));
@@ -788,7 +788,7 @@ static bool gemini_transcribe_turn(const char *key, const char *instructions, cJ
     return call != NULL;
 }
 
-/* 라운드 1..TOOL_MAX_ROUNDS: 보통 도구 호출(AUTO), llm_turn()과 같은 모양 */
+/* Rounds 1..TOOL_MAX_ROUNDS: normal tool calls (AUTO), shaped like llm_turn() */
 static bool gemini_tool_turn(const char *key, const char *instructions, const cJSON *gemini_tools, cJSON *contents,
                             char *reply_out, size_t reply_cap, int *tools_used)
 {
@@ -876,9 +876,9 @@ static bool gemini_tool_turn(const char *key, const char *instructions, const cJ
     return ok;
 }
 
-/* 비서 설정의 목소리 이름을 Gemini TTS의 prebuilt 목소리로 바꾼다. 겹치는 이름이 없어 거의 항상 기본값
- * Kore로 간다(설계서 5.5·11.6절처럼 "같은 이름 있으면 그대로, 없으면 기본값"의 Gemini판). gemini_live.c도
- * 같은 표를 쓴다(saver_voice.h로 내보냄, 3단계: Gemini Live의 speechConfig.voiceConfig도 같은 이름을 쓴다) */
+/* Map the voice name from assistant settings to a Gemini TTS prebuilt voice. No names overlap, so it almost always falls back to
+ * Kore (the Gemini version of "same name if it exists, otherwise the default" from design doc Sections 5.5, 11.6). gemini_live.c
+ * uses the same table (exported via saver_voice.h; stage 3: Gemini Live's speechConfig.voiceConfig uses the same names) */
 const char *gemini_tts_voice(const char *voice)
 {
     static const char *const GEMINI_VOICES[] = {
@@ -895,9 +895,9 @@ const char *gemini_tts_voice(const char *voice)
     return "Kore";
 }
 
-/* 한 문장을 Gemini TTS로 합성해 재생한다. 스트리밍은 안 쓴다(요청 6: 응답이 JSON 봉투라 조각 해석이
- * 복잡해진다, "non-streaming is fine") — 전체 응답을 받은 뒤 디코드해서 24k→16k로 바꿔 재생 큐에 넣는다.
- * 그만큼 끼어들기 반응이 OpenAI 경로(원문 PCM 스트림)보다 한 박자 늦을 수 있다(알려진 한계, 문서화) */
+/* Synthesize one sentence with Gemini TTS and play it. No streaming (request 6: the response is a JSON envelope, so chunk parsing
+ * gets complicated, "non-streaming is fine"). The full response is received, decoded, converted 24k->16k, and queued for playback.
+ * So barge-in may respond a beat later than the OpenAI path (raw PCM stream) (known limitation, documented) */
 static bool gemini_tts_speak(const char *key, const char *voice, const char *sentence, size_t len)
 {
     char *text = malloc(len + 1);
@@ -954,11 +954,11 @@ static bool gemini_tts_speak(const char *key, const char *voice, const char *sen
     }
     bool played = false;
     size_t b64_len = strlen(b64);
-    uint8_t *pcm = heap_caps_malloc(b64_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   /* 디코딩 결과 <= 길이 */
+    uint8_t *pcm = heap_caps_malloc(b64_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   /* decoded result <= length */
     size_t pcm_len = pcm ? gemini_base64_decode(b64, b64_len, pcm, b64_len) : SIZE_MAX;
     if (pcm && pcm_len != SIZE_MAX) {
-        /* 24kHz s16le를 기대한다(요청·설계 확인). 혹시 WAV 컨테이너(RIFF/WAVE)로 오면 44바이트 헤더를
-         * 건너뛴다(우리 build_wav_header와 같은 표준 PCM WAV 모양이라고 본다). 실기기에서 확인 필요 */
+        /* Expects 24kHz s16le (per request and design). If it comes in a WAV container (RIFF/WAVE), skip the 44-byte
+         * header (assumed to be standard PCM WAV like our build_wav_header). Needs checking on real hardware */
         size_t offset = (pcm_len >= 44 && !memcmp(pcm, "RIFF", 4) && !memcmp(pcm + 8, "WAVE", 4)) ? 44 : 0;
         saver_resample_t resampler;
         saver_resample_reset(&resampler);
@@ -977,7 +977,7 @@ static bool gemini_tts_speak(const char *key, const char *voice, const char *sen
     return played;
 }
 
-/* ── 음성 합성 (문장마다, 받는 대로 16kHz로 바꿔 재생 큐에) ─── */
+/* ── Speech synthesis (per sentence, converted to 16kHz as it arrives and queued for playback) ─── */
 
 typedef struct {
     saver_resample_t resampler;
@@ -991,7 +991,7 @@ static esp_err_t tts_event(esp_http_client_event_t *evt)
         return ESP_OK;
     }
     if (atomic_load(&s_barge) || voice_shared_stopping()) {
-        return ESP_FAIL;   /* 전송을 끊는다 (Key2 끼어들기·세션 종료) */
+        return ESP_FAIL;   /* abort the transfer (Key2 barge-in or session end) */
     }
     tts_stream_t *s = evt->user_data;
     const uint8_t *bytes = evt->data;
@@ -1027,8 +1027,8 @@ static esp_err_t tts_event(esp_http_client_event_t *evt)
 }
 
 /*
- * 비서 설정의 목소리(실시간 gpt-live 목소리 이름)를 음성 합성(TTS) 목소리로 바꾼다.
- * TTS에 없는 이름을 보내면 400으로 소리가 안 나므로, 같은 이름이 있으면 그대로, 없으면 marin.
+ * Map the voice from assistant settings (a Live gpt-live voice name) to a speech synthesis (TTS) voice.
+ * Sending a name TTS doesn't have gives a 400 and no sound, so use the same name if it exists, otherwise marin.
  */
 static const char *tts_voice(const char *voice)
 {
@@ -1042,7 +1042,7 @@ static const char *tts_voice(const char *voice)
     return "marin";
 }
 
-/* 한 문장을 합성해 재생한다. 중간에 멈추면(끼어들기·종료) false */
+/* Synthesize one sentence and play it. false if stopped midway (barge-in or end) */
 static bool tts_speak(const char *key, const char *voice, const char *sentence, size_t len)
 {
     char *text = malloc(len + 1);
@@ -1093,7 +1093,7 @@ static bool tts_speak(const char *key, const char *voice, const char *sentence, 
     return ok;
 }
 
-/* text를 문장으로 나눠 차례로 합성한다. 끼어들기·종료가 오면 중간에 멈춘다 */
+/* Split text into sentences and synthesize them in order. Stops midway on barge-in or end */
 typedef struct {
     const char *key;
     const char *voice;
@@ -1120,7 +1120,7 @@ static void speak_text(const char *key, const char *voice, bool gemini, const ch
     saver_text_split_sentences(text, speak_sentence_cb, &ctx);
 }
 
-/* ── 세션 ─────────────────────────────────────────────────── */
+/* ── Session ─────────────────────────────────────────────────── */
 
 static void touch_activity(uint32_t *activity_ms)
 {
@@ -1130,7 +1130,7 @@ static void touch_activity(uint32_t *activity_ms)
 static void saver_voice_run(void)
 {
     const live_voice_handlers_t *h = voice_shared_handlers();
-    bool gemini = provider_is_gemini();    /* docs/design-voice-saver-mode.md stage 2: 같은 틀, 네트워크 단계만 갈라진다 */
+    bool gemini = provider_is_gemini();    /* docs/design-voice-saver-mode.md stage 2: same frame, only the network steps differ */
     voice_shared_set_status("Connecting Wi-Fi");
     history_reset();
     atomic_store(&s_rec_len_samples, 0);
@@ -1195,8 +1195,8 @@ static void saver_voice_run(void)
     char *instructions =
         h->build_saver_instructions ? h->build_saver_instructions(gemini, voice, sizeof(voice)) : NULL;
     cJSON *tools = h->build_saver_tools ? h->build_saver_tools() : NULL;
-    /* Gemini: 같은 도구를 functionDeclarations 모양으로 바꾼다(gemini_schema.c). web_search 같은 비함수
-     * 도구는 변환 과정에서 자동으로 빠진다(2.5절: Gemini 절약 모드는 검색 도구를 주지 않는다) */
+    /* Gemini: convert the same tools to functionDeclarations shape (gemini_schema.c). Non-function tools such as
+     * web_search drop out automatically during conversion (Section 2.5: Gemini Saver mode gets no search tool) */
     cJSON *gemini_tools = gemini ? gemini_schema_convert_tools(tools) : NULL;
     if (!instructions) {
         instructions = strdup("Answer briefly for speech.");
@@ -1227,14 +1227,14 @@ static void saver_voice_run(void)
             break;
         }
         if (s_endpoint.in_speech) {
-            activity = now;     /* 사람이 말하는 중에는 무응답 시간을 세지 않는다 */
+            activity = now;     /* the idle timer doesn't count while the person is speaking */
         }
         if ((int32_t)(now - activity) > (int32_t)idle_ms) {
             end_reason = "Idle timeout";
             break;
         }
 
-        /* 알림 문장(reminders, 11.7절): AI 없이 그대로 합성만 하고 다시 듣기로 */
+        /* Reminder sentences (reminders, Section 11.7): synthesize as is without the AI, then back to listening */
         xSemaphoreTake(s_pending_lock, portMAX_DELAY);
         char *pending = s_pending_text;
         s_pending_text = NULL;
@@ -1263,7 +1263,7 @@ static void saver_voice_run(void)
             continue;
         }
         atomic_store(&s_listening, false);
-        s_carry_used = 0;   /* 다음 듣기 시작 때 조각난 프레임을 섞지 않는다 */
+        s_carry_used = 0;   /* don't mix a partial frame into the next listening start */
         if (utt.sample_count == 0) {
             continue;
         }
@@ -1274,8 +1274,8 @@ static void saver_voice_run(void)
         uint32_t t_stt0 = now_ms();
         bool stt_ok;
         if (gemini) {
-            /* Gemini: 받아쓰기 단계가 따로 없다(2.5절) — 소리를 바로 generateContent에 넣고, 모델이
-             * 맨 처음 report_transcript를 불러 받아쓴 글도 함께 받는다. contents는 이어서 도구 라운드에 쓴다 */
+            /* Gemini: no separate transcription step (Section 2.5). The audio goes straight into generateContent, and the model
+             * first calls report_transcript so we get the transcript too. contents is then used for the tool rounds */
             gcontents = cJSON_CreateArray();
             gemini_append_history(gcontents);
             gemini_append_user_audio(gcontents, utt.sample_count);
@@ -1298,8 +1298,8 @@ static void saver_voice_run(void)
         }
         if (saver_text_is_noise(transcript)) {
             cJSON_Delete(gcontents);
-            continue;   /* 잡음·빈 결과: 요금·엉뚱한 대답 방지, 무응답 시간도 리셋하지 않는다. Gemini는 이미
-                         * 한 번 호출했지만(2.5절 한계, 문서화) 그래도 도구는 실행하지 않고 여기서 멈춘다 */
+            continue;   /* noise or empty result: avoids cost and off-target replies, and doesn't reset the idle timer. Gemini has already
+                         * made one call (Section 2.5 limitation, documented), but still runs no tools and stops here */
         }
         consecutive_fail = 0;
         touch_activity(&activity);
@@ -1337,9 +1337,9 @@ static void saver_voice_run(void)
         if (reply[0]) {
             history_add(false, reply);
         } else {
-            /* 대답 글이 비면 조용히 넘어가지 않는다 (사용자는 고장으로 느낀다) */
+            /* Don't pass silently when the reply text is empty (the user would think it's broken) */
             ESP_LOGW(TAG, "ai returned no text (tools %d)", tools_used);
-            snprintf(reply, sizeof(reply), "%s", "죄송해요, 잘 못 알아들었어요. 다시 한 번 말씀해 주세요.");
+            snprintf(reply, sizeof(reply), "%s", "Sorry, I didn't catch that. Could you say it again?");
         }
 
         uint32_t t_audio0 = now_ms();
@@ -1382,10 +1382,10 @@ static void saver_voice_run(void)
     if (h->on_session_end) {
         h->on_session_end();
     }
-    voice_shared_reserve_take();   /* 호출어 모델을 다시 올리기 전에 (실시간 엔진과 같은 순서) */
+    voice_shared_reserve_take();   /* before reloading the wake-word model (same order as the Live engine) */
     wake_resume();
     net_set_power_save(true);
-    voice_shared_end(true);    /* status는 바로 위에서 이미 정했다 (끝난 이유를 "Ready"로 덮지 않는다) */
+    voice_shared_end(true);    /* status was already set just above (don't overwrite the end reason with "Ready") */
 }
 
 void saver_voice_task_entry(void *arg)
@@ -1440,7 +1440,7 @@ unsigned saver_voice_selftest(void)
     if (gemini_base64_selftest()) {
         passed |= 16;
     }
-    if (gemini_live_proto_selftest()) {    /* 3단계: Gemini Live 메시지 만들기·읽기 (gemini_live.c가 쓴다) */
+    if (gemini_live_proto_selftest()) {    /* stage 3: building and reading Gemini Live messages (used by gemini_live.c) */
         passed |= 32;
     }
     return passed;

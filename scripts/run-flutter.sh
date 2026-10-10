@@ -1,15 +1,15 @@
 #!/bin/bash
-# AI-PA 앱 - 휴대폰에서 빌드·실행
-# 사용법: ./scripts/run-flutter.sh [android|ios] [--release|--profile]
+# AI-PA app - build and run on a phone
+# Usage: ./scripts/run-flutter.sh [android|ios] [--release|--profile]
 #
-#   android    Android 휴대폰에서 실행
-#   ios        iPhone에서 실행
-#   (생략)     연결된 휴대폰을 자동으로 고름. 둘 다 있으면 묻는다
-#   --release  릴리즈 모드 (USB를 빼도 앱이 그대로 동작)
-#   --profile  프로파일 모드 (성능 측정)
-#   기본       디버그 모드 (핫 리로드 가능, USB 연결 유지)
+#   android    run on an Android phone
+#   ios        run on an iPhone
+#   (omitted)  picks the connected phone automatically; asks if both are present
+#   --release  release mode (the app keeps running with USB unplugged)
+#   --profile  profile mode (performance measurement)
+#   default    debug mode (hot reload available, keep USB connected)
 #
-# 휴대폰과 스피커가 같은 Wi-Fi에 있어야 첫 설정 뒤 LAN 연결이 된다.
+# The phone and the speaker must be on the same Wi-Fi for the LAN connection after first-time setup.
 
 set -e
 
@@ -30,7 +30,7 @@ for arg in "$@"; do
             exit 0
             ;;
         *)
-            echo "알 수 없는 인자: $arg (도움말: $0 --help)"
+            echo "Unknown argument: $arg (help: $0 --help)"
             exit 1
             ;;
     esac
@@ -44,12 +44,12 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================="
-echo "AI-PA 앱 - 휴대폰에서 실행"
+echo "AI-PA app - run on a phone"
 echo -e "==========================================${NC}"
 echo ""
 
 if ! command -v flutter &> /dev/null; then
-    echo -e "${RED}오류: Flutter가 설치되어 있지 않습니다.${NC}"
+    echo -e "${RED}Error: Flutter is not installed.${NC}"
     exit 1
 fi
 flutter --version | head -1
@@ -57,15 +57,15 @@ echo ""
 
 cd "$FLUTTER_DIR"
 
-echo -e "${CYAN}[1/4] 의존성·문구 준비...${NC}"
+echo -e "${CYAN}[1/4] Dependencies and strings...${NC}"
 flutter pub get
-# 기능별 문구(lib/l10n/parts)를 합쳐 생성 파일을 최신으로
+# Merge the per-feature strings (lib/l10n/parts) and bring the generated files up to date
 python3 tool/merge_arb.py
 flutter gen-l10n
 
 echo ""
-echo -e "${CYAN}[2/4] 연결된 휴대폰 확인...${NC}"
-# flutter devices --machine (JSON)으로 실제 기기만 고른다 (에뮬레이터·데스크톱·웹 제외)
+echo -e "${CYAN}[2/4] Checking connected phones...${NC}"
+# Pick only real devices from flutter devices --machine (JSON) (no emulators, desktop or web)
 DEVICES_JSON=$(flutter devices --machine 2>/dev/null || echo "[]")
 read -r ANDROID_ID ANDROID_NAME IOS_ID IOS_NAME <<< "$(python3 - "$DEVICES_JSON" <<'PY'
 import json, sys
@@ -92,11 +92,11 @@ PY
 [ -n "$IOS_ID" ] && echo -e "${GREEN}iOS: ${IOS_NAME//_/ } (${IOS_ID})${NC}"
 
 if [ -z "$ANDROID_ID" ] && [ -z "$IOS_ID" ]; then
-    echo -e "${RED}오류: 연결된 휴대폰이 없습니다.${NC}"
+    echo -e "${RED}Error: no phone is connected.${NC}"
     echo ""
-    echo "연결 방법:"
-    echo "  Android: 개발자 옵션 > USB 디버깅 켜기 → USB 연결 → 휴대폰에서 '허용'"
-    echo "  iOS: Xcode에서 기기 등록·신뢰 → USB 연결 (Xcode > Settings > Components에 iOS 플랫폼 필요)"
+    echo "How to connect:"
+    echo "  Android: Developer options > turn on USB debugging → connect USB → tap 'Allow' on the phone"
+    echo "  iOS: register and trust the device in Xcode → connect USB (needs the iOS platform in Xcode > Settings > Components)"
     echo ""
     flutter devices
     exit 1
@@ -104,10 +104,10 @@ fi
 
 if [ -z "$TARGET" ]; then
     if [ -n "$ANDROID_ID" ] && [ -n "$IOS_ID" ]; then
-        echo -e "${YELLOW}Android와 iPhone이 모두 연결되어 있습니다. 고르세요:${NC}"
+        echo -e "${YELLOW}Both an Android phone and an iPhone are connected. Choose one:${NC}"
         echo "  1) Android"
         echo "  2) iOS"
-        read -r -p "선택 [1-2]: " choice
+        read -r -p "Choice [1-2]: " choice
         case $choice in
             2) TARGET="ios" ;;
             *) TARGET="android" ;;
@@ -124,7 +124,7 @@ case $TARGET in
     ios) DEVICE_ID="$IOS_ID" ;;
 esac
 if [ -z "$DEVICE_ID" ]; then
-    echo -e "${RED}오류: ${TARGET} 기기가 연결되어 있지 않습니다.${NC}"
+    echo -e "${RED}Error: no ${TARGET} device is connected.${NC}"
     exit 1
 fi
 
@@ -133,14 +133,14 @@ MODE_FLAG=""
 [ "$BUILD_MODE" = "profile" ] && MODE_FLAG="--profile"
 
 echo ""
-echo -e "${CYAN}[3/4] 빌드 모드: ${BUILD_MODE}${NC}"
+echo -e "${CYAN}[3/4] Build mode: ${BUILD_MODE}${NC}"
 if [ "$BUILD_MODE" = "release" ] && [ "$TARGET" = "android" ]; then
-    echo -e "${YELLOW}  참고: 릴리즈 서명 키가 아직 없어 디버그 키로 서명합니다 (android/app/build.gradle.kts).${NC}"
+    echo -e "${YELLOW}  Note: there is no release signing key yet, so it is signed with the debug key (android/app/build.gradle.kts).${NC}"
 fi
 
 echo ""
-echo -e "${CYAN}[4/4] 앱 실행 (${TARGET}: ${DEVICE_ID})...${NC}"
+echo -e "${CYAN}[4/4] Running the app (${TARGET}: ${DEVICE_ID})...${NC}"
 echo ""
-echo "  핫 리로드: r   핫 리스타트: R   종료: q"
+echo "  Hot reload: r   Hot restart: R   Quit: q"
 echo ""
 flutter run -d "$DEVICE_ID" $MODE_FLAG

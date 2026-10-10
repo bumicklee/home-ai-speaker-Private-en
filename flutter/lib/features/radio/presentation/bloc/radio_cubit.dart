@@ -24,17 +24,17 @@ class RadioState extends Equatable {
   final List<RadioPreset> presets;
   final RadioNow now;
 
-  /// 프리셋을 한 번이라도 받았는지
+  /// Whether presets have been received at least once
   final bool loaded;
   final bool loading;
 
-  /// 재생·저장 요청 중
+  /// Play or save request in progress
   final bool busy;
 
-  /// 마지막 불러오기·동작 실패 (화면은 바뀔 때 스낵바로)
+  /// Last load or action failure (the screen shows a snackbar when it changes)
   final Failure? failure;
 
-  /// 보내기 전 검증 실패 (펌웨어 규칙)
+  /// Validation failure before sending (firmware rules)
   final PresetError? invalid;
 
   int? get playingIndex => playingPresetIndex(presets, now);
@@ -62,7 +62,7 @@ class RadioState extends Equatable {
   List<Object?> get props => [presets, now, loaded, loading, busy, failure, invalid];
 }
 
-/// 라디오 화면: 프리셋 + 지금 재생 (WS `media_state`로 실시간 갱신)
+/// Radio screen: presets + now playing (live updates via WS `media_state`)
 class RadioCubit extends Cubit<RadioState> {
   RadioCubit(this._repo, this._events) : super(const RadioState()) {
     _sub = _events.on(DeviceEventType.mediaState).listen(_onMedia);
@@ -87,14 +87,14 @@ class RadioCubit extends Cubit<RadioState> {
 
   Future<void> playPreset(int index) => _act(() => _repo.playPreset(index));
 
-  /// 검색 결과를 저장하지 않고 바로 튼다
+  /// Play a search result right away without saving it
   Future<void> playStation(RadioStation s) =>
       _act(() => _repo.playUrl(s.url, truncateUtf8(s.name, RadioLimits.nameMax)));
 
-  /// 재생·연결 중이면 일시정지, 아니면 다시 재생
+  /// Pause if playing or connecting, otherwise play again
   Future<void> togglePause() => media(state.now.canPause ? 'pause' : 'resume');
 
-  /// pause / resume / stop / next / previous. 409(재생 중 아님)면 지금 상태를 다시 받는다
+  /// pause / resume / stop / next / previous. On 409 (not playing), fetch the current state again
   Future<void> media(String action) async {
     final ok = await _act(() => _repo.media(action));
     if (!ok && !isClosed && _isNotPlaying(state.failure)) await refreshNow();
@@ -106,7 +106,7 @@ class RadioCubit extends Cubit<RadioState> {
     r.fold((_) {}, (n) => emit(state.copyWith(now: n)));
   }
 
-  /// 목록 전체를 바꾼다 (편집 화면의 저장). 보내기 전에 펌웨어와 같은 규칙으로 검증한다
+  /// Replace the whole list (save on the edit screen). Validates with the same rules as the firmware before sending
   Future<bool> savePresets(List<RadioPreset> presets) async {
     final invalid = validatePresets(presets);
     if (invalid != null) {
@@ -125,7 +125,7 @@ class RadioCubit extends Cubit<RadioState> {
     });
   }
 
-  /// 맨 뒤에 추가 (같은 주소가 이미 있으면 거절)
+  /// Add at the end (rejected if the same URL already exists)
   Future<bool> addPreset(RadioPreset preset) async {
     if (state.presets.any((p) => p.url == preset.url)) {
       emit(state.copyWith(invalid: () => PresetError.duplicate, failure: () => null));

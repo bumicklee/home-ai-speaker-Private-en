@@ -1,388 +1,388 @@
-# 설계: AI 회사(OpenAI / Gemini) × 대화 방식(실시간 / 절약 모드) 고르기
+# Design: Choosing an AI Provider (OpenAI / Gemini) × Conversation Mode (Live / Saver Mode)
 
-- 작성일: 2026-10-04
-- 상태: **결정 완료 (2026-10-04), 디자인 캔버스 확인 → 구현** (디자인: "AI 고르기 · 실시간 / 절약 모드" 줄)
-- 요청 1: "앱에서 설정으로 '실시간(gpt-live-1)'과 '절약 모드'를 골라 쓰게 해 줘" (하루 1시간이면 한 달 약 $90이라 부담)
-- 요청 2: "똑같이 Gemini API 키도 쓸 수 있게, Gemini용 설정에서도 실시간·절약 모드를 고르게 해 줘"
-
----
-
-## 0. 고를 수 있는 네 가지
-
-| | 실시간 | 절약 모드 |
-|:--|:--|:--|
-| **OpenAI** | gpt-live-1 (지금) | 받아쓰기 `gpt-transcribe` → `gpt-5.6-luna` → `gpt-4o-mini-tts` |
-| **Gemini** | Gemini Live `gemini-3.8-live` | 소리를 바로 `gemini-3.1-flash-lite`에 (받아쓰기+생각 한 번에) → `gemini-3.8-flash-lite-tts` |
-
-한 달 예상 (하루 1시간 사용, 사람 말 15분·스피커 말 15분, 왕복 60번 — 추정):
-
-| | 실시간 | 절약 모드 |
-|:--|:--|:--|
-| OpenAI | 약 $90 (약 126,000원) | 약 $10~12 (약 14,000~17,000원) |
-| Gemini | 약 $25~35 (약 35,000~50,000원) | **약 $6~8 (약 8,000~11,000원)** |
-
-Gemini 절약 모드 계산: 소리 입력 25토큰/초 × 900초 × $0.50/100만 = $0.01, 대화 글자 입력 약 24만 토큰 × $0.25/100만 = $0.06, 글자 출력 $0.01, 합성 25토큰/초 × 900초 × $6/100만 = $0.14 → 하루 약 $0.22.
-**Gemini는 무료 사용분의 데이터를 제품 개선에 쓴다 → 가족 대화·메모가 있으니 유료(결제 연결) 키를 권한다.**
+- Written: 2026-10-04
+- Status: **Decided (2026-10-04); design canvas approved → implementation** (design: the "Choose AI · Live / Saver mode" row)
+- Request 1: "Let me choose between 'Live (gpt-live-1)' and 'Saver mode' as a setting in the app" (1 hour a day comes to about $90 a month, which is a burden)
+- Request 2: "Likewise let me use a Gemini API key, and let me choose Live or Saver mode in the Gemini settings too"
 
 ---
 
-## 1. 두 방식
+## 0. The Four Choices
 
-| | 실시간 (지금) | 절약 모드 (새로) |
+| | Live | Saver mode |
 |:--|:--|:--|
-| 구조 | gpt-live-1 한 번에: 듣기·생각·말하기 | 3단계: **받아쓰기 → 글자 AI → 음성 합성** |
-| 요금 기준 | **연결된 시간** (말 안 해도) | **실제로 말한 양**만 (기다리는 시간 0원) |
-| 대답 시작까지 | 0.5~1초 | **1.5~3초** |
-| 말하는 중 끼어들기 | 됨 | 안 됨 (가운데 버튼으로 멈추기는 됨) |
-| 도구 (메모·일정·텔레그램·라디오·설정·검색) | 됨 | 됨 (같은 도구) |
-| 목소리 | gpt-live 목소리 | TTS 목소리 (비슷한 이름, 아래 5.5) |
+| **OpenAI** | gpt-live-1 (current) | Transcription `gpt-transcribe` → `gpt-5.6-luna` → `gpt-4o-mini-tts` |
+| **Gemini** | Gemini Live `gemini-3.8-live` | Audio straight into `gemini-3.1-flash-lite` (transcription + thinking in one step) → `gemini-3.8-flash-lite-tts` |
+
+Monthly estimate (1 hour of use a day, 15 minutes of the person speaking and 15 minutes of the speaker speaking, 60 exchanges — an estimate):
+
+| | Live | Saver mode |
+|:--|:--|:--|
+| OpenAI | About $90 (about 126,000 won) | About $10–12 (about 14,000–17,000 won) |
+| Gemini | About $25–35 (about 35,000–50,000 won) | **About $6–8 (about 8,000–11,000 won)** |
+
+Gemini Saver mode calculation: audio input 25 tokens/s × 900 s × $0.50/1M = $0.01, conversation text input about 240,000 tokens × $0.25/1M = $0.06, text output $0.01, synthesis 25 tokens/s × 900 s × $6/1M = $0.14 → about $0.22 a day.
+**Gemini uses data from free-tier usage to improve its products → since there are family conversations and notes, a paid key (with billing linked) is recommended.**
 
 ---
 
-## 2. 타당성 검토
+## 1. The Two Modes
 
-### 2.1 요금 (2026-10 OpenAI 가격표 기준, 하루 1시간 "사용")
-
-가정: 1시간 중 사람이 말하는 시간 15분, 스피커가 말하는 시간 15분, 대화 왕복 60번.
-
-| 항목 | 단가 | 하루 |
+| | Live (current) | Saver mode (new) |
 |:--|:--|:--|
-| 받아쓰기 `gpt-transcribe` | 분당 $0.0045 × 15분 (말한 구간만 보냄) | $0.07 |
-| 글자 AI `gpt-5.6-luna` | 입력 100만 토큰 $0.20(캐시 $0.02), 출력 $1.20. 왕복당 약 4천 토큰 입력(대부분 캐시)·150 토큰 출력 × 60 | $0.02~0.05 |
-| 음성 합성 `gpt-4o-mini-tts` | 출력 오디오 100만 토큰 $12 ≈ 분당 약 $0.015 × 15분 | $0.23 |
-| 웹 검색 (쓸 때만) | 1회 $0.01 | 0~$0.05 |
-| **합계** | | **약 $0.3~0.4 / 일** |
-| **한 달** | | **약 $10~12 (약 14,000~17,000원)** |
-
-실시간(gpt-live-1, 분당 $0.05)은 같은 사용에 **하루 $3, 한 달 $90**. → **약 8분의 1.**
-가장 큰 몫은 음성 합성. 스피커가 짧게 말할수록 더 싸진다(지시문에 "짧게").
-
-### 2.2 기술 확인
-
-| 필요한 것 | 스피커에서 가능? | 근거 |
-|:--|:--|:--|
-| 말이 끝났는지 판단 (VAD) | ✅ | esp-sr에 VADNet(`vadnet1_medium`)·WebRTC VAD 포함. 마이크 처리(AEC 뒤 소리)에 붙인다. 모델 파티션 3MB 중 지금 약 0.6MB 사용 |
-| 말한 소리 올리기 | ✅ | 16kHz 16비트 = 초당 32KB. 15초 = 480KB → PSRAM에 모았다가 HTTPS로 한 번에 (`/v1/audio/transcriptions`) |
-| 글자 AI + 도구 | ✅ | Responses API(`/v1/responses`) 함수 호출. 영어 수업 정리에서 이미 Responses API를 쓰고 있다. 도구 실행은 지금의 툴 워커·`assistant_execute()` 그대로 |
-| 음성 합성 재생 | ✅ | `/v1/audio/speech` `pcm`(24kHz) 스트리밍 → 16kHz로 변환(esp_audio_effects 리샘플러) → 지금의 음성 재생 큐. 받는 대로 바로 재생해 첫 소리를 빨리 낸다 |
-| 메모리 (내부 RAM 약 18KB) | △ | TLS 연결을 **동시에 하나만** 쓴다(받아쓰기 → AI → 합성 순서). 지금의 대화 WebSocket도 TLS 하나이므로 같은 수준. 소리·대화 기록은 PSRAM. **같은 연결 재사용(keep-alive)**으로 TLS 협상을 줄인다 |
-| 대화 기록 | ✅ | 최근 대화 20턴을 PSRAM에 두고 매번 보낸다(`store:false`, 서버에 남기지 않음). 지시문은 앞에 고정 → 캐시 할인 |
-| 웹 검색 | ✅ | Responses API의 `web_search` 도구 |
-| 종료 문구 ("잘가 컴퓨터") | ✅ | 받아쓰기 결과에 지금의 매처(`hangup_phrase`)를 그대로 |
-
-### 2.3 대답 속도 (추정)
-
-말 끝 판단 0.5초 + 받아쓰기 0.5~1초 + AI 첫 글자 0.5~1초 + 음성 첫 소리 0.3~0.5초 ≈ **1.8~3초**.
-줄이는 방법: 연결 재사용, AI 답을 **문장 단위로 끊어 바로 합성**(스트리밍), 도구가 필요 없는 짧은 대답 우선.
-
-### 2.4 잃는 것
-
-- 말하는 중에 끼어들기(바로 멈추고 듣기): 1단계에서는 **가운데 버튼**으로만 멈춘다. ("컴퓨터"로 끼어들기는 2단계, 스피커 소리가 마이크에 들어와 오인식 위험 → AEC 검증 필요)
-- 감정·억양이 실시간보다 덜 자연스러울 수 있다.
-- 영어 수업: 발음 교정·프리토킹은 실시간이 훨씬 낫다 → **영어 수업은 늘 실시간**(5.4).
-
-**결론: 타당하다.** 요금 약 1/8, 대답 1~2초 느려짐. 기존 도구·보호 장치·알림을 그대로 쓴다.
-
-### 2.5 Gemini 쪽 확인
-
-| 필요한 것 | 가능? | 메모 |
-|:--|:--|:--|
-| 키 | ✅ | Google AI Studio API 키(문자열 하나). 지금 OpenAI 키처럼 앱 → BLE로 스피커 보안 저장소에, 폰에도 기억 |
-| Gemini 실시간 | ✅ | Live API WebSocket(`BidiGenerateContent`). 입력 16kHz PCM(지금과 같음), 출력 24kHz → 16kHz 변환. 함수 호출·끼어들기 지원. 웹 검색은 Google 검색 도구(월 5,000회 무료, 그 뒤 1,000회당 $14) |
-| Gemini 절약 | ✅ | `generateContent`에 소리(WAV)를 바로 넣어 대답 글자 받기 → 받아쓰기 단계가 없어 OpenAI 절약보다 **한 단계 짧다**. 단, 종료 문구("잘가 컴퓨터")·텔레그램 보호용 "사람이 말한 글"이 필요하므로 대답과 함께 **받아쓴 글도 돌려 달라고**(JSON 출력) 요청 |
-| 합성 | ✅ | `gemini-3.8-flash-lite-tts`, 출력 PCM 24kHz |
-| 도구 | ✅ | 함수 선언 형식이 OpenAI와 조금 다름 → 도구 목록 하나에서 두 형식으로 변환 |
-| 백엔드 맡기기 | 다름 | gpt-live-1의 "백엔드 모델에 맡기기"가 없다 → 도구를 직접 부른다(절약 모드와 같은 방식) |
+| Structure | gpt-live-1 does it all at once: listening, thinking, speaking | 3 stages: **transcription → text model → speech synthesis** |
+| Billed on | **Connected time** (even when no one speaks) | **Only what is actually spoken** (waiting time costs 0) |
+| Time until the reply starts | 0.5–1 second | **1.5–3 seconds** |
+| Barge-in while it speaks | Yes | No (stopping with the center button works) |
+| Tools (notes, schedule, Telegram, radio, settings, search) | Yes | Yes (the same tools) |
+| Voice | gpt-live voice | TTS voice (similar names, see 5.5 below) |
 
 ---
 
-## 3. 전체 구조
+## 2. Feasibility Review
+
+### 2.1 Cost (Based on the OpenAI Price List as of 2026-10, 1 Hour of "Use" a Day)
+
+Assumptions: within the hour, the person speaks for 15 minutes, the speaker speaks for 15 minutes, 60 exchanges.
+
+| Item | Unit price | Per day |
+|:--|:--|:--|
+| Transcription `gpt-transcribe` | $0.0045 per minute × 15 minutes (only the speech segments are sent) | $0.07 |
+| Text model `gpt-5.6-luna` | Input $0.20 per 1M tokens (cached $0.02), output $1.20. About 4,000 input tokens per exchange (mostly cached) and 150 output tokens × 60 | $0.02–0.05 |
+| Speech synthesis `gpt-4o-mini-tts` | Output audio $12 per 1M tokens ≈ about $0.015 per minute × 15 minutes | $0.23 |
+| Web search (only when used) | $0.01 per call | 0–$0.05 |
+| **Total** | | **About $0.3–0.4 / day** |
+| **Per month** | | **About $10–12 (about 14,000–17,000 won)** |
+
+Live (gpt-live-1, $0.05 per minute) for the same use is **$3 a day, $90 a month**. → **About 1/8.**
+The biggest share is speech synthesis. The shorter the speaker talks, the cheaper it gets ("keep it short" in the instructions).
+
+### 2.2 Technical Check
+
+| What's needed | Possible on the speaker? | Basis |
+|:--|:--|:--|
+| Detecting the end of speech (VAD) | ✅ | esp-sr includes VADNet (`vadnet1_medium`) and WebRTC VAD. Attach it to the microphone processing (audio after AEC). About 0.6MB of the 3MB model partition is used now |
+| Uploading the spoken audio | ✅ | 16kHz 16-bit = 32KB per second. 15 seconds = 480KB → collect in PSRAM and send over HTTPS in one go (`/v1/audio/transcriptions`) |
+| Text model + tools | ✅ | Responses API (`/v1/responses`) function calling. The English lesson summary already uses the Responses API. Tool execution stays as it is now: the tool worker and `assistant_execute()` |
+| Playing speech synthesis | ✅ | `/v1/audio/speech` `pcm` (24kHz) streaming → convert to 16kHz (esp_audio_effects resampler) → the current voice playback queue. Play as it arrives so the first sound comes out quickly |
+| Memory (internal RAM about 18KB) | △ | Use **only one TLS connection at a time** (transcription → AI → synthesis in order). The current conversation WebSocket is also one TLS connection, so it's the same level. Audio and conversation history in PSRAM. **Reusing the same connection (keep-alive)** cuts down TLS handshakes |
+| Conversation history | ✅ | Keep the last 20 turns in PSRAM and send them every time (`store:false`, nothing kept on the server). The instructions stay fixed at the front → cache discount |
+| Web search | ✅ | The Responses API `web_search` tool |
+| Hang-up phrase ("goodbye computer"; "잘가 컴퓨터" also works) | ✅ | Run the current matcher (`hangup_phrase`) on the transcription result as is |
+
+### 2.3 Reply Speed (Estimate)
+
+End-of-speech detection 0.5 s + transcription 0.5–1 s + first AI text 0.5–1 s + first speech audio 0.3–0.5 s ≈ **1.8–3 seconds**.
+Ways to cut it: connection reuse, **splitting the AI's reply into sentences and synthesizing each right away** (streaming), and favoring short replies that need no tool.
+
+### 2.4 What You Lose
+
+- Barge-in while it speaks (stop at once and listen): in stage 1 it stops **only with the center button**. (Barging in with "Computer" is stage 2: the speaker's own sound gets into the microphone and risks false recognition → AEC needs verifying)
+- Emotion and intonation may be less natural than Live.
+- English lessons: pronunciation correction and free talking are much better on Live → **English lessons are always Live** (5.4).
+
+**Conclusion: feasible.** About 1/8 the cost, replies 1–2 seconds slower. The existing tools, guards, and reminders stay as they are.
+
+### 2.5 Gemini-Side Checks
+
+| What's needed | Possible? | Notes |
+|:--|:--|:--|
+| Key | ✅ | A Google AI Studio API key (a single string). Like the current OpenAI key: app → BLE → the speaker's secure storage, also remembered on the phone |
+| Gemini Live | ✅ | Live API WebSocket (`BidiGenerateContent`). Input 16kHz PCM (same as now), output 24kHz → converted to 16kHz. Supports function calling and barge-in. Web search is the Google Search tool (5,000 calls a month free, then $14 per 1,000) |
+| Gemini Saver | ✅ | Put the audio (WAV) straight into `generateContent` and get the reply text → there's no transcription stage, so it's **one stage shorter** than OpenAI Saver. However, the hang-up phrase ("goodbye computer" / "잘가 컴퓨터") and the Telegram guard need "what the person said," so ask it to **also return the transcribed text** along with the reply (JSON output) |
+| Synthesis | ✅ | `gemini-3.8-flash-lite-tts`, output PCM 24kHz |
+| Tools | ✅ | The function declaration format differs slightly from OpenAI → convert one tool list into both formats |
+| Backend delegation | Different | There's no gpt-live-1-style "hand it to the backend model" → call the tools directly (same way as Saver mode) |
+
+---
+
+## 3. Overall Structure
 
 ```
-호출어/버튼 ─▶ voice_engine (설정에 따라)
-                 ├─ openai + live  : 지금의 live_voice (gpt-live-1 WebSocket)
-                 ├─ gemini + live  : gemini_live (새, Live API WebSocket)
-                 └─ * + saver      : saver_voice (새, 아래 3단계. 회사별로 요청 형식만 다름)
-                              듣기(VAD로 말 끝 판단, PSRAM에 모음)
-                              → 받아쓰기 HTTPS → 글자 AI(Responses, 도구) ⇄ 툴 워커
-                              → 문장마다 음성 합성 HTTPS(스트리밍) → 재생
-                              → 다시 듣기 … 30초 동안 말 없으면 끝 (기다리는 동안 요금 0)
+Wake word/button ─▶ voice_engine (depending on settings)
+                 ├─ openai + live  : the current live_voice (gpt-live-1 WebSocket)
+                 ├─ gemini + live  : gemini_live (new, Live API WebSocket)
+                 └─ * + saver      : saver_voice (new, 3 stages below; only the request format differs by provider)
+                              Listen (VAD detects end of speech, collect in PSRAM)
+                              → transcription HTTPS → text model (Responses, tools) ⇄ tool worker
+                              → speech synthesis HTTPS per sentence (streaming) → play
+                              → listen again … ends after 30 s with no speech (waiting costs 0)
 ```
 
-- 바깥(메인·앱·LED·버튼·알림·텔레그램 자동 읽기)은 지금처럼 `live_voice_start/stop/active/state`만 부른다. 그 아래에서 방식에 따라 갈라지게 해서 **다른 기능을 고치지 않는다.**
-- `voice_state_t`(듣는 중·생각 중·말하는 중)를 똑같이 알려서 LED·앱 표시는 그대로.
+- The outside (main, app, LED, buttons, reminders, Telegram auto-read) keeps calling only `live_voice_start/stop/active/state` as now. The split by mode happens underneath, so **no other feature needs changing.**
+- Report `voice_state_t` (listening, thinking, speaking) the same way, so the LED and app display stay as they are.
 
 ---
 
-## 4. 설정
+## 4. Settings
 
-| 키 | 값 | 기본 |
+| Key | Value | Default |
 |:--|:--|:--|
-| `ai_provider` | `"openai"` \| `"gemini"` | `openai` (키가 Gemini만 있으면 `gemini`) |
-| `voice_mode` | `"live"` \| `"saver"` | **saver**(새로 설정하는 스피커) / 기존 스피커는 `live` 유지 — 9절 결정 |
+| `ai_provider` | `"openai"` \| `"gemini"` | `openai` (`gemini` if only a Gemini key exists) |
+| `voice_mode` | `"live"` \| `"saver"` | **saver** (newly set-up speakers) / existing speakers keep `live` — decided in Section 9 |
 
-- 회사마다 방식을 따로 기억한다(`openai.voice_mode`, `gemini.voice_mode`). 회사를 바꾸면 그 회사에서 마지막으로 고른 방식으로.
-- 키: 보안 저장소에 `openai_key`, `gemini_key` 둘 다 둘 수 있다. 고른 회사의 키가 없으면 대화 시작 때 "앱에서 ○○ 키를 넣어 주세요" 안내.
+- Remember the mode separately per provider (`openai.voice_mode`, `gemini.voice_mode`). When you switch provider, it uses the mode last chosen for that provider.
+- Keys: the secure storage can hold both `openai_key` and `gemini_key`. If the chosen provider has no key, at conversation start it says "Please enter the ○○ key in the app."
 
-- 비서 설정(`assistant settings`)에 추가. LAN API `PUT /api/v1/settings/assistant`(기존)로 바꾼다.
-- 음성으로도: "절약 모드로 바꿔 줘" → `set_voice_mode` 툴(부작용 툴, 텔레그램 보호 목록에 추가). 다음 대화부터 적용.
+- Add to the assistant settings (`assistant settings`). Change through the LAN API `PUT /api/v1/settings/assistant` (existing).
+- By voice too: "Switch to Saver mode" → `set_voice_mode` tool (side-effect tool, added to the Telegram guard list). Applies from the next conversation.
 
 ---
 
-## 5. 스피커 상세
+## 5. Speaker Details
 
-### 5.1 듣기
-- 호출어 → 대화 시작음 → 듣기. VAD가 말을 감지하면 모으기 시작, **0.7초 조용하면 말 끝**. 말 최대 30초.
-- 30초 동안 말이 없으면 대화 끝(지금 무응답 30초와 같음). **기다리는 동안 요금 없음.**
-- 앞 0.3초를 미리 버퍼에 두어 말 첫머리가 잘리지 않게.
+### 5.1 Listening
+- Wake word → conversation start tone → listen. When VAD detects speech it starts collecting; **0.7 seconds of quiet means end of speech**. Speech up to 30 seconds.
+- 30 seconds with no speech ends the conversation (same as the current 30-second no-response timeout). **No charge while waiting.**
+- Keep the previous 0.3 seconds in a buffer so the start of speech isn't cut off.
 
-### 5.2 받아쓰기
-- `POST /v1/audio/transcriptions` (`gpt-transcribe`, WAV, `language: ko`는 쓰지 않고 자동 — 영어 섞인 말 대비).
-- 결과가 비었거나 잡음성(1~2글자, "감사합니다"만 등)이면 무시하고 계속 듣기 → TV·잡음으로 AI 호출 요금이 나가지 않게.
+### 5.2 Transcription
+- `POST /v1/audio/transcriptions` (`gpt-transcribe`, WAV, no `language: ko`, automatic — to handle speech mixed with English).
+- If the result is empty or noise-like (1–2 characters, or the whole result is only a filler such as "Thank you for watching.", "Thank you.", "Bye." or "감사합니다" (thank you); never a partial match), ignore it and keep listening → so TV or noise doesn't run up AI charges.
 
-### 5.3 글자 AI
-- `POST /v1/responses`, 모델 `gpt-5.6-luna`, `store:false`, 지시문 = 지금의 실시간 지시문을 **말로 읽기 좋게 짧게** 다듬은 것 + 도구 목록(지금과 같은 JSON 스키마).
-- 도구 호출 → 툴 워커 → 결과를 붙여 다시 요청(최대 4번). 텔레그램 보호(TLG-14)는 그대로: "사람이 새로 말함" = 새 받아쓰기 결과.
-- 답은 스트리밍으로 받아 **문장이 끝날 때마다** 합성에 넘긴다.
+### 5.3 Text Model
+- `POST /v1/responses`, model `gpt-5.6-luna`, `store:false`, instructions = the current Live instructions trimmed **short and easy to read aloud** + the tool list (same JSON schema as now).
+- Tool call → tool worker → append the result and request again (up to 4 times). The Telegram guard (TLG-14) stays as it is: "the person spoke anew" = a new transcription result.
+- Receive the reply by streaming and pass it to synthesis **each time a sentence ends**.
 
-### 5.4 영어 수업·알림·자동 읽기
-| 기능 | 절약 모드에서 |
+### 5.4 English Lessons, Reminders, Auto-Read
+| Feature | In Saver mode |
 |:--|:--|
-| 영어 수업 | **늘 실시간**(앱에 "영어 수업은 실시간으로 진행돼요" 안내). 9절 결정 |
-| 일정 알림 | 알릴 문장을 AI 없이 스피커가 직접 만들어 **음성 합성만** → 가장 싸다. 그 뒤 15초 듣기("알았어", "10분 뒤 다시") |
-| 텔레그램 자동 읽기 | "○○님 메시지: …"를 음성 합성으로 읽고 15초 듣기. 답장은 듣기 단계에서 |
-| 마이크 보정 | 실시간으로 진행 (흐름이 실시간 전용) |
+| English lesson | **Always Live** (the app says "English lessons run on Live"). Decided in Section 9 |
+| Schedule reminder | The speaker writes the reminder sentence itself without AI, **speech synthesis only** → cheapest. Then listen for 15 seconds ("Got it", "Again in 10 minutes") |
+| Telegram auto-read | Read "Message from ○○: …" with speech synthesis and listen for 15 seconds. Replies happen in the listening stage |
+| Microphone calibration | Runs on Live (the flow is Live-only) |
 
-### 5.5 목소리
-- TTS 목소리 목록이 다르다(alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer 등). 비서 설정의 목소리를 같은 이름이 있으면 그대로, 없으면 가장 비슷한 것으로.
-- TTS `instructions`: "천천히, 또박또박, 따뜻하게" (어르신용).
+### 5.5 Voice
+- The TTS voice list is different (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, and so on). Use the assistant settings' voice as is if the same name exists; otherwise the closest one.
+- TTS `instructions`: "천천히, 또박또박, 따뜻하게" (slowly, clearly, warmly) (for elderly users).
 
-### 5.6 메모리·안정성
-- 소리 버퍼 PSRAM 1MB(30초), 대화 기록 PSRAM, 새 태스크 1개(스택 PSRAM, 지금 대화 태스크와 동시에 돌지 않음 → 대화 태스크를 함께 쓰는 쪽을 우선 검토).
-- 네트워크 실패: "잠깐 연결이 안 돼요" 안내음 + 다시 듣기, 3번 연속 실패면 대화 끝.
-- 로그: 단계별 시간만(`SAVER: heard 2.1 s → text 0.8 s → ai 0.9 s → first audio 0.4 s`), **내용은 남기지 않는다.**
-
----
-
-## 6. 앱
-
-- **첫 설정 1단계(키 입력)**: OpenAI 키와 **Gemini 키 중 하나 이상**. 둘 다 넣어도 된다. 폰에 기억(지금 OpenAI 키처럼).
-- **비서 설정 화면**에 "AI" 카드: **OpenAI / Gemini** 고르기(키가 있는 쪽만 고를 수 있고, 없으면 "키 넣기"로). 키 바꾸기는 BLE 창이 필요(지금처럼).
-- 그 아래 "대화 방식" 카드: 두 개 중 하나 고르기(회사별 요금 문구)
-  - **절약 모드** — "요금이 약 8분의 1. 대답이 1~2초 늦어요. 말하는 중에는 가운데 버튼으로 멈춰요."
-  - **실시간** — "가장 자연스러워요. 대화 중 연결된 시간만큼 요금이 나가요(OpenAI 분당 약 70원 / Gemini 약 1/3)."
-  - 아래 한 줄: "영어 수업은 늘 실시간으로 해요."
-- 홈의 상태 카드에 지금 방식을 작게 표시(예: "절약 모드").
-- 디자인은 캔버스에 먼저(비서 설정 화면 수정).
+### 5.6 Memory and Stability
+- Audio buffer 1MB in PSRAM (30 seconds), conversation history in PSRAM, 1 new task (stack in PSRAM; it never runs at the same time as the current conversation task → first consider sharing the conversation task).
+- Network failure: a "Can't connect for a moment" notice tone + listen again; 3 failures in a row end the conversation.
+- Logs: only the time per stage (`SAVER: heard 2.1 s → text 0.8 s → ai 0.9 s → first audio 0.4 s`); **contents are never logged.**
 
 ---
 
-## 7. 단계·작업량
+## 6. App
 
-| 단계 | 내용 | 예상 |
+- **First-time setup step 1 (key entry)**: **at least one of** the OpenAI key and the Gemini key. Entering both is fine. Remembered on the phone (like the OpenAI key now).
+- An "AI" card on the **assistant settings screen**: choose **OpenAI / Gemini** (only a provider with a key can be chosen; otherwise go to "Enter key"). Changing a key needs the BLE window (as now).
+- Below it, a "Conversation mode" card: pick one of two (with per-provider price wording)
+  - **Saver mode** — "About 1/8 the cost. Replies are 1–2 seconds slower. While it's talking, stop it with the center button."
+  - **Live** — "The most natural. You're charged for the time the conversation is connected (OpenAI about 70 won a minute / Gemini about 1/3)."
+  - One line underneath: "English lessons always use Live."
+- Show the current mode small on the Home status card (for example, "Saver mode").
+- Design on the canvas first (assistant settings screen changes).
+
+---
+
+## 7. Stages and Workload
+
+| Stage | Contents | Estimate |
 |:--|:--|:--|
-| 1 | 설정·앱 화면(회사·방식·Gemini 키), 방식 나누기 틀, **OpenAI 절약 모드**(VAD·받아쓰기·AI 도구·합성), 알림·자동 읽기를 합성으로 | 펌웨어 6~8일, 앱 1~2일, 실기기 2~3일 |
-| 2 | **Gemini 절약 모드** (1단계 틀에 요청 형식만 추가) | 2~3일 |
-| 3 | **Gemini 실시간** (Live API) | 4~6일 |
-| 4 | "컴퓨터"로 끼어들기, 응답 속도 다듬기 | 3~4일 |
+| 1 | Settings and app screens (provider, mode, Gemini key), the mode-split framework, **OpenAI Saver mode** (VAD, transcription, AI tools, synthesis), reminders and auto-read via synthesis | Firmware 6–8 days, app 1–2 days, real board 2–3 days |
+| 2 | **Gemini Saver mode** (only the request format added to the stage 1 framework) | 2–3 days |
+| 3 | **Gemini Live** (Live API) | 4–6 days |
+| 4 | Barge-in with "Computer", tuning reply speed | 3–4 days |
 
 ---
 
-## 8. 위험
+## 8. Risks
 
-| 위험 | 대응 |
+| Risk | Response |
 |:--|:--|
-| 대답이 3초 넘게 늦으면 답답함 | 생각 중 LED·짧은 효과음, 연결 재사용, 문장 단위 합성. 실기기에서 단계별 시간 측정 |
-| TV 소리를 계속 받아쓰기 → 요금·엉뚱한 대답 | 잡음성 결과 무시, 짧은 말 무시, 호출어로 시작한 대화만 |
-| 내부 RAM 부족(TLS) | TLS 하나만 순서대로, 실기기에서 대화 중 내부 RAM 로그 |
-| 실제 요금이 추정과 다름 | 1주 써 본 뒤 OpenAI Usage로 다시 계산 |
+| Replies taking more than 3 seconds feel sluggish | Thinking LED and a short sound effect, connection reuse, per-sentence synthesis. Measure time per stage on the real board |
+| TV sound transcribed continuously → cost and odd replies | Ignore noise-like results, ignore short utterances, only conversations started by the wake word |
+| Not enough internal RAM (TLS) | Only one TLS connection, in order; log internal RAM during conversations on the real board |
+| Actual cost differs from the estimate | After a week of use, recalculate from OpenAI Usage |
 
 ---
 
-## 9. 결정 (2026-10-04 사용자)
+## 9. Decisions (2026-10-04, User)
 
-| # | 질문 | 결정 |
+| # | Question | Decision |
 |:--|:--|:--|
-| 1 | 기본값 | 제안대로(새 스피커 절약, 지금 스피커 실시간) 시작하되 **앱에서 언제든 바꿀 수 있게** |
-| 2 | 영어 수업 | **늘 실시간(OpenAI)**. 앱 영어 선생님 화면과 AI 설정 화면에 "실시간 API를 써요 · 분당 약 70원"을 알린다. OpenAI 키가 없으면 영어 수업을 열 수 없다 |
-| 3 | 끼어들기 | **실시간에서만**. 절약 모드는 가운데 버튼으로 멈춤 |
-| 4 | 고르는 순서 | **① AI(OpenAI / Gemini) 먼저 → ② 그 AI의 실시간 / 절약 모드**. 회사마다 마지막 방식을 기억 |
-| 5 | 키 | **OpenAI·Gemini 키 둘 다 앱(휴대폰 보안 저장소)에 기억**해 두고 필요할 때 다시 보낸다. 스피커에 **키가 없는 AI는 고를 수 없다**(화면에서 잠김, "키 넣기" 안내). 첫 설정에서는 둘 중 하나 이상 |
-| 6 | 순서 | 1단계 OpenAI 절약 → 2단계 Gemini 절약 → 3단계 Gemini 실시간 → 4단계 다듬기 |
-| 7 | 디자인 | 캔버스 확인 후 구현: 첫 설정(AI → 필수 키 → 방식), 비서(AI·대화 방식 줄), 새 화면 "AI · 대화 방식", 영어 선생님(실시간 안내) |
-| 8 | 새 스피커 등록 | **고른 AI의 키가 없으면 등록할 수 없다.** 첫 설정에서 그 AI의 키를 넣거나, "이미 이 AI 키가 저장된 스피커예요"를 고르면 연결 뒤 `device.info`로 확인. 둘 다 아니면 "스피커 찾기"가 잠김 |
-| 9 | 설정 변경 | 비서 > "AI · 대화 방식"에서 AI와 실시간/절약을 언제든 바꾼다 |
+| 1 | Defaults | Start as proposed (new speakers Saver, current speakers Live), but **let it be changed any time in the app** |
+| 2 | English lessons | **Always Live (OpenAI)**. The app's English Tutor screen and AI settings screen say "Uses the Live API · about 70 won a minute". Without an OpenAI key, English lessons can't be opened |
+| 3 | Barge-in | **Live only**. Saver mode stops with the center button |
+| 4 | Order of choice | **① AI (OpenAI / Gemini) first → ② that AI's Live / Saver mode**. Remember the last mode per provider |
+| 5 | Keys | **The app (the phone's secure storage) remembers both the OpenAI and Gemini keys** and sends them again when needed. **An AI whose key isn't on the speaker can't be chosen** (locked on screen, with an "Enter key" prompt). First-time setup needs at least one of the two |
+| 6 | Order of work | Stage 1 OpenAI Saver → stage 2 Gemini Saver → stage 3 Gemini Live → stage 4 polish |
+| 7 | Design | Implement after canvas approval: first-time setup (AI → required key → mode), Assistant (AI and conversation mode row), new screen "AI & Conversation Mode", English Tutor (Live notice) |
+| 8 | Registering a new speaker | **It can't be registered without the chosen AI's key.** In first-time setup, enter that AI's key, or choose "이미 이 AI 키가 저장된 스피커예요" (This speaker already has this AI's key), which is checked with `device.info` after connecting. If neither, "Find speaker" is locked |
+| 9 | Changing settings | Change the AI and Live/Saver any time under Assistant > "AI & Conversation Mode" |
 
-**키가 없을 때 동작**
-- 앱: 키가 없는 AI 카드는 흐리게, 누를 수 없음, "키 없음 · 쓸 수 없어요". 아래 "○○ 키 넣기"(가운데 버튼 3초 → 블루투스로 보냄).
-- 스피커: 설정된 AI의 키가 없으면(예: 키를 지움) 대화를 시작하지 않고 "앱에서 ○○ 키를 넣어 주세요"라고 안내(LED 오류). 앱 `/status.secrets`에 `gemini_key`를 추가해 키가 있는지 알려 준다.
-- 키 이름: 스피커 보안 저장소 `openai_key`, `gemini_key`(새로). 블루투스 `secret.set` 허용 목록과 LAN `DELETE /keys/{name}`에 `gemini_key` 추가.
+**Behavior when there is no key**
+- App: an AI card with no key is dimmed, can't be tapped, and says "No key · can't be used". Below it, "Enter ○○ key" (center button 3 seconds → sent over Bluetooth).
+- Speaker: if the configured AI has no key (for example, the key was deleted), it doesn't start a conversation and says "Please enter the ○○ key in the app" (error LED). Add `gemini_key` to the app's `/status.secrets` to report whether the key exists.
+- Key names: speaker secure storage `openai_key`, `gemini_key` (new). Add `gemini_key` to the Bluetooth `secret.set` allow list and to LAN `DELETE /keys/{name}`.
 
-## 10. (처음 질문 — 9절에서 결정됨)
+## 10. (First Questions — Decided in Section 9)
 
-1. **기본값**: 새 스피커는 절약 모드, 지금 스피커는 실시간 유지(앱에서 바꿈) — 괜찮은가? 아니면 지금 스피커도 절약 모드로?
-2. **영어 수업은 늘 실시간** — 괜찮은가?
-3. **끼어들기**: 1단계는 가운데 버튼으로 멈추기만 — 괜찮은가?
-4. **디자인**: 비서 설정·키 입력 화면 수정을 캔버스에서 먼저 볼 것인가?
-5. **영어 수업 + Gemini**: 영어 수업은 지금 OpenAI(gpt-live-1 + 정리)로만 만들어져 있다. Gemini만 쓰는 경우 ① 영어 수업은 OpenAI 키가 있을 때만(1단계) ② Gemini 실시간으로도 수업(3단계 이후) — ①로 시작해도 되는가?
-6. **순서**: 1(OpenAI 절약) → 2(Gemini 절약) → 3(Gemini 실시간) 순서로 가도 되는가? (요금을 가장 빨리 줄이는 순서)
+1. **Defaults**: new speakers in Saver mode, current speakers stay on Live (changed in the app) — is that OK? Or should current speakers switch to Saver mode too?
+2. **English lessons are always Live** — is that OK?
+3. **Barge-in**: in stage 1, only stopping with the center button — is that OK?
+4. **Design**: should the assistant settings and key entry screen changes be shown on the canvas first?
+5. **English lessons + Gemini**: English lessons are currently built only on OpenAI (gpt-live-1 + summary). For someone who uses only Gemini: ① English lessons only when an OpenAI key exists (stage 1) ② lessons on Gemini Live too (stage 3 or later) — is it OK to start with ①?
+6. **Order**: is it OK to go 1 (OpenAI Saver) → 2 (Gemini Saver) → 3 (Gemini Live)? (the order that cuts the bill fastest)
 
 ---
 
-## 11. 상세 설계 (구현용)
+## 11. Detailed Design
 
-### 11.1 설정 값
+### 11.1 Settings Values
 
-비서 설정(`assistant` 그룹, NVS `assistant/settings`)에 키 3개를 더한다. 지금은 키가 정확히 10개여야 통과하므로(`SETTINGS_KEYS 10`, `settings_valid`) **13개로 늘리고, 옛 설정(10개)은 읽을 때 기본값을 채워 옮긴다**(timezone을 더할 때와 같은 방식).
+Add 3 keys to the assistant settings (`assistant` group, NVS `assistant/settings`). Right now exactly 10 keys are required to pass (`SETTINGS_KEYS 10`, `settings_valid`), so **raise it to 13 and, when reading old settings (10 keys), fill in defaults and migrate them** (the same way as when timezone was added).
 
-| 키 | 값 | 기본 (새 스피커) | 기본 (옮겨 온 스피커) |
+| Key | Value | Default (new speaker) | Default (migrated speaker) |
 |:--|:--|:--|:--|
-| `ai_provider` | `"openai"` \| `"gemini"` | 첫 설정에서 고른 값 | `"openai"` |
-| `mode_openai` | `"live"` \| `"saver"` | 첫 설정에서 고른 값(제안 `saver`) | `"live"` (지금 쓰던 그대로) |
+| `ai_provider` | `"openai"` \| `"gemini"` | The value chosen in first-time setup | `"openai"` |
+| `mode_openai` | `"live"` \| `"saver"` | The value chosen in first-time setup (suggested `saver`) | `"live"` (as it was) |
 | `mode_gemini` | `"live"` \| `"saver"` | `"saver"` | `"saver"` |
 
-- 회사마다 방식을 따로 두어 "회사를 바꾸면 그 회사에서 마지막으로 고른 방식"이 된다(9절 4).
-- 바꾸는 길: LAN `PUT /api/v1/settings/assistant` (앱 "AI · 대화 방식"), 첫 설정은 BLE `settings.set` (`group:"assistant"`), 말로는 나중(2단계 이후 검토).
-- **키 검사 (스피커가 직접)**: `ai_provider`를 키가 없는 회사로 바꾸려 하면 거절 → LAN **409 `NO_API_KEY`**, BLE `{"ok":false,"error":"NO_API_KEY"}`. 앱이 화면에서 막지만 스피커도 한 번 더 막는다.
+- Keeping a mode per provider means "switching provider gives the mode last chosen for that provider" (Section 9, item 4).
+- Ways to change it: LAN `PUT /api/v1/settings/assistant` (app "AI & Conversation Mode"); in first-time setup, BLE `settings.set` (`group:"assistant"`); by voice later (to be considered after stage 2).
+- **Key check (by the speaker itself)**: trying to switch `ai_provider` to a provider with no key is refused → LAN **409 `NO_API_KEY`**, BLE `{"ok":false,"error":"NO_API_KEY"}`. The app blocks it on screen, but the speaker blocks it once more.
 
-### 11.2 키
+### 11.2 Keys
 
-| 이름 | 스피커 저장 | BLE `secret.set` | LAN `DELETE /keys/{name}` | `/status.secrets`·`device.info.secrets` |
+| Name | Stored on the speaker | BLE `secret.set` | LAN `DELETE /keys/{name}` | `/status.secrets`, `device.info.secrets` |
 |:--|:--|:--|:--|:--|
-| `openai_key` | `secrets` 영역 (지금) | ✅ | ✅ | ✅ |
-| `gemini_key` | `secrets` 영역 **(새로)** | ✅ (1~512바이트) | ✅ | ✅ `gemini_key: true/false` |
+| `openai_key` | `secrets` area (current) | ✅ | ✅ | ✅ |
+| `gemini_key` | `secrets` area **(new)** | ✅ (1–512 bytes) | ✅ | ✅ `gemini_key: true/false` |
 
-- 앱: 보안 저장소 `vault_openai_key`, `vault_gemini_key`(새로). "이 휴대폰에 키 기억하기"가 켜져 있으면 저장, 다음 첫 설정·"키 넣기" 때 자동으로 채운다.
-- **지금 고른 AI의 키를 지우면**(`DELETE /keys/openai_key` 등) 스피커는 대화를 시작하지 않고 `error NO_API_KEY`(앱: "앱에서 ○○ 키를 넣어 주세요"). 다른 회사 키가 있으면 앱이 "AI를 Gemini로 바꿀까요?"를 제안한다.
+- App: secure storage `vault_openai_key`, `vault_gemini_key` (new). If "Remember the key on this phone" is on, it's saved and filled in automatically at the next first-time setup or "Enter key."
+- **If you delete the key of the currently chosen AI** (`DELETE /keys/openai_key` and so on), the speaker doesn't start a conversation and reports `error NO_API_KEY` (app: "Please enter the ○○ key in the app"). If the other provider's key exists, the app suggests "Switch the AI to Gemini?"
 
-### 11.3 첫 설정 흐름 (바뀐 부분)
+### 11.3 First-Time Setup Flow (Changed Part)
 
 ```mermaid
 sequenceDiagram
-    actor U as 사용자
-    participant A as 앱
-    participant S as 스피커
-    U->>A: ① AI 고르기 → 그 AI 키 입력(또는 "이미 키 있는 스피커") → ② 방식
-    Note over A: 키도 없고 "이미 있음"도 아니면 "스피커 찾기" 잠김
-    A->>S: (연결) device.info
+    actor U as User
+    participant A as App
+    participant S as Speaker
+    U->>A: ① Choose AI → enter that AI's key (or "speaker already has key") → ② mode
+    Note over A: No key and not "already has key" → "Find speaker" locked
+    A->>S: (connect) device.info
     S-->>A: secrets {openai_key, gemini_key, …}
-    alt 고른 AI 키를 입력하지 않았고 스피커에도 없음
-        A-->>U: "이 스피커에는 ○○ 키가 없어요. 키를 넣거나 다른 AI를 고르세요" (1단계 화면으로)
+    alt Chosen AI's key not entered and not on the speaker
+        A-->>U: "This speaker has no ○○ key. Enter the key or choose another AI" (back to step 1)
     end
-    Note over A,S: Wi-Fi 단계 (지금과 같음)
-    A->>S: secret.set openai_key / gemini_key (입력한 것만)
+    Note over A,S: Wi-Fi step (same as now)
+    A->>S: secret.set openai_key / gemini_key (only those entered)
     A->>S: api.pair → token
-    A->>S: settings.set assistant {ai_provider, mode_openai 또는 mode_gemini}
-    S-->>A: ok (키가 없으면 NO_API_KEY → 1단계로)
-    A->>S: 0xFF88 완료
+    A->>S: settings.set assistant {ai_provider, mode_openai or mode_gemini}
+    S-->>A: ok (no key → NO_API_KEY → back to step 1)
+    A->>S: 0xFF88 done
 ```
 
-### 11.4 상태와 가능 여부 알리기
+### 11.4 Reporting State and Availability
 
-단계별로 만들어 가므로(9절 6), 스피커가 **지금 펌웨어에서 쓸 수 있는 조합**을 알려 주고 앱은 나머지를 "준비 중"으로 잠근다.
+Since it's built in stages (Section 9, item 6), the speaker reports **the combinations the current firmware can use**, and the app locks the rest as "coming soon."
 
-`GET /status`에 추가:
+Add to `GET /status`:
 
 ```json
 "ai": {"provider":"openai","mode":"saver",
        "available":["openai.live","openai.saver"]}
 ```
 
-| 단계 | `available` |
+| Stage | `available` |
 |:--|:--|
-| 1단계 | `openai.live`, `openai.saver` |
-| 2단계 | + `gemini.saver` |
-| 3단계 | + `gemini.live` |
+| Stage 1 | `openai.live`, `openai.saver` |
+| Stage 2 | + `gemini.saver` |
+| Stage 3 | + `gemini.live` |
 
-앱 "AI · 대화 방식": 키 없음 → "키 없음 · 쓸 수 없어요", 키는 있는데 `available`에 없음 → "준비 중". 홈 상태 카드에 "OpenAI · 절약 모드"처럼 작게 표시.
+App "AI & Conversation Mode": no key → "No key · can't be used"; key present but not in `available` → "Coming soon". Show it small on the Home status card, like "OpenAI · Saver mode".
 
-### 11.5 스피커 구조
+### 11.5 Speaker Structure
 
 ```mermaid
 flowchart TD
-    W["호출어 · 버튼 · 앱 · 자동 읽기 · 알림"] --> VS["live_voice_start()<br/>(바깥은 그대로)"]
-    VS --> D{"설정: ai_provider · mode<br/>영어 수업이면 무조건 openai.live"}
-    D -- "openai.live" --> L["지금의 live_voice 세션<br/>(gpt-live-1 WebSocket)"]
-    D -- "openai.saver (1단계)" --> SV["saver_voice 세션 (새)"]
-    D -- "gemini.saver (2단계)" --> SV
-    D -- "gemini.live (3단계)" --> GL["gemini_live 세션 (새)"]
-    SV --> P1["듣기: VAD로 말 끝 판단<br/>PSRAM에 모음"]
-    P1 --> P2["받아쓰기 (OpenAI) /<br/>소리째 AI에 (Gemini)"]
-    P2 --> P3["글자 AI + 도구<br/>assistant_execute() 그대로"]
-    P3 --> P4["음성 합성 스트리밍 → 재생"]
+    W["Wake word · button · app · auto-read · reminder"] --> VS["live_voice_start()<br/>(outside unchanged)"]
+    VS --> D{"Settings: ai_provider · mode<br/>English lesson → always openai.live"}
+    D -- "openai.live" --> L["Current live_voice session<br/>(gpt-live-1 WebSocket)"]
+    D -- "openai.saver (stage 1)" --> SV["saver_voice session (new)"]
+    D -- "gemini.saver (stage 2)" --> SV
+    D -- "gemini.live (stage 3)" --> GL["gemini_live session (new)"]
+    SV --> P1["Listen: VAD detects end of speech<br/>collect in PSRAM"]
+    P1 --> P2["Transcription (OpenAI) /<br/>audio straight to AI (Gemini)"]
+    P2 --> P3["Text model + tools<br/>assistant_execute() as is"]
+    P3 --> P4["Speech synthesis streaming → play"]
     P4 --> P1
 ```
 
-- **바깥 함수는 그대로**: `live_voice_start/stop/active/ready/state`, `voice_state` 이벤트, 무응답 20초·최대 10분, 종료 문구, 가운데 버튼. 그래서 메인·앱·LED·알림·텔레그램 자동 읽기는 고치지 않는다.
-- **영어 수업**: `lesson_wants_session()`이면 설정과 상관없이 `openai.live`. OpenAI 키가 없으면 `lesson/start`가 409 `NO_API_KEY`(앱: "영어 수업은 OpenAI 키가 필요해요").
-- **끼어들기**: 실시간만. 절약 모드는 스피커가 말하는 동안 마이크 소리를 올리지 않는다(메아리 받아쓰기 문제도 함께 없어짐). 가운데 버튼 짧게 = 지금 대답 멈추고 듣기, 길게 = 대화 끝.
+- **The outside functions stay the same**: `live_voice_start/stop/active/ready/state`, the `voice_state` event, the 20-second idle timeout and 10-minute maximum, hang-up phrases, the center button. So main, the app, the LED, reminders, and Telegram auto-read don't change.
+- **English lessons**: if `lesson_wants_session()`, it's `openai.live` regardless of the settings. Without an OpenAI key, `lesson/start` returns 409 `NO_API_KEY` (app: "English lessons need an OpenAI key").
+- **Barge-in**: Live only. In Saver mode the speaker doesn't upload microphone audio while it's talking (which also removes the echo transcription problem). Center button short = stop the current reply and listen; long = end the conversation.
 
-### 11.6 절약 모드 한 바퀴 (OpenAI, 1단계)
+### 11.6 One Round of Saver Mode (OpenAI, Stage 1)
 
 ```mermaid
 sequenceDiagram
-    actor U as 사용자
-    participant S as 스피커
-    participant O as OpenAI (HTTPS, 연결 재사용)
-    U->>S: "알렉사"
-    S->>S: 듣기 시작 (VAD), voice_state live
-    U->>S: "내일 날씨 어때?"
-    Note over S: 0.7초 조용 → 말 끝. 소리 3.2초 (약 100KB, PSRAM)
+    actor U as User
+    participant S as Speaker
+    participant O as OpenAI (HTTPS, connection reused)
+    U->>S: "Alexa"
+    S->>S: Start listening (VAD), voice_state live
+    U->>S: "How's the weather tomorrow?"
+    Note over S: 0.7 s quiet → end of speech. 3.2 s of audio (about 100KB, PSRAM)
     S->>O: POST /v1/audio/transcriptions (gpt-transcribe, WAV)
-    O-->>S: "내일 날씨 어때?"
-    Note over S: 잡음성 결과(1~2글자·"감사합니다"만)면 버리고 계속 듣기<br/>종료 문구면 대화 끝<br/>"사람이 새로 말함"(텔레그램 보호)
-    S->>O: POST /v1/responses (gpt-5.6-luna, store:false, 지시문+도구+최근 20턴, stream)
-    O-->>S: 도구 호출 web_search … / notes_add …
-    S->>S: assistant_execute() (지금 도구 그대로)
-    S->>O: 도구 결과로 다시 (최대 4번)
-    O-->>S: 대답 글자 (스트리밍)
-    loop 문장이 끝날 때마다
-        S->>O: POST /v1/audio/speech (gpt-4o-mini-tts, pcm 24kHz, stream, "천천히 또박또박")
-        O-->>S: 소리 → 16kHz로 바꿔 재생
+    O-->>S: "How's the weather tomorrow?"
+    Note over S: Noise-like result (1–2 chars, only "thank you" / "thanks for watching") → drop, keep listening<br/>Hang-up phrase → end conversation<br/>"Person spoke anew" (Telegram guard)
+    S->>O: POST /v1/responses (gpt-5.6-luna, store:false, instructions+tools+last 20 turns, stream)
+    O-->>S: Tool call web_search … / notes_add …
+    S->>S: assistant_execute() (current tools as is)
+    S->>O: Again with tool results (up to 4 times)
+    O-->>S: Reply text (streaming)
+    loop Each time a sentence ends
+        S->>O: POST /v1/audio/speech (gpt-4o-mini-tts, pcm 24kHz, stream, "slowly, clearly")
+        O-->>S: Audio → convert to 16kHz and play
     end
-    S->>S: 다시 듣기 (사람이 20초 말 안 하면 끝)
+    S->>S: Listen again (ends if the person says nothing for 20 s)
 ```
 
-| 부분 | 내용 |
+| Part | Contents |
 |:--|:--|
-| VAD | esp-sr `vadnet1_medium` (또는 WebRTC VAD) — AEC 뒤 소리에. 말 시작 0.3초 앞부분 미리 보관, 0.7초 조용하면 끝, 말 최대 30초 |
-| 연결 | api.openai.com HTTPS **하나를 계속 재사용**(keep-alive). TLS는 동시에 하나만 → 내부 RAM은 지금 대화와 같은 수준 |
-| 지시문 | 지금 실시간·백엔드 지시문을 하나로 합치고 "짧게, 말로 읽기 좋게"를 더함. 도구 목록은 **지금 백엔드 위임(`delegation.responses.tools`)과 같은 Responses 형식 그대로** 재사용 |
-| 대화 기록 | 최근 20턴(PSRAM), `store:false`(OpenAI에 남기지 않음), 대화가 끝나면 지움 |
-| 텔레그램 보호 | 받아쓰기 결과 하나 = "사람이 새로 말함". 스피커가 말하는 동안은 마이크를 올리지 않으므로 메아리 판단이 필요 없다 |
-| 실패 | 네트워크 오류 → 짧은 안내음 + 다시 듣기, 3번 연속이면 대화 끝(`error VOICE_DROPPED`) |
-| 로그 | 단계별 시간만: `SAVER: speech 3.2 s → stt 0.6 s → ai 0.9 s (tools 1) → first audio 0.4 s` (내용 없음) |
-| 사용량 | 받아쓰기 초·AI 토큰·합성 초를 세어 로그(나중에 앱 사용량 화면) |
+| VAD | esp-sr `vadnet1_medium` (or WebRTC VAD) — on the audio after AEC. Keep 0.3 seconds before speech starts, end after 0.7 seconds of quiet, speech up to 30 seconds |
+| Connection | **Keep reusing one** api.openai.com HTTPS connection (keep-alive). Only one TLS connection at a time → internal RAM at the same level as the current conversation |
+| Instructions | Merge the current Live and backend instructions into one and add "keep it short and easy to read aloud." Reuse the tool list **as is, in the same Responses format as the current backend delegation (`delegation.responses.tools`)** |
+| Conversation history | Last 20 turns (PSRAM), `store:false` (not kept by OpenAI), cleared when the conversation ends |
+| Telegram guard | One transcription result = "the person spoke anew." The microphone isn't uploaded while the speaker talks, so no echo judgment is needed |
+| Failure | Network error → short notice tone + listen again; 3 in a row end the conversation (`error VOICE_DROPPED`) |
+| Logs | Only time per stage: `SAVER: speech 3.2 s → stt 0.6 s → ai 0.9 s (tools 1) → first audio 0.4 s` (no contents) |
+| Usage | Count transcription seconds, AI tokens, and synthesis seconds in the log (later, an app usage screen) |
 
-### 11.7 자동 읽기·알림 (절약 모드일 때)
+### 11.7 Auto-Read and Reminders (in Saver Mode)
 
-| 기능 | 절약 모드에서 |
+| Feature | In Saver mode |
 |:--|:--|
-| 일정 알림 | 알릴 문장을 스피커가 직접 만들어(AI 없음) **합성만** → 재생 → 15초 듣기("알았어", "10분 뒤 다시") |
-| 텔레그램 자동 읽기 | "○○님 메시지: …" 합성 → 재생 → 듣기(답장 가능). 메시지 본문은 AI 지시문이 아니라 사용자 차례 앞의 "읽어 준 내용"으로만 둔다 |
+| Schedule reminder | The speaker writes the reminder sentence itself (no AI), **synthesis only** → play → listen for 15 seconds ("Got it", "Again in 10 minutes") |
+| Telegram auto-read | Synthesize "Message from ○○: …" → play → listen (reply possible). The message body is placed only as "what was read aloud" before the user's turn, never as AI instructions |
 
-### 11.8 앱 변경
+### 11.8 App Changes
 
-| 화면·부분 | 변경 |
+| Screen / part | Change |
 |:--|:--|
-| 첫 설정 1단계 | ① AI → 그 AI 키(필수, 또는 "이미 키 있는 스피커") → ② 방식. 다른 AI 키·텔레그램 토큰은 "더 넣기"(선택). 키가 없으면 "스피커 찾기" 잠김 |
-| 첫 설정 연결 뒤 | `device.info.secrets`로 확인 → 없으면 1단계로. 끝에 BLE `settings.set assistant {ai_provider, mode_…}` |
-| 비서 화면 | 맨 위 "AI · 대화 방식" 줄 (지금 값 표시) |
-| AI · 대화 방식 (새) | ① AI(키 없음·준비 중 잠금) → ② 방식(회사별 요금·특징). "○○ 키 넣기" → BLE `secret.set` (지금 OpenAI 키 넣기와 같은 흐름) |
-| 시스템 > 키 | Gemini 키 넣기·지우기 추가 |
-| 영어 선생님 | "영어 수업은 실시간 API(OpenAI)로 해요 · 분당 약 70원", OpenAI 키 없으면 시작 버튼 잠금 |
-| 홈 | 상태 카드에 "OpenAI · 절약 모드" |
-| 저장 | 보안 저장소 `vault_gemini_key` 추가 |
+| First-time setup step 1 | ① AI → that AI's key (required, or "speaker already has key") → ② mode. The other AI's key and the Telegram token go under "Add more" (optional). No key → "Find speaker" locked |
+| First-time setup after connecting | Check with `device.info.secrets` → if missing, back to step 1. At the end, BLE `settings.set assistant {ai_provider, mode_…}` |
+| Assistant screen | An "AI & Conversation Mode" row at the top (shows the current value) |
+| AI & Conversation Mode (new) | ① AI (locked if no key or coming soon) → ② mode (per-provider price and features). "Enter ○○ key" → BLE `secret.set` (same flow as entering the OpenAI key now) |
+| System > Keys | Add entering and deleting the Gemini key |
+| English Tutor | "English lessons use the Live API (OpenAI) · about 70 won a minute"; start button locked without an OpenAI key |
+| Home | "OpenAI · Saver mode" on the status card |
+| Storage | Add secure storage `vault_gemini_key` |
 
-### 11.9 1단계 작업 목록
+### 11.9 Stage 1 Task List
 
-| # | 펌웨어 | 앱 |
+| # | Firmware | App |
 |:--|:--|:--|
-| 1 | 설정 13키·옛 설정 옮기기·키 검사, `gemini_key` 보안 저장·BLE·LAN·status | 키 저장(`vault_gemini_key`), 첫 설정 AI·키·방식, 연결 뒤 키 확인, BLE `settings.set` |
-| 2 | `/status.ai` (provider, mode, available) | 비서 "AI · 대화 방식" 줄, 새 화면, 시스템 > Gemini 키 |
-| 3 | `live_voice_start` 안에서 방식 나누기 (영어 수업은 openai.live) | 영어 선생님 실시간 안내·OpenAI 키 확인 |
-| 4 | `saver_voice`: VAD, 받아쓰기, Responses(도구 반복), TTS 스트리밍, 재생, 재사용 연결 | 홈 상태 표시 |
-| 5 | 알림·자동 읽기를 합성으로 | 테스트 |
-| 6 | 셀프테스트(설정 옮기기, VAD 경계, 잡음 필터), 빌드, 실기기 단계별 시간·내부 RAM 측정 | analyze·test |
+| 1 | 13 settings keys, old-settings migration, key check; `gemini_key` secure storage, BLE, LAN, status | Key storage (`vault_gemini_key`), first-time setup AI/key/mode, key check after connecting, BLE `settings.set` |
+| 2 | `/status.ai` (provider, mode, available) | Assistant "AI & Conversation Mode" row, new screen, System > Gemini key |
+| 3 | Mode split inside `live_voice_start` (English lessons go to openai.live) | English Tutor Live notice and OpenAI key check |
+| 4 | `saver_voice`: VAD, transcription, Responses (tool loop), TTS streaming, playback, reused connection | Home status display |
+| 5 | Reminders and auto-read via synthesis | Tests |
+| 6 | Self-test (settings migration, VAD boundaries, noise filter), build, real-board time-per-stage and internal RAM measurement | analyze, test |
 
-예상: 펌웨어 6~8일, 앱 2일, 실기기 2~3일.
+Estimate: firmware 6–8 days, app 2 days, real board 2–3 days.

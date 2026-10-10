@@ -1,9 +1,9 @@
 /**
  * @file hangup_phrase.h
- * @brief 종료 문구 매처 ("Goodbye Computer"·"잘가 컴퓨터", "Goodbye Alexa"·"잘가 알렉사", "Goodbye Jarvis"·"잘가 자비스", "대화 종료")
+ * @brief Hang-up phrase matcher ("Goodbye Computer"/"잘가 컴퓨터", "Goodbye Alexa"/"잘가 알렉사", "Goodbye Jarvis"/"잘가 자비스", "End conversation"/"대화 종료")
  *
- * 입력 전사(transcript) 조각을 이어 붙여, 마지막 단어가 0.6초 동안 더 오지 않을 때
- * 종료 문구가 단어 경계에 맞게 들어 있는지 확인한다. 한글은 UTF-8 바이트를 그대로 둔다.
+ * Joins input transcript fragments and, once no further word arrives for 0.6 seconds,
+ * checks whether a hang-up phrase is present on word boundaries. Hangul UTF-8 bytes are left as they are.
  */
 #pragma once
 

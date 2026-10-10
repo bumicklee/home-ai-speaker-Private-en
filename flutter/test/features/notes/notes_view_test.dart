@@ -2,7 +2,7 @@ import 'package:aispeaker/features/notes/domain/entities/note.dart';
 import 'package:aispeaker/features/notes/domain/notes_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 2026-10-04 (일) 13:00
+/// 2026-10-04 (Sun) 13:00
 final now = DateTime(2026, 10, 4, 13);
 
 Note ev(String id, NoteTime start,
@@ -117,7 +117,7 @@ void main() {
     });
 
     test('하루 종일 일정은 알림 시각(기본 9시) 기준', () {
-      // 내일 하루 종일: 0 = 내일 9시 (예정), 1440 = 오늘 9시 (지남)
+      // All day tomorrow: 0 = tomorrow 9:00 (upcoming), 1440 = today 9:00 (past)
       expect(ev('a', day(5), remind: [0]).pendingReminders(now, nine), [0]);
       expect(ev('a', day(5), remind: [1440]).pendingReminders(now, nine), isEmpty);
       expect(ev('a', day(5), remind: [1440]).pendingReminders(now, const ClockTime(18, 0)), [1440]);

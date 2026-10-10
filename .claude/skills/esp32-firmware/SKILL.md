@@ -1,44 +1,44 @@
 ---
 name: esp32-firmware
-description: Waveshare ESP32-S3-AUDIO-Board 스피커 펌웨어(ESP-IDF v5.5) 작업 규칙과 책의 단계별 프롬프트. firmware/ 아래 C 코드, sdkconfig.defaults, partitions.csv를 고치거나, 빌드·굽기·부팅 로그·메모리 부족·호출어·BLE·LAN API·라디오·텔레그램·음성 대화를 다룰 때 쓴다.
-when_to_use: 펌웨어, idf.py, ESP-IDF, 부팅 로그, 재부팅, 메모리 부족, 호출어, 컴퓨터/알렉사, BLE 창, LAN API, 라디오, 텔레그램, 절약 모드, Gemini 실시간
+description: Working rules for the Waveshare ESP32-S3-AUDIO-Board speaker firmware (ESP-IDF v5.5) and the book's step-by-step prompts. Use when editing C code under firmware/, sdkconfig.defaults, or partitions.csv, or when dealing with builds, flashing, boot logs, memory shortages, the wake word, BLE, the LAN API, radio, Telegram, or voice conversation.
+when_to_use: firmware, idf.py, ESP-IDF, boot log, reboot, out of memory, wake word, Computer/Alexa, BLE window, LAN API, radio, Telegram, Saver mode, Gemini Live
 paths: firmware/**
-argument-hint: "[장 번호, 예: 6]"
+argument-hint: "[chapter number, e.g. 6]"
 ---
 
-# 펌웨어 작업 규칙 (책 『클로드 코드로 만드는 우리 집 AI 스피커』)
+# Firmware Working Rules (for the home AI speaker book built with Claude Code)
 
-인자로 장 번호가 오면(`/esp32-firmware 6`) [prompts.md](prompts.md)에서 그 장의 프롬프트를 찾아 순서대로 진행한다. 한 번에 한 단계만 하고, 단계마다 아래 "확인 순서"를 돌린 뒤 사용자에게 결과를 보여 준다.
+When a chapter number comes as the argument (`/esp32-firmware 6`), find that chapter's prompts in [prompts.md](prompts.md) and proceed in order. Do one step at a time, and at the end of each step run the "Verification sequence" below and show the user the results.
 
-## 지켜야 할 규칙
+## Rules to Follow
 
-- **핀·I2C 주소는 `components/app_config/include/board_config.h`에서만** 가져온다. 다른 파일에 숫자로 쓰지 않는다.
-- **아래 모듈은 위 모듈을 모른다.** 아래에서 위로 알릴 일은 `app_events` 이벤트로 보낸다. 버튼은 "눌렸다"만 보내고 뜻은 `main.c`가 정한다.
-- **비밀값(AI 키, 봇 토큰)은 BLE로만 받는다.** LAN API로 넣지 않고, 로그에 찍지 않고, 다 쓴 버퍼는 0으로 지운다.
-- **설정 옵션은 `sdkconfig.defaults`에 쓴다.** `sdkconfig`는 빌드가 만드는 파일이라 Git에 넣지 않는다. 이미 있으면 `idf.py menuconfig`에서도 바꿔야 반영된다.
-- **내부 RAM이 가장 귀하다.** 큰 버퍼·태스크 스택은 PSRAM에 둔다. 새 태스크나 버퍼를 만들면 부팅 로그의 `heap after boot done internal …` 값이 얼마나 줄었는지 보고한다.
-- **부가 기능 초기화는 실패해도 부팅을 멈추지 않는다.** `ESP_ERROR_CHECK`는 꼭 필요한 초기화에만 쓴다.
-- **OTA 서명 키(`certificates/*.pem`)는 Git에 넣지 않는다.** 저장소가 비공개여도 마찬가지다.
-- 모델 이름은 `app_config.h` 상수에만 둔다. 바뀌면 상수만 고친다.
-- 커밋은 사용자가 요청할 때만 한다.
+- **Take pins and I2C addresses only from `components/app_config/include/board_config.h`.** Don't write them as numbers in any other file.
+- **Lower modules don't know about upper modules.** Anything a lower module needs to tell an upper one goes out as an `app_events` event. A button only sends "pressed", and `main.c` decides what it means.
+- **Secrets (AI keys, bot tokens) are received only over BLE.** Don't accept them over the LAN API, don't print them in logs, and zero out buffers when you're done with them.
+- **Configuration options go in `sdkconfig.defaults`.** `sdkconfig` is a file the build generates, so it doesn't go into Git. If it already exists, a change takes effect only if you also change it in `idf.py menuconfig`.
+- **Internal RAM is the most precious resource.** Put large buffers and task stacks in PSRAM. When you create a new task or buffer, report how much the `heap after boot done internal …` value in the boot log dropped.
+- **A failed init of an optional feature doesn't stop boot.** Use `ESP_ERROR_CHECK` only for initialization that is truly required.
+- **The OTA signing key (`certificates/*.pem`) doesn't go into Git.** This holds even if the repository is private.
+- Model names live only in `app_config.h` constants. When they change, change only the constants.
+- Commits are made only when the user asks.
 
-## 확인 순서 (단계가 끝날 때마다)
+## Verification Sequence (at the end of every step)
 
 ```bash
 source ~/esp/esp-idf-v5.5/export.sh
-cd firmware && idf.py build                    # 경고 0개를 목표로
-idf.py -p <포트> flash monitor                 # 끝낼 때 Ctrl+]
+cd firmware && idf.py build                    # aim for 0 warnings
+idf.py -p <port> flash monitor                 # Ctrl+] to quit
 ```
 
-1. 부팅 로그에 `E (` 줄이나 `Rebooting...`이 없는지 본다.
-2. `heap after boot done internal … (largest …)` 값을 이전과 비교한다.
-3. USB 콘솔에서 `selftest`를 실행해 모든 항목이 PASS인지 본다.
-4. 그 장의 "통과 조건"을 하나씩 확인한다.
+1. Check that the boot log has no `E (` lines and no `Rebooting...`.
+2. Compare the `heap after boot done internal … (largest …)` value with the previous one.
+3. Run `selftest` on the USB console and check that every item is PASS.
+4. Check that chapter's "pass criteria" one by one.
 
-막히면 로그 전체를 그대로 받아 [debugging.md](debugging.md)의 순서로 원인을 좁힌다. 추측으로 고치지 않고, 판단에 쓸 값을 로그로 먼저 찍게 한다.
+If you get stuck, take the whole log as it is and narrow down the cause with the sequence in [debugging.md](debugging.md). Don't fix by guessing; have the values used for the decision printed in the log first.
 
-## 더 볼 것
+## See Also
 
-- 장별 프롬프트: [prompts.md](prompts.md)
-- 로그 읽기·장애 분석 순서: [debugging.md](debugging.md)
-- 앱 쪽 규칙은 `flutter-app` 스킬, 기획·설계·장애 보고서 양식은 `speaker-method` 스킬
+- Prompts by chapter: [prompts.md](prompts.md)
+- Reading logs and the failure analysis sequence: [debugging.md](debugging.md)
+- App-side rules are in the `flutter-app` skill; plan, design, and failure report formats are in the `speaker-method` skill

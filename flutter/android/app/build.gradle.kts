@@ -27,7 +27,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Spotify PKCE 리다이렉트 (flutter_appauth). lib/core/constants/spotify_constants.dart와 같아야 한다
+        // Spotify PKCE redirect (flutter_appauth). Must match lib/core/constants/spotify_constants.dart
         manifestPlaceholders["appAuthRedirectScheme"] = "com.aispeaker.app"
     }
 

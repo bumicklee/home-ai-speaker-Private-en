@@ -1,6 +1,6 @@
 import '../../domain/entities/audio_settings.dart';
 
-/// 펌웨어 `device_settings.c`의 JSON → 엔티티
+/// JSON from the firmware's `device_settings.c` → entity
 class AudioSettingsModel {
   static AudioSettings audioFromJson(Map<String, dynamic> j) => AudioSettings(
         volume: (j['volume'] as num? ?? 0).toInt(),

@@ -1,6 +1,6 @@
 import '../../domain/entities/device.dart';
 
-/// SharedPreferences 저장 형식 (토큰은 여기 넣지 않는다. DeviceTokenStorage)
+/// SharedPreferences storage format (the token is not stored here; see DeviceTokenStorage)
 class DeviceModel {
   static Map<String, dynamic> toJson(Device d) => {'id': d.id, 'name': d.name, 'host': d.host, 'port': d.port};
 

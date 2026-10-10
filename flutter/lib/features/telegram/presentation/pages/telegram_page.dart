@@ -10,7 +10,7 @@ import '../bloc/telegram_cubit.dart';
 import '../widgets/telegram_widgets.dart';
 import 'telegram_connect_page.dart';
 
-/// 텔레그램 (경로 `/telegram`). 스피커에 봇 토큰이 없으면 연결 단계, 있으면 대화방 화면 (디자인 "텔레그램 대화방")
+/// Telegram (route `/telegram`). Connection steps if the speaker has no bot token, otherwise the chats screen (design "Telegram chats")
 class TelegramPage extends StatelessWidget {
   const TelegramPage({super.key});
 
@@ -31,7 +31,7 @@ class _TelegramView extends StatefulWidget {
 }
 
 class _TelegramViewState extends State<_TelegramView> {
-  /// 연결 단계를 시작했으면 끝날 때까지 유지 (토큰을 저장하는 순간 상태가 바뀌어도 등록 코드 단계를 보여야 한다)
+  /// Once the connection steps start, keep them until they finish (the pairing code step must still show even though the state changes the moment the token is saved)
   bool _setup = false;
 
   @override

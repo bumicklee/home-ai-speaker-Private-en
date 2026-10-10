@@ -4,25 +4,25 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/ai/ai_choice.dart';
 
-/// 펌웨어 `assistant.c`의 검증과 같은 값 (settings_valid, TIMEZONES)
+/// Same values as the validation in firmware `assistant.c` (settings_valid, TIMEZONES)
 class AssistantLimits {
   AssistantLimits._();
 
-  /// UTF-8 바이트 수 (글자 수가 아님. 한글 한 글자 = 3바이트)
+  /// UTF-8 byte count (not character count; one Hangul character = 3 bytes)
   static const nameBytes = 32;
   static const purposeBytes = 600;
   static const locationBytes = 96;
 
-  /// 기억 최대 개수 (MEMORY_LIMIT)
+  /// Maximum number of memories (MEMORY_LIMIT)
   static const memories = 12;
 
-  /// 말하는 언어 (assistant.c: ko | en)
+  /// Spoken language (assistant.c: ko | en)
   static const languages = ['ko', 'en'];
 
-  /// 단위 (metric = °C·km, imperial = °F·mi)
+  /// Units (metric = °C·km, imperial = °F·mi)
   static const units = ['metric', 'imperial'];
 
-  /// 칩에 있는 시간대만 (assistant.c `TIMEZONES`). 이 밖의 이름은 INVALID_ARG
+  /// Only the time zones on the chip (assistant.c `TIMEZONES`). Any other name gives INVALID_ARG
   static const timezones = [
     'Asia/Seoul',
     'Asia/Tokyo',
@@ -41,10 +41,10 @@ class AssistantLimits {
 
 int utf8Bytes(String s) => utf8.encode(s).length;
 
-/// 저장 전 검사에서 걸린 항목
+/// An item that failed the pre-save check
 enum AssistantFieldError { nameEmpty, nameTooLong, purposeTooLong, locationTooLong }
 
-/// `/api/v1/settings/assistant` (키 13개: 옛 10개 + ai_provider·mode_openai·mode_gemini)
+/// `/api/v1/settings/assistant` (13 keys: the old 10 + ai_provider, mode_openai, mode_gemini)
 class AssistantSettings extends Equatable {
   const AssistantSettings({
     required this.name,
@@ -66,32 +66,32 @@ class AssistantSettings extends Equatable {
   final String purpose;
   final String language;
 
-  /// 다음 대화부터 바뀐다
+  /// Takes effect from the next conversation
   final String voice;
 
-  /// 동네 이름만 (좌표는 보내지 않는다. 설계서 3.0절)
+  /// Neighborhood name only (coordinates are not sent; design document Section 3.0)
   final String location;
   final String units;
   final bool webSearch;
 
-  /// 끄면 볼륨·라디오·기억 등 기기 툴을 비서에게 주지 않는다
+  /// When off, device tools such as volume, radio and memory are not given to the assistant
   final bool deviceControls;
   final bool autoMemory;
   final String timezone;
 
-  /// 대화에 쓰는 AI (키가 없는 AI로 바꾸면 기기가 409 NO_API_KEY)
+  /// The AI used for conversation (switching to an AI without a key makes the device return 409 NO_API_KEY)
   final AiProvider aiProvider;
 
-  /// 회사마다 마지막으로 고른 방식 (회사를 바꾸면 그 회사의 방식이 된다)
+  /// The mode last chosen for each provider (switching provider switches to that provider's mode)
   final AiMode modeOpenai;
   final AiMode modeGemini;
 
   AiMode modeOf(AiProvider p) => p == AiProvider.openai ? modeOpenai : modeGemini;
 
-  /// 지금 쓰는 방식
+  /// The mode in use now
   AiMode get aiMode => modeOf(aiProvider);
 
-  /// 기기가 거부할 값을 미리 찾는다. 없으면 빈 목록
+  /// Finds values the device would reject, ahead of time. Empty list if none
   List<AssistantFieldError> validate() => [
         if (name.trim().isEmpty) AssistantFieldError.nameEmpty,
         if (utf8Bytes(name) > AssistantLimits.nameBytes) AssistantFieldError.nameTooLong,
@@ -148,7 +148,7 @@ class AssistantSettings extends Equatable {
       ];
 }
 
-/// 비서 기억 하나 (키: 소문자·숫자·_ 1–32자, 값: 1–160바이트)
+/// One assistant memory (key: lowercase, digits, _ 1–32 chars; value: 1–160 bytes)
 class AssistantMemory extends Equatable {
   const AssistantMemory({required this.key, required this.value});
 

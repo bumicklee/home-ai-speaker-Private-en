@@ -12,7 +12,7 @@ import 'notes_settings_page.dart';
 import 'notes_texts.dart';
 import 'notes_widgets.dart';
 
-/// 메모·일정 목록 (디자인 "메모·일정"): 찾기, 일정·메모·휴지통 탭, 새로 만들기
+/// Notes and schedule list (design "메모·일정"): search, schedule/notes/trash tabs, create new
 class NotesPage extends StatelessWidget {
   const NotesPage({super.key});
 
@@ -30,7 +30,7 @@ class _NotesView extends StatefulWidget {
 }
 
 class _NotesViewState extends State<_NotesView> {
-  int _tab = 0; // 0 일정, 1 메모, 2 휴지통
+  int _tab = 0; // 0 schedule, 1 notes, 2 trash
 
   void _open(BuildContext context, {Note? note, NoteKind kind = NoteKind.event}) {
     final cubit = context.read<NotesCubit>();

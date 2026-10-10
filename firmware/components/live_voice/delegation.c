@@ -1,7 +1,7 @@
 /* Based on waveshare-ai-speaker-assistant (MIT, Copyright (c) 2026 KMX415). See THIRD_PARTY_NOTICES.md. */
 /*
- * 기존 펌웨어(waveshare-ai-speaker-assistant) delegation.c를 그대로 가져왔다.
- * 위임 응답 4개까지 추적하고, response.completed에서만 함수 호출 배열을 돌려준다.
+ * Taken as is from delegation.c in the original firmware (waveshare-ai-speaker-assistant).
+ * Tracks up to 4 delegated responses and returns the function call array only on response.completed.
  */
 #include "delegation.h"
 #include <string.h>

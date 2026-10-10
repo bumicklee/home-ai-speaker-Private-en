@@ -9,7 +9,7 @@ import '../bloc/notes_cubit.dart';
 import 'notes_texts.dart';
 import 'notes_widgets.dart';
 
-/// 일정 알림 설정 (디자인 "일정 알림"): 켜기·끄기, 기본 알림, 하루 종일 알림 시각. 바꾸면 바로 스피커에 저장
+/// Schedule reminder settings (design "일정 알림"): on/off, default reminders, all-day reminder time. Changes save to the speaker immediately
 class NotesSettingsPage extends StatelessWidget {
   const NotesSettingsPage({super.key});
 

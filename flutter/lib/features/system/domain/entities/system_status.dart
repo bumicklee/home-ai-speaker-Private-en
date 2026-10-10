@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/ai/ai_choice.dart';
 
-/// Wi-Fi 신호 구간 (홈 화면과 같은 기준)
+/// Wi-Fi signal bands (same thresholds as the Home screen)
 enum WifiBand {
   good,
   fair,
@@ -15,13 +15,13 @@ enum WifiBand {
           : weak;
 }
 
-/// 스피커가 마지막으로 켜진 이유 (`esp_reset_reason_t`를 화면용으로 묶음)
+/// Why the speaker last started (`esp_reset_reason_t` grouped for display)
 enum ResetCause {
-  powerOn, // 1 전원
-  software, // 3 앱·음성으로 다시 시작, OTA
-  crash, // 4 오류 (panic)
-  watchdog, // 5–7 응답 없음
-  brownout, // 9 전원 부족
+  powerOn, // 1 power on
+  software, // 3 restart from the app or by voice, OTA
+  crash, // 4 error (panic)
+  watchdog, // 5–7 not responding
+  brownout, // 9 low power
   other;
 
   static ResetCause fromCode(int code) => switch (code) {
@@ -34,7 +34,7 @@ enum ResetCause {
       };
 }
 
-/// `/api/v1/status` 중 시스템 화면에 쓰는 것 (펌웨어 `device_info.c` device_status)
+/// The parts of `/api/v1/status` used by the System screen (firmware `device_info.c` device_status)
 class SystemStatus extends Equatable {
   const SystemStatus({
     required this.firmware,
@@ -53,29 +53,29 @@ class SystemStatus extends Equatable {
 
   final String firmware;
 
-  /// 빌드 시각 ("Oct  3 2026 10:12:00", 컴파일러 형식 그대로)
+  /// Build time ("Oct  3 2026 10:12:00", exactly as the compiler formats it)
   final String buildDate;
   final Duration uptime;
 
-  /// Wi-Fi에 안 붙어 있으면 null
+  /// null if not on Wi-Fi
   final int? wifiRssi;
 
-  /// `esp_reset_reason()` 숫자
+  /// `esp_reset_reason()` number
   final int resetReason;
 
-  /// 내부 RAM (바이트)
+  /// Internal RAM (bytes)
   final int? heapInternalFree;
   final int? heapInternalMin;
   final int? psramFree;
   final String voiceState;
 
-  /// 저장 여부만 (openai_key, gemini_key, tg_bot_token, spotify, stock_key)
+  /// Only whether each is saved (openai_key, gemini_key, tg_bot_token, spotify, stock_key)
   final Map<String, bool> secrets;
 
-  /// 최근 실패 (펌웨어가 아직 비워 둔다)
+  /// Recent failures (the firmware leaves this empty for now)
   final List<String> failures;
 
-  /// 지금 쓰는 AI와 이 펌웨어가 할 수 있는 조합 (옛 펌웨어면 [AiStatus.legacy])
+  /// The AI in use and the combinations this firmware supports ([AiStatus.legacy] for old firmware)
   final AiStatus ai;
 
   WifiBand? get wifiBand => wifiRssi == null ? null : WifiBand.fromRssi(wifiRssi!);
@@ -114,20 +114,20 @@ class SystemStatus extends Equatable {
       ];
 }
 
-/// 스피커 한 대에 등록할 수 있는 휴대폰 수 (펌웨어 `APP_API_MAX_PHONES`)
+/// Number of phones that can register with one speaker (firmware `APP_API_MAX_PHONES`)
 const maxPhones = 5;
 
-/// `GET /system/phones`의 한 줄
+/// One row of `GET /system/phones`
 class RegisteredPhone extends Equatable {
   const RegisteredPhone({required this.phoneId, required this.name, this.created, this.self = false});
 
   final String phoneId;
   final String name;
 
-  /// 등록 시각. 스피커 시계가 맞기 전에 등록했으면 null
+  /// Registration time. null if registered before the speaker's clock was set
   final DateTime? created;
 
-  /// 지금 요청한 휴대폰 (이 휴대폰)
+  /// The phone making this request (this phone)
   final bool self;
 
   @override

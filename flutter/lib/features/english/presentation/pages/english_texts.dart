@@ -1,7 +1,7 @@
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/entities/lesson.dart';
 
-/// 코스 이름·설명·수준 (디자인 순서: 발음 → 기초 → 생활 → 비즈니스 → 고급)
+/// Course names, descriptions, levels (design order: pronunciation → basics → daily life → business → advanced)
 extension LessonCourseText on LessonCourse {
   String title(AppLocalizations l) => switch (this) {
         LessonCourse.pron => l.engCoursePron,
@@ -27,7 +27,7 @@ extension LessonCourseText on LessonCourse {
         LessonCourse.adv => l.engLevelAdvanced,
       };
 
-  /// 아이콘 자리의 한 글자 (디자인). 한글 음절은 한 글자 = UTF-16 한 단위
+  /// The single character in the icon slot (design). A Hangul syllable is one character = one UTF-16 unit
   String badge(AppLocalizations l) => title(l).substring(0, 1);
 }
 

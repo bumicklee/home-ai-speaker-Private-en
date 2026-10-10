@@ -1,16 +1,16 @@
 /*
- * 인터넷 라디오 재생기 (설계서 2.9절, RAD-01·03·04·05·06).
+ * Internet radio player (design document Section 2.9, RAD-01/03/04/05/06).
  *
- * 흐름 (radio 태스크 하나가 다 한다):
- *   HTTP(S) 연결 → (리다이렉트 따라감) → 재생목록이면 첫 주소로 다시 → ICY 메타데이터 떼어내기
- *   → MP3/AAC 해독 → 모노로 합치기 → 출력 레이트로 변환 → audio_core 음악 채널
+ * Flow (a single radio task does it all):
+ *   HTTP(S) connect → (follow redirects) → if a playlist, reopen the first URL → strip ICY metadata
+ *   → decode MP3/AAC → mix down to mono → convert to the output rate → audio_core music channel
  *
- * 음악 버퍼가 차면 audio_core_music_write()가 기다리므로, 내려받기 속도가 재생 속도에 맞춰진다.
- * 끊기면 1초부터 2배씩 최대 30초 간격으로 5회 재연결하고, 그래도 안 되면 정지하고 안내음을 낸다.
+ * When the music buffer is full, audio_core_music_write() waits, so the download speed matches the playback speed.
+ * On a drop, reconnect 5 times at intervals doubling from 1 s up to 30 s; if that still fails, stop and play the alert tone.
  *
- * ESP-GMF 플레이어(esp_audio_simple_player) 대신 esp_http_client를 직접 쓴 이유:
- * 재생목록·ICY·재연결·리다이렉트를 이 파일에서 다 다뤄야 하는데, GMF 쪽 지원 범위가 확인되지 않았다
- * (설계서 2.9절이 허용한 대안). 해독은 같은 esp_audio_codec 라이브러리를 쓴다.
+ * Why esp_http_client is used directly instead of the ESP-GMF player (esp_audio_simple_player):
+ * this file has to handle playlists, ICY, reconnects and redirects, and how much of that GMF supports was not confirmed
+ * (an alternative allowed by design document Section 2.9). Decoding uses the same esp_audio_codec library.
  */
 #include <stdatomic.h>
 #include <stdio.h>
@@ -42,16 +42,16 @@ static const char *TAG = "RADIO";
 
 #define READ_CHUNK        4096
 #define PLAYLIST_MAX      8192
-#define PCM_MAX_SAMPLES   4608      /* 해독 한 번에 최대 (HE-AAC 2048 × 2채널 여유) */
+#define PCM_MAX_SAMPLES   4608      /* max per decode call (HE-AAC 2048 × 2 channels, with margin) */
 #define MAX_REDIRECTS     5
 #define MAX_PLAYLIST_HOPS 3
 #define MAX_RETRIES       5
 #define RETRY_MIN_MS      1000
 #define RETRY_MAX_MS      30000
-#define STABLE_MS         10000     /* 이만큼 잘 나오면 재시도 횟수를 0으로 */
-#define PLAYING_AFTER_MS  300       /* 이만큼 쌓이면 "재생 중" */
+#define STABLE_MS         10000     /* after playing cleanly this long, reset the retry count to 0 */
+#define PLAYING_AFTER_MS  300       /* once this much is buffered, state is "playing" */
 #define DECODE_ERR_LIMIT  50
-#define STATS_MS          10000     /* 재생 진단 로그 주기 */
+#define STATS_MS          10000     /* playback diagnostic log interval */
 
 typedef enum {
     CMD_PLAY,
@@ -68,13 +68,13 @@ typedef struct {
 } radio_cmd_t;
 
 typedef enum {
-    STREAM_ABORTED,         /* 새 명령이 와서 그만둠 */
-    STREAM_ENDED,           /* 서버가 끊음 → 재연결 */
-    STREAM_FAILED,          /* 연결·해독 실패 → 재연결 */
-    STREAM_UNSUPPORTED,     /* HLS·Ogg 등 → 재시도하지 않음 */
+    STREAM_ABORTED,         /* stopped because a new command arrived */
+    STREAM_ENDED,           /* server closed → reconnect */
+    STREAM_FAILED,          /* connect/decode failure → reconnect */
+    STREAM_UNSUPPORTED,     /* HLS, Ogg, etc. → no retry */
 } stream_result_t;
 
-/* HTTP 응답 헤더에서 모으는 값 */
+/* Values collected from the HTTP response headers */
 typedef struct {
     char content_type[64];
     int metaint;
@@ -82,13 +82,13 @@ typedef struct {
     int icy_br;
 } stream_headers_t;
 
-/* ICY 메타데이터 분리 상태 */
+/* ICY metadata stripping state */
 typedef struct {
     int metaint;
     int until_meta;
     int meta_left;
     int meta_used;
-    char meta[4081];        /* 최대 255 × 16 */
+    char meta[4081];        /* max 255 × 16 */
 } icy_t;
 
 static QueueHandle_t s_cmds;
@@ -97,20 +97,20 @@ static radio_status_t s_status = {.state = MEDIA_STOPPED, .preset = -1};
 static char s_url[RADIO_URL_MAX + 1];
 
 /*
- * 검색 결과의 나머지 후보 (첫 후보를 틀 수 없을 때 차례로). PSRAM.
- * s_pending_*: 부르는 쪽이 명령을 넣기 전에 s_lock 안에서 채운다. s_alts: radio 태스크만 쓴다.
+ * Remaining search candidates (tried in turn when the first can't be played). PSRAM.
+ * s_pending_*: filled by the caller inside s_lock before queuing the command. s_alts: used only by the radio task.
  */
 static radio_station_t *s_pending_alts, *s_alts;
 static int s_pending_alt_count, s_alt_count, s_alt_next;
 
-/* 재생 태스크가 쓰는 버퍼 (PSRAM, 시작할 때 한 번 잡는다) */
+/* Buffers used by the playback task (PSRAM, allocated once at start) */
 static uint8_t *s_read_buf, *s_audio_buf, *s_dec_buf;
 static uint32_t s_dec_buf_size;
 static int16_t *s_mono, *s_resampled;
 static uint32_t s_resampled_cap;
 static icy_t *s_icy;
 
-/* ── 상태 ─────────────────────────────────────────────────── */
+/* ── State ────────────────────────────────────────────────── */
 
 static void post_state(void)
 {
@@ -158,7 +158,7 @@ cJSON *radio_now_json(void)
     cJSON *j = cJSON_CreateObject();
     cJSON_AddStringToObject(j, "source", st.state == MEDIA_STOPPED ? "none" : "radio");
     cJSON_AddStringToObject(j, "state", names[st.state]);
-    /* ICY 제목은 보통 "가수 - 제목" 형식 */
+    /* ICY titles are usually "Artist - Title" */
     char artist[128] = "", title[128];
     strlcpy(title, st.icy_title, sizeof(title));
     char *dash = strstr(st.icy_title, " - ");
@@ -180,7 +180,7 @@ cJSON *radio_now_json(void)
     return j;
 }
 
-/* ── 마지막 방송 (NVS media) ──────────────────────────────── */
+/* ── Last station (NVS media) ─────────────────────────────── */
 
 static void save_last(const char *url, const char *title, int preset)
 {
@@ -196,7 +196,7 @@ static void save_last(const char *url, const char *title, int preset)
     nvs_close(h);
 }
 
-/* ── 명령 ─────────────────────────────────────────────────── */
+/* ── Commands ─────────────────────────────────────────────── */
 
 static esp_err_t send_cmd(cmd_type_t type, int preset, const char *url, const char *title,
                           const radio_station_t *alts, int alt_count)
@@ -211,7 +211,7 @@ static esp_err_t send_cmd(cmd_type_t type, int preset, const char *url, const ch
     strlcpy(cmd.title, title ? title : "", sizeof(cmd.title));
     if (type == CMD_PLAY) {
         save_last(cmd.url, cmd.title, preset);
-        /* 새 재생마다 후보를 바꾼다 (프리셋·URL 재생은 후보 0개) */
+        /* Replace the candidates on every new play (preset/URL play has 0 candidates) */
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_pending_alt_count = alt_count;
         if (alt_count > 0) {
@@ -219,7 +219,7 @@ static esp_err_t send_cmd(cmd_type_t type, int preset, const char *url, const ch
         }
         xSemaphoreGive(s_lock);
     }
-    /* 이전 명령이 쌓여 있으면 최신 것만 의미가 있다 */
+    /* If older commands are queued, only the latest one matters */
     if (xQueueSend(s_cmds, &cmd, pdMS_TO_TICKS(100)) != pdTRUE) {
         return ESP_ERR_TIMEOUT;
     }
@@ -324,7 +324,7 @@ static esp_err_t on_http(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-/* 연결하고 리다이렉트를 따라간다. 성공하면 200 상태로 본문을 읽을 준비가 된 client */
+/* Connect and follow redirects. On success, a client in 200 state ready to read the body */
 static bool abort_requested(void);
 
 static esp_http_client_handle_t open_stream(const char *url, stream_headers_t *hdr, char *final_url, size_t final_len)
@@ -332,10 +332,10 @@ static esp_http_client_handle_t open_stream(const char *url, stream_headers_t *h
     const esp_http_client_config_t cfg = {
         .url = url,
         .crt_bundle_attach = esp_crt_bundle_attach,
-        .timeout_ms = 5000,     /* 연결 중에는 정지 명령을 볼 수 없으므로 짧게 */
+        .timeout_ms = 5000,     /* short, because stop commands can't be seen while connecting */
         .buffer_size = READ_CHUNK,
         .user_agent = RADIO_USER_AGENT,
-        .disable_auto_redirect = true,  /* 스트리밍 모드라 직접 따라간다 */
+        .disable_auto_redirect = true,  /* streaming mode, so we follow them ourselves */
         .event_handler = on_http,
         .user_data = hdr,
         .keep_alive_enable = false,
@@ -353,7 +353,7 @@ static esp_http_client_handle_t open_stream(const char *url, stream_headers_t *h
         esp_http_client_fetch_headers(client);
         int status = esp_http_client_get_status_code(client);
         if (status == 200) {
-            /* 리다이렉트를 따라간 뒤의 주소 (재생목록 확장자 판단용) */
+            /* URL after following redirects (for checking the playlist extension) */
             if (esp_http_client_get_url(client, final_url, final_len) != ESP_OK) {
                 strlcpy(final_url, url, final_len);
             }
@@ -379,7 +379,7 @@ static bool is_playlist_type(const char *content_type, const char *url)
            strcasestr(content_type, "x-pls");
 }
 
-/* 재생목록 본문에서 첫 스트림 주소를 찾는다. HLS면 지원하지 않음 */
+/* Find the first stream URL in a playlist body. HLS is not supported */
 static stream_result_t parse_playlist(char *body, char *out, size_t out_len)
 {
     if (strstr(body, "#EXT-X-")) {
@@ -390,14 +390,14 @@ static stream_result_t parse_playlist(char *body, char *out, size_t out_len)
         if (!strncasecmp(line, "File", 4) || line[0] == 'h') {
             if (p && (!strncmp(p, "http://", 7) || !strncmp(p, "https://", 8)) && strlen(p) <= RADIO_URL_MAX) {
                 strlcpy(out, p, out_len);
-                return STREAM_ENDED;    /* 찾음 (호출한 쪽이 이 주소로 다시 연다) */
+                return STREAM_ENDED;    /* found (the caller reopens this URL) */
             }
         }
     }
     return STREAM_UNSUPPORTED;
 }
 
-/* ── ICY 메타데이터 ───────────────────────────────────────── */
+/* ── ICY metadata ─────────────────────────────────────────── */
 
 static void icy_parse_title(const char *meta)
 {
@@ -419,11 +419,11 @@ static void icy_parse_title(const char *meta)
     strlcpy(s_status.icy_title, title, sizeof(s_status.icy_title));
     xSemaphoreGive(s_lock);
     if (changed) {
-        post_state();   /* 앱의 "지금 나오는 곡" 갱신 */
+        post_state();   /* update the app's "now playing" */
     }
 }
 
-/* 받은 바이트에서 메타데이터를 떼어내고 소리 바이트만 out에 남긴다 */
+/* Strip metadata from received bytes and leave only audio bytes in out */
 static size_t icy_filter(icy_t *s, const uint8_t *in, size_t n, uint8_t *out)
 {
     size_t i = 0, o = 0;
@@ -446,7 +446,7 @@ static size_t icy_filter(icy_t *s, const uint8_t *in, size_t n, uint8_t *out)
             continue;
         }
         if (s->until_meta == 0) {
-            s->meta_left = in[i++] * 16;    /* 길이 바이트 */
+            s->meta_left = in[i++] * 16;    /* length byte */
             s->meta_used = 0;
             if (s->meta_left == 0) {
                 s->until_meta = s->metaint;
@@ -462,7 +462,7 @@ static size_t icy_filter(icy_t *s, const uint8_t *in, size_t n, uint8_t *out)
     return o;
 }
 
-/* ── 해독 → 음악 채널 ─────────────────────────────────────── */
+/* ── Decode → music channel ───────────────────────────────── */
 
 typedef struct {
     esp_audio_simple_dec_handle_t dec;
@@ -483,10 +483,10 @@ static void decode_ctx_close(decode_ctx_t *d)
     memset(d, 0, sizeof(*d));
 }
 
-/* 모노·출력 레이트로 바꿔 음악 채널에 넣는다. 그만둬야 하면 false */
+/* Convert to mono at the output rate and feed the music channel. false if we must stop */
 static bool push_pcm_chunk(decode_ctx_t *d, const int16_t *pcm, size_t frames, unsigned channels, uint32_t rate);
 
-/* 해독 결과가 작업 버퍼보다 크면 나눠서 넣는다 (자르지 않는다) */
+/* If the decoded output is larger than the work buffer, feed it in parts (don't truncate) */
 static bool push_pcm(decode_ctx_t *d, const int16_t *pcm, size_t frames, unsigned channels, uint32_t rate)
 {
     while (frames) {
@@ -507,7 +507,7 @@ static bool push_pcm_chunk(decode_ctx_t *d, const int16_t *pcm, size_t frames, u
         for (unsigned c = 0; c < channels; c++) {
             sum += pcm[i * channels + c];
         }
-        s_mono[i] = (int16_t)(sum / (int)channels);     /* 모노 스피커 하나라 합친다 */
+        s_mono[i] = (int16_t)(sum / (int)channels);     /* one mono speaker, so mix down */
     }
     const int16_t *out = s_mono;
     uint32_t out_n = frames;
@@ -533,7 +533,7 @@ static bool push_pcm_chunk(decode_ctx_t *d, const int16_t *pcm, size_t frames, u
         }
         out_n = s_resampled_cap;
         if (esp_ae_rate_cvt_process(d->cvt, s_mono, frames, s_resampled, &out_n) != ESP_AE_ERR_OK) {
-            return true;    /* 이 조각만 버린다 */
+            return true;    /* drop just this chunk */
         }
         out = s_resampled;
     }
@@ -566,7 +566,7 @@ static bool decode_bytes(decode_ctx_t *d, uint8_t *data, size_t len)
             continue;
         }
         if (ret != ESP_AUDIO_ERR_OK) {
-            /* 깨진 프레임: 이 조각을 버리고 다음 조각으로. 계속 실패하면 재연결 */
+            /* Corrupt frame: drop this chunk and move on. Reconnect if it keeps failing */
             return ++d->errors < DECODE_ERR_LIMIT;
         }
         d->errors = 0;
@@ -583,13 +583,13 @@ static bool decode_bytes(decode_ctx_t *d, uint8_t *data, size_t len)
                 return false;
             }
         } else if (raw.consumed == 0) {
-            break;      /* 더 받아야 한다 */
+            break;      /* need more data */
         }
     }
     return true;
 }
 
-/* ── 스트림 하나 재생 ─────────────────────────────────────── */
+/* ── Play one stream ──────────────────────────────────────── */
 
 static stream_result_t stream_once(const char *url, int depth, uint32_t *played_ms)
 {
@@ -648,7 +648,7 @@ static stream_result_t stream_once(const char *url, int depth, uint32_t *played_
     ESP_LOGI(TAG, "streaming %s (metaint %d, %d kbps)", aac ? "AAC" : "MP3", hdr.metaint, hdr.icy_br);
 
     stream_result_t result = STREAM_ENDED;
-    /* 끊김 진단: 받는 속도 vs 방송 비트레이트, 버퍼 최저치, 버퍼가 빈 횟수, 네트워크를 기다린 시간 비율 */
+    /* Dropout diagnostics: receive rate vs station bitrate, buffer low-water mark, buffer-empty count, share of time waiting on the network */
     int64_t stat_since = esp_timer_get_time(), read_wait_us = 0;
     uint32_t stat_bytes = 0, buf_min = UINT32_MAX;
     unsigned underruns_base = audio_core_music_underruns();
@@ -693,7 +693,7 @@ static stream_result_t stream_once(const char *url, int depth, uint32_t *played_
         }
     }
     *played_ms = d.written_samples * 1000ull / AUDIO_SAMPLE_RATE;
-    /* 스택 실측용: TLS + 해독기가 함께 돈 뒤의 최소 여유 (2.6절 표 갱신에 쓴다) */
+    /* For stack measurement: minimum headroom after TLS + decoder have run together (used to update the table in Section 2.6) */
     ESP_LOGI(TAG, "stream end: %u ms played, stack free min %u B", (unsigned)*played_ms,
              (unsigned)uxTaskGetStackHighWaterMark(NULL));
     decode_ctx_close(&d);
@@ -706,12 +706,12 @@ static void fail_stop(void)
     ESP_LOGW(TAG, "station unavailable, stopping");
     audio_core_music_flush();
     set_state(MEDIA_STOPPED);
-    audio_core_tone();      /* 안내음 (RAD-06) */
+    audio_core_tone();      /* alert tone (RAD-06) */
     app_error_t code = APP_ERR_RADIO_UNAVAILABLE;
     app_events_post(APP_EVT_ERROR, &code, sizeof(code), 0);
 }
 
-/* 검색 후보가 남았으면 다음 것으로 바꾼다 */
+/* If search candidates remain, switch to the next one */
 static bool next_alternative(void)
 {
     if (s_alt_next >= s_alt_count) {
@@ -724,18 +724,18 @@ static bool next_alternative(void)
     s_status.icy_title[0] = '\0';
     s_status.bitrate_kbps = 0;
     xSemaphoreGive(s_lock);
-    /* XIP from PSRAM이라 PSRAM 스택 태스크에서도 NVS를 쓸 수 있다 (책 7장 7.3절) */
+    /* With XIP from PSRAM, NVS is usable even from a PSRAM-stack task (Chapter 7, Section 7.3) */
     save_last(a->url, a->name, -1);
     ESP_LOGW(TAG, "trying next search result: \"%s\"", a->name);
     return true;
 }
 
-/* 끊기면 재연결하면서 계속 튼다. 새 명령이 오면 돌아간다 */
+/* Keep playing, reconnecting on drops. Return when a new command arrives */
 static void play_loop(void)
 {
     int failures = 0;
     uint32_t backoff = RETRY_MIN_MS;
-    bool ever_played = false;   /* 이 방송에서 소리가 한 번이라도 나왔나 */
+    bool ever_played = false;   /* has this station produced sound at least once */
     for (;;) {
         set_state(MEDIA_BUFFERING);
         uint32_t played_ms = 0;
@@ -744,7 +744,7 @@ static void play_loop(void)
             return;
         }
         ever_played |= played_ms > 0;
-        /* 틀 수 없는 형식이거나 한 번도 안 나온 채 실패하면, 같은 방송을 재시도하기보다 다음 후보로 */
+        /* If the format is unplayable or it failed without ever playing, move to the next candidate rather than retrying */
         if ((r == STREAM_UNSUPPORTED || !ever_played) && next_alternative()) {
             failures = 0;
             backoff = RETRY_MIN_MS;
@@ -765,7 +765,7 @@ static void play_loop(void)
         ESP_LOGW(TAG, "stream dropped, retry %d/%d in %lu ms", failures, MAX_RETRIES, (unsigned long)backoff);
         radio_cmd_t peek;
         if (xQueuePeek(s_cmds, &peek, pdMS_TO_TICKS(backoff)) == pdTRUE) {
-            return;     /* 기다리는 사이 새 명령 */
+            return;     /* new command while waiting */
         }
         backoff = backoff * 2 > RETRY_MAX_MS ? RETRY_MAX_MS : backoff * 2;
     }
@@ -793,12 +793,12 @@ static void radio_task(void *arg)
             s_status.icy_title[0] = '\0';
             s_status.bitrate_kbps = 0;
             xSemaphoreGive(s_lock);
-            ESP_LOGI(TAG, "play \"%s\"", cmd.title);    /* URL은 로그에 남기지 않는다 (2.2절) */
+            ESP_LOGI(TAG, "play \"%s\"", cmd.title);    /* never log the URL (Section 2.2) */
             play_loop();
             break;
         case CMD_RESUME:
             if (s_url[0]) {
-                play_loop();    /* 생방송이라 이어 듣기 = 다시 연결 */
+                play_loop();    /* live broadcast, so resume = reconnect */
             }
             break;
         case CMD_PAUSE:
@@ -824,7 +824,7 @@ esp_err_t media_radio_init(void)
     s_dec_buf_size = PCM_MAX_SAMPLES * sizeof(int16_t);
     s_dec_buf = heap_caps_malloc(s_dec_buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_mono = heap_caps_malloc(PCM_MAX_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    /* 가장 큰 비율(48k→16k는 줄어들지만, 8k→48k 같은 경우도 대비)로 넉넉히 */
+    /* sized generously for the largest ratio (48k→16k shrinks, but also allow for cases like 8k→48k) */
     s_resampled_cap = PCM_MAX_SAMPLES * 6;
     s_resampled = heap_caps_malloc(s_resampled_cap * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_icy = heap_caps_calloc(1, sizeof(icy_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -834,15 +834,15 @@ esp_err_t media_radio_init(void)
         !s_pending_alts || !s_alts) {
         return ESP_ERR_NO_MEM;
     }
-    esp_err_t err = radio_presets_init();     /* 해독기 등록은 audio_core_init이 했다 */
+    esp_err_t err = radio_presets_init();     /* audio_core_init already registered the decoders */
     if (err != ESP_OK) {
         return err;
     }
     /*
-     * 해독(HE-AAC)·TLS 핸드셰이크가 이 스택에서 돈다(16KB). 내부 RAM이 모자라 스택을 PSRAM에 둔다
-     * (실기기 2026-10-03: 내부 RAM에 잡으면 ESP_ERR_NO_MEM). 그래서 이 태스크는 플래시(NVS·littlefs)를
-     * 건드리면 안 됐다. 3차 수정(XIP from PSRAM) 뒤로는 써도 되지만, 마지막 방송 저장은 주로 send_cmd()가,
-     * 프리셋 읽기는 RAM 사본으로 한다 (예외: 검색 다음 후보로 바꿀 때 next_alternative()).
+     * Decoding (HE-AAC) and the TLS handshake run on this stack (16KB). Internal RAM is short, so the stack is in PSRAM
+     * (real board 2026-10-03: ESP_ERR_NO_MEM when allocated in internal RAM). So this task was not allowed to touch
+     * flash (NVS, littlefs). Since fix round 3 (XIP from PSRAM) it may, but the last-station save is mostly done by send_cmd()
+     * and preset reads use the RAM copy (exception: next_alternative() when switching to the next search candidate).
      */
     return xTaskCreatePinnedToCoreWithCaps(radio_task, "media_radio", 16384, NULL, 4, NULL, 0,
                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;

@@ -1,10 +1,10 @@
-/* 설명은 gemini_schema.h. cJSON 말고는 아무것도 쓰지 않는다 (Mac에서 바로 시험) */
+/* See gemini_schema.h. Uses nothing but cJSON (test it directly on the Mac) */
 #include "gemini_schema.h"
 
 #include <stdio.h>
 #include <string.h>
 
-/* OpenAI 소문자 타입 → Gemini(OpenAPI 부분집합) 대문자 타입 */
+/* OpenAI lowercase type → Gemini (OpenAPI subset) uppercase type */
 static const char *upper_type(const char *t)
 {
     if (!t) {
@@ -16,10 +16,10 @@ static const char *upper_type(const char *t)
     if (!strcmp(t, "boolean")) return "BOOLEAN";
     if (!strcmp(t, "object")) return "OBJECT";
     if (!strcmp(t, "array")) return "ARRAY";
-    return NULL;    /* 모르는 타입: 가져오지 않는다(Gemini가 거부하는 것보다 안전) */
+    return NULL;    /* unknown type: not carried over (safer than having Gemini reject it) */
 }
 
-/* {"type":"x"} 또는 {"type":["x","null"]}에서 실제 타입 문자열과 nullable 여부를 뽑는다 */
+/* From {"type":"x"} or {"type":["x","null"]}, extract the actual type string and whether it is nullable */
 static void read_type(const cJSON *node, const char **type_out, bool *nullable_out)
 {
     *type_out = NULL;
@@ -42,7 +42,7 @@ static void read_type(const cJSON *node, const char **type_out, bool *nullable_o
     }
 }
 
-/* 정수 enum(예: gain_db 0,3,6,...,36)을 min/max + description 안내로 바꾼다 */
+/* Turn an integer enum (e.g. gain_db 0,3,6,...,36) into min/max + a note in description */
 static void add_integer_enum_note(cJSON *dst, const cJSON *enum_arr)
 {
     int lo = 0, hi = 0;
@@ -82,7 +82,7 @@ static void add_integer_enum_note(cJSON *dst, const cJSON *enum_arr)
     }
 }
 
-/* maxItems/minItems 등 Gemini의 protobuf int64 필드는 문자열로 보내는 쪽이 모든 구현에서 안전하다 */
+/* Gemini's protobuf int64 fields such as maxItems/minItems are safest sent as strings, across all implementations */
 static void copy_count_field_as_string(const cJSON *src, cJSON *dst, const char *key)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(src, key);
@@ -124,9 +124,9 @@ cJSON *gemini_schema_convert_node(const cJSON *src)
     }
 
     if (cJSON_IsArray(enum_arr) && enum_is_integer) {
-        add_integer_enum_note(dst, enum_arr);  /* Gemini: enum은 문자열에만. 정수는 범위+안내문으로 */
+        add_integer_enum_note(dst, enum_arr);  /* Gemini: enum only for strings. Integers become a range + a note */
     } else if (cJSON_IsArray(enum_arr)) {
-        cJSON_AddItemToObject(dst, "enum", cJSON_Duplicate(enum_arr, true));  /* 문자열 enum은 그대로 */
+        cJSON_AddItemToObject(dst, "enum", cJSON_Duplicate(enum_arr, true));  /* string enums pass through as is */
     }
 
     if (gemini_type && !strcmp(gemini_type, "OBJECT")) {
@@ -155,7 +155,7 @@ cJSON *gemini_schema_convert_node(const cJSON *src)
         } else {
             cJSON_Delete(out_required);
         }
-        /* properties가 비어 있으면(인자 없는 함수) 호출한 쪽(convert_tools)이 "parameters" 자체를 뺀다 */
+        /* if properties is empty (a function with no arguments), the caller (convert_tools) drops "parameters" itself */
     } else if (gemini_type && !strcmp(gemini_type, "ARRAY")) {
         const cJSON *items = cJSON_GetObjectItemCaseSensitive(src, "items");
         cJSON *out_items = gemini_schema_convert_node(items);
@@ -176,7 +176,7 @@ cJSON *gemini_schema_convert_tools(const cJSON *openai_tools)
     cJSON_ArrayForEach(tool, openai_tools) {
         const cJSON *type = cJSON_GetObjectItemCaseSensitive(tool, "type");
         if (!cJSON_IsString(type) || strcmp(type->valuestring, "function")) {
-            continue;   /* web_search 등 비함수 도구는 Gemini로 가져가지 않는다 (2.5절: 검색은 뺀다) */
+            continue;   /* non-function tools such as web_search are not carried over to Gemini (Section 2.5: search is dropped) */
         }
         const cJSON *name = cJSON_GetObjectItemCaseSensitive(tool, "name");
         if (!cJSON_IsString(name)) {
@@ -194,13 +194,13 @@ cJSON *gemini_schema_convert_tools(const cJSON *openai_tools)
             cJSON *converted = gemini_schema_convert_node(params);
             cJSON_AddItemToObject(decl, "parameters", converted);
         }
-        /* properties가 없거나 비어 있으면 "parameters"를 아예 뺀다 (인자 없는 함수) */
+        /* if properties is missing or empty, drop "parameters" entirely (a function with no arguments) */
         cJSON_AddItemToArray(out, decl);
     }
     return out;
 }
 
-/* ── 셀프테스트 ───────────────────────────────────────────── */
+/* ── Self-test ───────────────────────────────────────────── */
 
 static cJSON *find_prop(const cJSON *decl, const char *name)
 {
@@ -250,7 +250,7 @@ bool gemini_schema_selftest(void)
     cJSON_AddItemToArray(tools, noargs);
 
     cJSON *out = gemini_schema_convert_tools(tools);
-    ok &= cJSON_GetArraySize(out) == 4;     /* web_search는 빠진다 */
+    ok &= cJSON_GetArraySize(out) == 4;     /* web_search is dropped */
 
     cJSON *decl_radio = NULL, *decl_gain = NULL, *decl_notes = NULL, *decl_noargs = NULL;
     const cJSON *d;
@@ -263,14 +263,14 @@ bool gemini_schema_selftest(void)
     }
     ok &= decl_radio && decl_gain && decl_notes && decl_noargs;
 
-    /* ["string","null"] → type STRING, nullable true, required에서 빠짐 */
+    /* ["string","null"] → type STRING, nullable true, removed from required */
     cJSON *station = find_prop(decl_radio, "station");
     ok &= station && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(station, "nullable"));
     ok &= station && !strcmp(cJSON_GetObjectItemCaseSensitive(station, "type")->valuestring, "STRING");
     ok &= !required_has(decl_radio, "station");
     ok &= !cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(decl_radio, "parameters"), "strict");
 
-    /* 정수 enum → INTEGER + minimum/maximum, enum 없음, description에 허용값 */
+    /* integer enum → INTEGER + minimum/maximum, no enum, allowed values in description */
     cJSON *gain_prop = find_prop(decl_gain, "gain_db");
     ok &= gain_prop && !strcmp(cJSON_GetObjectItemCaseSensitive(gain_prop, "type")->valuestring, "INTEGER");
     ok &= gain_prop && !cJSON_GetObjectItemCaseSensitive(gain_prop, "enum");
@@ -278,11 +278,11 @@ bool gemini_schema_selftest(void)
     ok &= gain_prop && cJSON_GetObjectItemCaseSensitive(gain_prop, "maximum")->valueint == 36;
     ok &= gain_prop && strstr(cJSON_GetObjectItemCaseSensitive(gain_prop, "description")->valuestring, "36") != NULL;
 
-    /* 문자열 enum은 그대로 */
+    /* string enums pass through as is */
     cJSON *kind_prop = find_prop(decl_notes, "kind");
     ok &= kind_prop && cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(kind_prop, "enum"));
 
-    /* nullable 배열 + items 변환 + maxItems 문자열 */
+    /* nullable array + items conversion + maxItems as a string */
     cJSON *remind_prop = find_prop(decl_notes, "remind");
     ok &= remind_prop && !strcmp(cJSON_GetObjectItemCaseSensitive(remind_prop, "type")->valuestring, "ARRAY");
     ok &= remind_prop && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(remind_prop, "nullable"));
@@ -290,10 +290,10 @@ bool gemini_schema_selftest(void)
     ok &= remind_items && !strcmp(cJSON_GetObjectItemCaseSensitive(remind_items, "type")->valuestring, "INTEGER");
     cJSON *max_items = cJSON_GetObjectItemCaseSensitive(remind_prop, "maxItems");
     ok &= max_items && cJSON_IsString(max_items) && !strcmp(max_items->valuestring, "3");
-    ok &= !required_has(decl_notes, "remind");     /* nullable은 required에서 빠짐 */
+    ok &= !required_has(decl_notes, "remind");     /* nullable is removed from required */
     ok &= required_has(decl_notes, "kind") && required_has(decl_notes, "title");
 
-    /* 인자 없는 함수는 parameters 자체가 없다 */
+    /* a function with no arguments has no parameters at all */
     ok &= cJSON_GetObjectItemCaseSensitive(decl_noargs, "parameters") == NULL;
 
     cJSON_Delete(tools);

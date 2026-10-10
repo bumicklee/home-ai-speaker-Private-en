@@ -18,7 +18,7 @@ Numbers kept in other files: `PD-01`–`PD-04` (debugging, RCA, memory compariso
 | Chapter 9: The LAN API and Real-Time Events | P09-01, P09-02, P09-03 |
 | Chapter 14: Internet Radio | P14-01, P14-02, P14-03, P14-04, P14-05 |
 | Chapter 15: Telegram | P15-01, P15-02, P15-03, P15-04, P15-05 |
-| Chapter 16: Notes, Schedule, Reminders, and English Tutor Mode | P16-01, P16-03 (shared), P16-04 |
+| Chapter 16: Notes, Schedule, Reminders, and English Teacher Mode | P16-01, P16-03 (shared), P16-04 |
 | Chapter 17: Saver Mode and Choosing an AI | P17-01 (shared), P17-02, P17-04 |
 | Chapter 18: Making It Talk with Gemini Too | P18-01, P18-02, P18-03, P18-04, P18-05 |
 | Chapter 19: Testing and Quality | P19-01 |
@@ -37,7 +37,7 @@ Numbers kept in other files: `PD-01`–`PD-04` (debugging, RCA, memory compariso
 |:--|:--|:--|
 | Repository | `~/home-ai-speaker` | Paths inside prompts are relative to the repository |
 | Port | `/dev/cu.usbmodem*` | Your port, found in Chapter 1. On Windows, the `COM` number |
-| AI key | OpenAI or Gemini | Two exceptions: the USB console `key` command in Chapter 6 accepts only an OpenAI key, and English Tutor mode is OpenAI Live only |
+| AI key | OpenAI or Gemini | Two exceptions: the USB console `key` command in Chapter 6 accepts only an OpenAI key, and English teacher mode is OpenAI Live only |
 | Model names | `gpt-live-1`, `gemini-3.8-live`, etc. | May change by the time of publication. See Appendix D |
 | Phone | Android | If the app code has iOS settings, leave them alone |
 
@@ -150,10 +150,10 @@ How to verify: the boot log shows listening for "Computer", and the console comm
 ```text
 Create the voice conversation and tool modules in components/live_voice and components/assistant. The reference document is the 'Voice Conversation' section of the design document.
 Do not change: the names and behavior of the 14 tools, the end conditions (idle timeout, 10 minutes max, short press of Key2).
-Three changes. ① Move tool execution out of the mic upload loop into a separate tool_worker task. ② Give each conversation a session number and discard tool results whose number doesn't match. ③ Fix the hang-up phrase matcher so it doesn't strip Korean (UTF-8 bytes 0x80 and above), and add "잘가 컴퓨터" (bye Computer), "잘가 알렉사" (bye Alexa), "잘가 자비스" (bye Jarvis, the assistant's name), and "대화 종료" (end conversation).
+Three changes. ① Move tool execution out of the mic upload loop into a separate tool_worker task. ② Give each conversation a session number and discard tool results whose number doesn't match. ③ Fix the hang-up phrase matcher so it doesn't strip Korean (UTF-8 bytes 0x80 and above), and add "Goodbye Computer", "Goodbye Alexa", "Goodbye Jarvis" (Jarvis is the assistant's name), and "End conversation". An English phrase must not count when "don't", "not", or "never" comes just before it; Korean phrases still count.
 How to verify: hangup_phrase_selftest() and delegation_selftest() build and PASS on the Mac, and console selftest PASS on the Waveshare ESP32-S3-AUDIO-Board.
 ```
-**How to verify** `hangup PASS` and `delegation 0x1f PASS` from console `selftest`. "Computer" → green flash → orange spin → ready tone → a conversation in Korean. **If you get stuck** If tools still run after the conversation has ended (a bug the Chapter 6 review actually found): "Show me whether tool_worker checks not only the session number but also whether the conversation is still in progress before running a tool."
+**How to verify** `hangup PASS` and `delegation 0x1f PASS` from console `selftest`. "Computer" → green flash → orange spin → ready tone → a conversation in English. **If you get stuck** If tools still run after the conversation has ended (a bug the Chapter 6 review actually found): "Show me whether tool_worker checks not only the session number but also whether the conversation is still in progress before running a tool."
 
 ### P06-03 Network, state machine, console · Chapter 6, Section 6.3
 ```text
@@ -374,7 +374,7 @@ How to verify: one run of the next log must show which activity keeps resetting 
 ```
 **How to verify** `LIVE: limits: idle … s, max 600 s`, `LIVE: idle N/… s, last: … | 10 s: heard …, assistant text …, audio …, events …`. During the build, `audio` was logged about 400 times per 10 seconds even after the assistant had finished speaking. The server kept sending silent chunks. **If you get stuck** If the cause is silent chunks: "Change it so only audible sound (chunks with at least one sample whose absolute value exceeds a threshold) counts as activity. Show me the threshold and its basis first." After the fix, deliberately test that `LIVE: Idle timeout` appears.
 
-## Chapter 16: Notes, Schedule, Reminders, and English Tutor Mode
+## Chapter 16: Notes, Schedule, Reminders, and English Teacher Mode
 
 ### P16-01 Firmware notes module · Chapter 16, Section 16.3
 **When** After writing the notes and schedule design document first (T-02).
@@ -385,10 +385,10 @@ How to verify: separate the pure computation (dates, UTF-8, search, ids) into no
 ```
 **How to verify** `notes_logic PASS  notes_state PASS` in console `selftest`. "Alexa, make a note to buy milk" → `NOTES: add memo n_… (rev N)`. **If you get stuck** If it reboots as soon as you add a note, P16-04.
 
-### P16-03 English Tutor mode · Chapter 16, Section 16.3
+### P16-03 English teacher mode · Chapter 16, Section 16.3
 **When** You need an OpenAI key (this feature is OpenAI Live only).
 ```text
-Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "English Tutor" screen in the app design. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes; during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions, pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
+Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "English teacher" screen in the app design. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes; during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions, pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
 Do not change: a lesson must be the same live_voice session as a normal conversation, and don't change live_voice's external functions. The transcript buffer must not exceed 24KB of PSRAM. The assistant tool start_english_lesson must open the lesson after the current conversation ends.
 How to verify: POST /api/v1/lesson/start {"course":"basic","minutes":3} → after 3 minutes, GET /api/v1/lesson must have state:"done" and a corrections array. The english tests in flutter test pass.
 ```
@@ -497,9 +497,9 @@ Chapter 19's two review requests are in the `speaker-method` skill as PR-01 (com
 **When** Every time you create a pure computation function.
 ```text
 Add a bool hangup_phrase_selftest(void) function to firmware/components/live_voice/hangup_phrase.c.
-Reference document: the Korean hang-up phrase rules in the 'Voice Conversation' section of the design document (docs/design.md).
+Reference document: the hang-up phrase rules in the 'Voice Conversation' section of the design document (docs/design.md).
 Do not change: the behavior and signatures of the existing hangup_phrase_feed and hangup_phrase_ready. Add only the test.
-How to verify: compiling this file alone with the Mac compiler and running it must give PASS, and the console selftest command output must include it as hangup PASS. Be sure to include a phrase arriving split into chunks, word boundaries ("Jarvison" is a mismatch), chunks separated by more than 3 seconds, and 4 Korean cases.
+How to verify: compiling this file alone with the Mac compiler and running it must give PASS, and the console selftest command output must include it as hangup PASS. Be sure to include a phrase arriving split into chunks, word boundaries ("Jarvison" is a mismatch), chunks separated by more than 3 seconds, English negation ("Don't end the conversation" is a mismatch), and 4 Korean cases.
 ```
 **How to verify** The Chapter 19 pass criterion: one console `selftest` line with all 7 PASS (`hangup`, `delegation 0x1f`, `mic 0xff`, `notes_logic`, `notes_state`, `settings_migration`, `saver 0x3f`). **If you get stuck** If the test changed existing behavior, revert it: "Show me with git diff the lines where the bodies of hangup_phrase_feed and hangup_phrase_ready changed in this change."
 

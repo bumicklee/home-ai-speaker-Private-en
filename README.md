@@ -75,7 +75,7 @@ Make the release APK with `./scripts/build-flutter-release.sh android`; it lands
 When you start Claude Code in this repository, the skills and agents in `.claude/` are registered automatically. To install them as a plugin:
 
 ```bash
-claude plugin marketplace add bumicklee/home-ai-speaker
+claude plugin marketplace add bumicklee/home-ai-speaker-Private-en
 claude plugin install home-ai-speaker@home-ai-speaker-book
 ```
 

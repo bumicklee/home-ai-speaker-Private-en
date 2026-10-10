@@ -15,7 +15,7 @@ This book's app is Android only and is not released to a store. The release APK 
 | Chapter 11: Design System | P11-01, P11-02, P11-03 |
 | Chapter 12: First-Time Setup and Home | P12-01, P12-02, P12-03, P12-04 |
 | Chapter 13: Five Screens in Parallel | P13-01, P13-02, P13-03 |
-| Chapter 16: Notes, Schedule, Reminders, and English Tutor Mode | P16-02, P16-03 (shared) |
+| Chapter 16: Notes, Schedule, Reminders, and English Teacher Mode | P16-02, P16-03 (shared) |
 | Chapter 17: Saver Mode and Choosing an AI | P17-01 (shared), P17-03 |
 | Chapter 20: Handing It to the Family | P20-01 |
 
@@ -32,7 +32,7 @@ This book's app is Android only and is not released to a store. The release APK 
 |:--|:--|:--|
 | Repository | `~/home-ai-speaker` | Paths inside prompts are relative to the repository |
 | Port | `/dev/cu.usbmodem*` | Your port, found in Chapter 1. On Windows, the `COM` number |
-| AI key | OpenAI or Gemini | Two exceptions: the USB console `key` command in Chapter 6 accepts only an OpenAI key, and English Tutor mode is OpenAI Live only |
+| AI key | OpenAI or Gemini | Two exceptions: the USB console `key` command in Chapter 6 accepts only an OpenAI key, and English teacher mode is OpenAI Live only |
 | Model names | `gpt-live-1`, `gemini-3.8-live`, etc. | May change by the time of publication. See Appendix D |
 | Phone | Android | If the app code has iOS settings, leave them alone |
 
@@ -66,7 +66,7 @@ How to verify: .pem files must not appear in git status. Commits happen only whe
 Create a Flutter app skeleton in the flutter/ folder.
 - Reference document: the 'Tech Stack' (package versions), 'Folder Structure', and 'Platform Settings' sections of docs/design.md. Use the major versions in the table as they are; don't upgrade them.
 - Do not change: BLE constants live in one file only, lib/core/constants/ble_protocol.dart, and the values must match the firmware's app_config.h and the 'BLE GATT Specification' section of the design document 1:1. Don't write UUIDs in any other file.
-- Don't build screens this time. Leave only a splash and a placeholder home that says "등록된 스피커가 없어요" (no speakers registered).
+- Don't build screens this time. Leave only a splash and a placeholder home that says "No speaker yet".
 - How to verify: flutter analyze with 0 issues, flutter build apk --debug succeeds.
 ```
 **How to verify** `cd flutter && flutter analyze && flutter build apk --debug`. **If you get stuck** If it tries to upgrade package versions, refuse: "Compare the versions in pubspec.yaml line by line with the 'Tech Stack' table in the design document and revert the lines that differ."
@@ -108,7 +108,7 @@ Carry the colors, fonts, and sizes from the design canvas "Jarvis 스피커 앱 
 ### P11-03 Icon and splash · Chapter 11, Section 11.3
 ```text
 Make the icon and splash exactly as in the "App icon · Splash" row of the design canvas.
-- Artwork: a white ring (the speaker's LED ring) + a light green dot at the top (the standby LED) + three bars in the middle (speech), on a #0B6E6D background. The app name is AI-PA, and under the splash "AI-PA / 우리 가족 음성 비서" (AI-PA / Our family's voice assistant).
+- Artwork: a white ring (the speaker's LED ring) + a light green dot at the top (the standby LED) + three bars in the middle (speech), on a #0B6E6D background. The app name is AI-PA, and under the splash "AI-PA / Our family's voice assistant".
 - Do not change: don't draw the images by hand; have tool/gen_brand_assets.py (Pillow) draw them in a 1024 coordinate system, so that changing the artwork means changing only coordinates. Don't put font files in the repository; download them on first run. Don't touch the package name com.aispeaker.aispeaker.
 - Apply with flutter_launcher_icons and flutter_native_splash. Include the Android adaptive and monochrome (Android 13) icons and the Android 12 splash format.
 - How to verify: the script creates 6 PNGs in assets/brand/ and prints their sizes. dart run flutter_launcher_icons and dart run flutter_native_splash:create succeed. The app keeps the splash up until it has finished reading the speaker list.
@@ -191,20 +191,20 @@ How to verify: after every merge, flutter analyze 0 and flutter test all pass. W
 ```
 **How to verify** `flutter test` after every merge. Don't move on to the next merge with a failure. **If you get stuck** If the generated string files conflict, don't resolve them by hand; regenerate with `merge_arb.py` and `gen-l10n`.
 
-## Chapter 16: Notes, Schedule, Reminders, and English Tutor Mode
+## Chapter 16: Notes, Schedule, Reminders, and English Teacher Mode
 
 ### P16-02 App notes and schedule feature · Chapter 16, Section 16.3
 ```text
-Create flutter/lib/features/notes/ based on the 'App (AI-PA)' section and the 'LAN API (for the app)' section (notes and schedule API spec, Appendix C) of docs/design-notes-schedule.md. Use the same Clean Architecture structure as the English Tutor feature (features/english/): entities, models, datasources, repository, cubit, pages, registerNotesFeature.
-Do not change: store the local copy as {rev, items} in notes_<deviceId>.json in the app documents folder, and add path_provider. Sync when the app opens, when the screen is entered, and on the WS notes event, with GET /notes?since=rev; apply the higher rev per id and remove gone items from the copy. Always show a confirmation dialog before deleting in the app ("스피커에서도 지워져요", it will be deleted from the speaker too). Put the response body into DeviceApiException so the "note" in a 409 response can be read, keeping existing behavior as is. Add strings for the new error codes FULL and CONFLICT.
+Create flutter/lib/features/notes/ based on the 'App (AI-PA)' section and the 'LAN API (for the app)' section (notes and schedule API spec, Appendix C) of docs/design-notes-schedule.md. Use the same Clean Architecture structure as the English teacher feature (features/english/): entities, models, datasources, repository, cubit, pages, registerNotesFeature.
+Do not change: store the local copy as {rev, items} in notes_<deviceId>.json in the app documents folder, and add path_provider. Sync when the app opens, when the screen is entered, and on the WS notes event, with GET /notes?since=rev; apply the higher rev per id and remove gone items from the copy. Always show a confirmation dialog before deleting in the app ("It will be deleted from the speaker too and can't be restored."). Put the response body into DeviceApiException so the "note" in a 409 response can be read, keeping existing behavior as is. Add strings for the new error codes FULL and CONFLICT.
 How to verify: write model, merge, conflict, reminder chip, and cubit tests; flutter analyze with no issues, flutter test all pass. Localization in notes_ko.arb/notes_en.arb.
 ```
 **How to verify** A schedule item added by voice on the speaker appears in the app, and one deleted in the app disappears from the speaker. **If you get stuck** If conflict (409) handling gets tangled: "Build a test where the same item is edited on the speaker and in the app at the same time, and show me the current behavior."
 
-### P16-03 English Tutor mode · Chapter 16, Section 16.3
+### P16-03 English teacher mode · Chapter 16, Section 16.3
 **When** You need an OpenAI key (this feature is OpenAI Live only).
 ```text
-Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "English Tutor" screen in the app design. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes; during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions, pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
+Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "English teacher" screen in the app design. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes; during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions, pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
 Do not change: a lesson must be the same live_voice session as a normal conversation, and don't change live_voice's external functions. The transcript buffer must not exceed 24KB of PSRAM. The assistant tool start_english_lesson must open the lesson after the current conversation ends.
 How to verify: POST /api/v1/lesson/start {"course":"basic","minutes":3} → after 3 minutes, GET /api/v1/lesson must have state:"done" and a corrections array. The english tests in flutter test pass.
 ```
@@ -224,11 +224,11 @@ How to verify: cite the source page for each unit price, and label estimated fig
 
 ### P17-03 Saver mode app (worker 2) · Chapter 17, Section 17.3
 ```text
-Modify the app based on the 'App Changes' part of the same design document's 'Detailed Design' section and the "Choose AI · Live / Saver mode" row of the design canvas. Change step 1 of first-time setup to "① choose the AI → that AI's key (required) or 'This speaker already has this AI key saved' → ② Saver mode / Live (show the monthly cost)". New screen /assistant/ai (AI card + mode card). Gemini key under System > Keys. On the home status card, "OpenAI · Saver mode". On the English Tutor screen, "English lessons use the Live API (OpenAI) · about 70 won per minute".
-Do not change: gather the provider and mode lists and their strings in lib/core/ai/ so several screens share them. If ai is missing, as with old firmware, treat it as openai/live, available ["openai.live"]. No key → locked; key present but not in available → "coming soon". Remember the key in vault_gemini_key.
+Modify the app based on the 'App Changes' part of the same design document's 'Detailed Design' section and the "Choose AI · Live / Saver mode" row of the design canvas. Change step 1 of first-time setup to "① choose the AI → that AI's key (required) or 'This speaker already has this AI's key (adding another phone)' → ② Saver mode / Live (show the monthly cost)". New screen /assistant/ai (AI card + mode card). Gemini key under System > Keys. On the home status card, "OpenAI · Saver". On the English teacher screen, "English lessons use the real-time API (OpenAI) · about ₩70 a minute".
+Do not change: gather the provider and mode lists and their strings in lib/core/ai/ so several screens share them. If ai is missing, as with old firmware, treat it as openai/live, available ["openai.live"]. No key → locked; key present but not in available → "Coming soon". Remember the key in vault_gemini_key.
 How to verify: flutter analyze with no issues; write tests for the settings model, ai parsing, BLE gemini_key, the first-time setup lock, the AI screen lock rules, and the English key check, and flutter test all pass.
 ```
-**How to verify** `flutter test`. In the app under Assistant > AI & Conversation Mode, the locks open and close according to the speaker's `available`. **If you get stuck** If the two workers' JSON shapes differ: "Show me side by side in a table the ai field that the firmware's device_info.c and device_settings.c actually send and the field the app's lib/core/ai/ai_choice.dart reads."
+**How to verify** `flutter test`. In the app under Assistant > AI · Conversation mode, the locks open and close according to the speaker's `available`. **If you get stuck** If the two workers' JSON shapes differ: "Show me side by side in a table the ai field that the firmware's device_info.c and device_settings.c actually send and the field the app's lib/core/ai/ai_choice.dart reads."
 
 ## Chapter 20: Handing It to the Family
 

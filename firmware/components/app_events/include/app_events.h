@@ -34,7 +34,7 @@ typedef enum {
     APP_EVT_ERROR,              /* data: error code */
     APP_EVT_TG_STATUS,          /* data: tg_state_t (int) */
     APP_EVT_WAKE_READY,         /* wake word model loaded and listening (each time the model is reopened) */
-    APP_EVT_LESSON,             /* English lesson state or summary changed (read the content with lesson_json) */
+    APP_EVT_LESSON,             /* Korean lesson state or summary changed (read the content with lesson_json) */
     APP_EVT_NOTES,              /* notes or schedule changed (by voice, app, or reminder). data: uint32_t current rev */
     APP_EVT_NOTES_TICK,         /* every 30 s: check what to announce and what was missed (notes_tick). No data */
     APP_EVT_REMINDER,           /* schedule reminder result. data: app_notes_reminder_t */

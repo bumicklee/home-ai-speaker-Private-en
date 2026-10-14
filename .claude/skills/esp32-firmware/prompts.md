@@ -18,7 +18,7 @@ Numbers kept in other files: `PD-01`–`PD-04` (debugging, RCA, memory compariso
 | Chapter 9: The LAN API and Real-Time Events | P09-01, P09-02, P09-03 |
 | Chapter 14: Internet Radio | P14-01, P14-02, P14-03, P14-04, P14-05 |
 | Chapter 15: Telegram | P15-01, P15-02, P15-03, P15-04, P15-05 |
-| Chapter 16: Notes, Schedule, Reminders, and English Teacher Mode | P16-01, P16-03 (shared), P16-04 |
+| Chapter 16: Notes, Schedule, Reminders, and Korean Teacher Mode | P16-01, P16-03 (shared), P16-04 |
 | Chapter 17: Saver Mode and Choosing an AI | P17-01 (shared), P17-02, P17-04 |
 | Chapter 18: Making It Talk with Gemini Too | P18-01, P18-02, P18-03, P18-04, P18-05 |
 | Chapter 19: Testing and Quality | P19-01 |
@@ -37,7 +37,7 @@ Numbers kept in other files: `PD-01`–`PD-04` (debugging, RCA, memory compariso
 |:--|:--|:--|
 | Repository | `~/home-ai-speaker` | Paths inside prompts are relative to the repository |
 | Port | `/dev/cu.usbmodem*` | Your port, found in Chapter 1. On Windows, the `COM` number |
-| AI key | OpenAI or Gemini | Two exceptions: the USB console `key` command in Chapter 6 accepts only an OpenAI key, and English teacher mode is OpenAI Live only |
+| AI key | OpenAI or Gemini | Two exceptions: the USB console `key` command in Chapter 6 accepts only an OpenAI key, and Korean teacher mode is OpenAI Live only |
 | Model names | `gpt-live-1`, `gemini-3.8-live`, etc. | May change by the time of publication. See Appendix D |
 | Phone | Android | If the app code has iOS settings, leave them alone |
 
@@ -313,7 +313,7 @@ To do: also filter on the hls flag Radio-Browser provides, fetch up to 3 candida
 Do not change: the behavior of presets and direct URL playback. The candidate list lives in PSRAM. Don't log URLs.
 How to verify: on the same request, the logs trying next search result → streaming …. If all candidates fail, the alert tone and stop, as now.
 ```
-**How to verify** `RADIO_SEARCH: tag "…": … candidate(s), first …` → `RADIO: trying next search result: "…"`. **If you get stuck** Most Korean terrestrial broadcasters use HLS, so this player can't play them. Accept it as a limitation and see Appendix G.
+**How to verify** `RADIO_SEARCH: tag "…": … candidate(s), first …` → `RADIO: trying next search result: "…"`. **If you get stuck** Many broadcasters stream only HLS (most Korean terrestrial broadcasters did during the build), so this player can't play them. Accept it as a limitation and see Appendix G.
 
 ### P14-05 Fixing ducking noise · Chapter 14, Section 14.3
 **When** The radio crackles as it gets quieter when you say the wake word.
@@ -374,7 +374,7 @@ How to verify: one run of the next log must show which activity keeps resetting 
 ```
 **How to verify** `LIVE: limits: idle … s, max 600 s`, `LIVE: idle N/… s, last: … | 10 s: heard …, assistant text …, audio …, events …`. During the build, `audio` was logged about 400 times per 10 seconds even after the assistant had finished speaking. The server kept sending silent chunks. **If you get stuck** If the cause is silent chunks: "Change it so only audible sound (chunks with at least one sample whose absolute value exceeds a threshold) counts as activity. Show me the threshold and its basis first." After the fix, deliberately test that `LIVE: Idle timeout` appears.
 
-## Chapter 16: Notes, Schedule, Reminders, and English Teacher Mode
+## Chapter 16: Notes, Schedule, Reminders, and Korean Teacher Mode
 
 ### P16-01 Firmware notes module · Chapter 16, Section 16.3
 **When** After writing the notes and schedule design document first (T-02).
@@ -385,12 +385,12 @@ How to verify: separate the pure computation (dates, UTF-8, search, ids) into no
 ```
 **How to verify** `notes_logic PASS  notes_state PASS` in console `selftest`. "Alexa, make a note to buy milk" → `NOTES: add memo n_… (rev N)`. **If you get stuck** If it reboots as soon as you add a note, P16-04.
 
-### P16-03 English teacher mode · Chapter 16, Section 16.3
+### P16-03 Korean teacher mode · Chapter 16, Section 16.3
 **When** You need an OpenAI key (this feature is OpenAI Live only).
 ```text
-Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "English teacher" screen in the app design. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes; during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions, pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
-Do not change: a lesson must be the same live_voice session as a normal conversation, and don't change live_voice's external functions. The transcript buffer must not exceed 24KB of PSRAM. The assistant tool start_english_lesson must open the lesson after the current conversation ends.
-How to verify: POST /api/v1/lesson/start {"course":"basic","minutes":3} → after 3 minutes, GET /api/v1/lesson must have state:"done" and a corrections array. The english tests in flutter test pass.
+Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "Korean teacher" screen in the app design: Korean lessons for an English-speaking learner. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes, explain "en" (when stuck, explain briefly in English; the default) or "ko" (Korean only); during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions (Hangul + romanization + English meaning), pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
+Do not change: a lesson must be the same live_voice session as a normal conversation, and don't change live_voice's external functions. The transcript buffer must not exceed 24KB of PSRAM. The assistant tool start_korean_lesson must open the lesson after the current conversation ends.
+How to verify: POST /api/v1/lesson/start {"course":"basic","minutes":3} → after 3 minutes, GET /api/v1/lesson must have state:"done" and a corrections array. The tests in flutter/test/features/english/ pass.
 ```
 **How to verify** The two curl commands above. A lesson conversation starts with `LIVE: limits …`. **If you get stuck** If cost worries you, check the lesson length cap first. During the build I reduced 10, 20, and 30 minutes to 3 and 5.
 
@@ -420,7 +420,7 @@ How to verify: cite the source page for each unit price, and label estimated fig
 **When** After the 'Detailed Design' section of the design document is settled. Can run at the same time as P17-03 in another session.
 ```text
 Build Saver mode based on the 'Detailed Design' section of docs/design-voice-saver-mode.md. Add 3 keys to the assistant settings, ai_provider, mode_openai, mode_gemini (10 → 13), and migrate old settings automatically on first read. Add gemini_key to secret_store. Add "ai":{provider, mode, available} to GET /status and BLE device.info. In saver_voice.c: VAD → /v1/audio/transcriptions → /v1/responses (tools up to 4 times) → /v1/audio/speech 24kHz → resample to 16kHz → play.
-Do not change: live_voice_start/stop/active/state and the voice_state event stay as they are. Don't change a single line of the Live engine code. English lessons are always OpenAI Live regardless of settings. Switching ai_provider to a provider with no key gives LAN 409 NO_API_KEY and BLE {"ok":false,"error":"NO_API_KEY"}. All large buffers in PSRAM. Only one HTTPS connection at a time. Don't log transcribed text, AI replies, or keys.
+Do not change: live_voice_start/stop/active/state and the voice_state event stay as they are. Don't change a single line of the Live engine code. Korean lessons are always OpenAI Live regardless of settings. Switching ai_provider to a provider with no key gives LAN 409 NO_API_KEY and BLE {"ok":false,"error":"NO_API_KEY"}. All large buffers in PSRAM. Only one HTTPS connection at a time. Don't log transcribed text, AI replies, or keys.
 How to verify: separate end-of-speech detection, noise filtering, sentence splitting, and resampling into pure computation files with cc self-tests on the Mac. Add settings_migration and saver entries to selftest. Log a single line SAVER: speech … -> stt … -> ai … (tools N) -> tts … with only the time per stage.
 ```
 **How to verify** `settings_migration PASS` and `saver … PASS` in console `selftest`. "Alexa, what's the weather today?" → `SAVER: speech … -> stt … -> ai … (tools 1) -> tts …`. **If you get stuck** If it can't understand speech on the real board, P17-04. If `esp-aes: Failed to allocate memory` appears during a conversation: "Show me whether Saver mode releases and re-reserves the internal RAM reservation that the Live engine releases during a conversation, at the same points."

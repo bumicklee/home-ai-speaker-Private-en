@@ -152,7 +152,7 @@
   "sysKeyAdd": "Add",
   "sysKeyDelete": "Delete",
   "sysKeyDeleteTitle": "Delete this key from the speaker?",
-  "sysKeyDeleteBodyOpenAi": "If the speaker uses OpenAI, it can't talk. English lessons also stop working.",
+  "sysKeyDeleteBodyOpenAi": "If the speaker uses OpenAI, it can't talk. Korean lessons also stop working.",
   "sysKeyDeleteBodyTelegram": "Telegram messages stop arriving.",
   "sysKeyDeleted": "Deleted from the speaker",
   "sysKeySend": "Send to speaker",

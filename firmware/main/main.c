@@ -219,7 +219,7 @@ static void on_button(const app_button_event_t *evt)
 
 /*
  * Auto-read new Telegram messages (TLG-10). If the app's "새 메시지 바로 읽어 주기" (read new messages right away) is on and it isn't quiet hours,
- * open a short conversation and read them. If a conversation, English lesson, or BLE window blocks it, retry every 5 s.
+ * open a short conversation and read them. If a conversation, Korean lesson, or BLE window blocks it, retry every 5 s.
  * Messages during quiet hours are announced only with the chime and purple LED, as before.
  */
 static bool s_tg_pending;
@@ -283,7 +283,7 @@ static void auto_read_telegram(void)
         s_tg_wait_reason = NULL;
         ESP_LOGI(TAG, "telegram: auto-read %d", unread);
     } else if (err == ESP_ERR_INVALID_STATE) {
-        tg_retry_later("busy (English lesson or starting)");
+        tg_retry_later("busy (Korean lesson or starting)");
     } else {
         s_tg_pending = false;
         ESP_LOGW(TAG, "telegram: auto-read failed: %s", esp_err_to_name(err));
@@ -292,7 +292,7 @@ static void auto_read_telegram(void)
 
 /*
  * Schedule reminders (docs/design-notes-schedule.md second edition, Section 5.4): if notes_tick() holds a batch, open a short conversation.
- * If a conversation, English lesson, BLE window, or wake word test blocks it, retry every 5 s like Telegram auto-read.
+ * If a conversation, Korean lesson, BLE window, or wake word test blocks it, retry every 5 s like Telegram auto-read.
  * If it can't work at all because there's no internet or API key (not temporary), emergency reminder: 3 chimes + orange LED.
  * If Telegram auto-read is also waiting at the same moment, the reminder goes first (guaranteed by the call order in on_app_event).
  */
@@ -379,7 +379,7 @@ static void process_reminders(void)
         s_notes_wait_reason = NULL;
         ESP_LOGI(TAG, "reminder: announcing");
     } else if (err == ESP_ERR_INVALID_STATE) {
-        notes_retry_later("busy (English lesson or starting)");
+        notes_retry_later("busy (Korean lesson or starting)");
     } else {
         reminder_emergency();      /* treat unexpected failures as an internet or key problem too */
         s_notes_pending = false;

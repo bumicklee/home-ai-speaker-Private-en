@@ -66,7 +66,7 @@ The speaker has **no speech synthesis (TTS) of its own**. To speak, there are tw
 | Check interval | Every 30 seconds, check "is there anything to remind now" (no new task: esp_timer → main event loop) → at most 30 seconds late ✅ |
 | Time to open a conversation | 2–3 seconds to connect ✅ |
 | Already in a conversation | Remind right after the conversation ends (same wait and retry as Telegram auto-read). Don't slip it to the assistant mid-conversation (it breaks the flow) |
-| During an English lesson | Remind after the lesson ends. **But if an "on time" reminder is pushed back more than 10 minutes by the lesson**, don't tell the assistant mid-lesson "say it after the lesson"; just remind after it ends and say it's late |
+| During a Korean lesson | Remind after the lesson ends. **But if an "on time" reminder is pushed back more than 10 minutes by the lesson**, don't tell the assistant mid-lesson "say it after the lesson"; just remind after it ends and say it's late |
 | When the power was off | After power-on, **reminders missed within the last 30 minutes** are given right away ("A little late, but…"). Older ones are marked missed and shown in the app |
 | Several at the same time | Bundle them into one conversation |
 | Quiet hours (10 p.m.–7 a.m.) | **Schedule reminders ignore quiet hours.** The user set the time themselves (for example, medicine at 6 a.m.). Only Telegram auto-read follows quiet hours |
@@ -218,7 +218,7 @@ Search result order: schedule items soonest first (past ones at the end, most re
 2. Collect reminders where now ≥ (start − remind) and that are not yet in `reminded`. If the time is not valid (neither RTC nor SNTP), skip.
 3. Ones more than 30 minutes past → put in `missed` and notify the app.
 4. Bundle the rest into **one reminder conversation** and call `assistant_announce_reminders()` (same function structure as Telegram auto-read).
-   - If it can't open because of a conversation, an English lesson, or the BLE window, retry every 5 seconds (reuses the same wait logic as auto-read).
+   - If it can't open because of a conversation, a Korean lesson, or the BLE window, retry every 5 seconds (reuses the same wait logic as auto-read).
    - Once open, ask the assistant in text: "Tell them about these schedule items now: [title, time, minutes left]… After the reminder, if they say 'Got it', end; if they say 'Later', call `notes_snooze`." This is the user's own schedule, not message content, so the title may go in the request text.
    - Put it in `reminded` and bump rev.
 5. **Acknowledgment**: if the person says anything at all during the reminder conversation, it's acknowledged (`acked`); otherwise `no_answer`. No repeat reminders (Section 2.4).
@@ -244,7 +244,7 @@ Search result order: schedule items soonest first (past ones at the end, most re
 
 | Screen | Contents |
 |:--|:--|
-| Home | "Notes & Schedule" tile (below English Tutor). Subtitle: "2 items today · next: hospital at 3" |
+| Home | "Notes & Schedule" tile (below Korean Tutor). Subtitle: "2 items today · next: hospital at 3" |
 | Notes & Schedule | Search field. Tabs **Schedule** (today, tomorrow, this week, later, past) / **Notes** / **Trash** (restore, delete permanently). Next to each item, a reminder icon and a label like "1 hour before", and the status (sent, acknowledged, no answer, missed) |
 | Edit item | Note/schedule item, title, contents, date and time, all-day. **Reminder time**: chips (on time, 10 min, 30 min, 1 hour, 2 hours, 1 day before, custom), multi-select, up to 3, "No reminder". Save / Delete (confirmation dialog "스피커에서도 지워져요" (It will be deleted from the speaker too)) |
 | Reminder settings | Default reminder (timed items / all-day), all-day reminder time, reminders on/off, one line about cost |
@@ -254,7 +254,7 @@ Design: as before, draw it first on the Claude Artifacts design canvas, get it a
 
 ### 6.2 Structure
 
-- `lib/features/notes/` (same structure as the English Tutor feature: entities, models, datasources, repository, cubit, pages, `registerNotesFeature`)
+- `lib/features/notes/` (same structure as the Korean Tutor feature: entities, models, datasources, repository, cubit, pages, `registerNotesFeature`)
 - Copy: `notes_<deviceId>.json` (`{rev, items}`) in the app documents folder. **Add `path_provider`.** Filter and search in memory.
 - Sync: on app open, on entering the screen, and on WS `notes`, `GET ?since=rev` → for each id apply the higher rev; delete `gone` items from the copy.
 - **Technical additions (from the app investigation)**
@@ -301,5 +301,5 @@ Implementation order (within stage 1): ① design canvas approval → ② firmwa
 - "This week" group (app): 7 days starting the day after tomorrow.
 - **Differences from the design**
   1. After an emergency reminder (internet, no key), even if the connection returns within 30 minutes, it does not remind again by voice (recorded as missed, orange light only).
-  2. A reminder delayed by an English lesson gets no separate "it's late" notice (it simply reminds after the lesson; more than 30 minutes late → missed).
+  2. A reminder delayed by a Korean lesson gets no separate "it's late" notice (it simply reminds after the lesson; more than 30 minutes late → missed).
 - To do on the real board: development console `selftest` (including notes_state), reminder timing, waiting during a conversation, power off and on, internet down.

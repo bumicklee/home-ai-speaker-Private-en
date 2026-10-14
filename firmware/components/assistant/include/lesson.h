@@ -1,6 +1,6 @@
 /**
  * @file lesson.h
- * @brief English tutor: pick a course and start free talking with the speaker in English (2026-10-03 user request, app design "English Tutor")
+ * @brief Korean tutor: pick a course and start free talking with the speaker in Korean (2026-10-03 user request, app design "Korean Tutor")
  *
  * - A lesson session is the same live_voice session as a normal conversation, but starts with tutor instructions (course, explanation language, speed, length).
  * - The tutor corrects you aloud while talking. About every 45 seconds the speaker collects the transcript and sends it separately to OpenAI (Responses API)
@@ -19,16 +19,16 @@ extern "C" {
 
 typedef enum {
     LESSON_PRON,    /* pronunciation correction */
-    LESSON_BASIC,   /* basic English conversation */
-    LESSON_DAILY,   /* everyday English conversation */
-    LESSON_BIZ,     /* business English conversation */
-    LESSON_ADV,     /* advanced English conversation */
+    LESSON_BASIC,   /* basic Korean conversation */
+    LESSON_DAILY,   /* everyday Korean conversation */
+    LESSON_BIZ,     /* business Korean conversation */
+    LESSON_ADV,     /* advanced Korean conversation */
     LESSON_COURSE_COUNT,
 } lesson_course_t;
 
 typedef struct {
     lesson_course_t course;
-    bool explain_korean;    /* true: explain in Korean when stuck, false: English only */
+    bool explain_english;   /* true: explain in English when stuck, false: Korean only */
     bool slow;              /* slowly and clearly */
     uint8_t minutes;        /* 3, 5 (max 5 minutes because of cost, 2026-10-04) */
 } lesson_cfg_t;
@@ -40,7 +40,7 @@ bool lesson_parse_cfg(const cJSON *j, lesson_cfg_t *out);
 
 /** App: start a lesson now. ESP_ERR_INVALID_STATE during a conversation or while the BLE window is open */
 esp_err_t lesson_start(const lesson_cfg_t *cfg);
-/** Voice ("영어 공부하자", let's study English): start the lesson when the current conversation ends */
+/** Voice ("Let's study Korean"): start the lesson when the current conversation ends */
 esp_err_t lesson_start_after_session(const lesson_cfg_t *cfg);
 /** End the lesson (the summary is made after the session ends) */
 void      lesson_stop(void);

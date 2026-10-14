@@ -338,7 +338,7 @@ const radio_status_t *radio_get_status(void);   // state, title, icy_title, bitr
 **Implementation decisions (2026-10-02, Phase 3)**
 - The stream is received directly with `esp_http_client` in streaming mode instead of the GMF player (the "if it falls short" alternative above). Redirects, playlists, ICY, and reconnects are handled in one file (`radio_player.c`); decoding uses `esp_audio_simple_dec` (MP3, AAC/HE-AAC) and rate conversion uses `esp_ae_rate_cvt`.
 - The mixer runs at the output rate (`AUDIO_SAMPLE_RATE`). Q7 hasn't been measured yet, so **it is 16kHz for now**, and music is reduced to 16kHz mono (lower quality than FM). If Q7 settles on 48kHz, only this constant changes.
-- HLS (`.m3u8`) and Ogg/Opus are not supported. KBS 1FM is HLS with an attached token, so it was **removed by the user's decision** (2026-10-03). There are 6 default presets.
+- HLS (`.m3u8`) and Ogg/Opus are not supported. KBS 1FM is HLS with an attached token, so it was **removed by the user's decision** (2026-10-03). There are 13 default presets: 6 US music stations (KEXP Seattle, KCRW Eclectic24, WQXR Classical, WWOZ New Orleans, WFMU Freeform, KJazz 88.1), then 7 news and talk stations (CNN, CNN International, Bloomberg Radio, NPR, WNYC, C-SPAN Radio, BBC World Service).
 - Short press of Key2 during music (Q5): **start a conversation** (music is ducked). User decision, 2026-10-03.
 
 ### 2.10 Spotify (`media_spotify`)
@@ -467,7 +467,7 @@ Each item gets typed `save/load/has/clear` functions. Only secrets are split out
 | nvs | `assistant` | `settings` JSON (name, purpose, language, location, units, voice, web_search, device_controls, auto_memory, **timezone**) | str | name=Jarvis, language=en, units=metric, voice=marin, **timezone=Asia/Seoul** (added 2026-10-03; 9-key settings are converted automatically at boot) |
 | nvs | `assistant` | `memories` JSON (up to 12) | str | `{}` |
 | nvs | `media` | `last_source`, `last_preset`, `last_url` | u8/u8/str | 0, —, — |
-| storage | File | `/presets.json` (≤20, 7 default presets) | littlefs | Default presets |
+| storage | File | `/presets.json` (≤20, 13 default presets) | littlefs | Default presets |
 | nvs | `telegram` | `chats` JSON (chat_id, alias, title, type, ≤10), `last_upd`, `auto_read`, `quiet_s`, `quiet_e` | str/i64/u8 | `[]`, 0, 0, 22, 7 |
 | nvs | `api` | `phones` (phone_id, name, token SHA-256, registration time, up to 5) | blob | — |
 | secrets | `sec` | `openai_key`, `tg_bot_token`, `sp_client_id`, `sp_refresh`, `sp_connect_blob`, `stock_key` | str/blob | — |

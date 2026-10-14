@@ -10,7 +10,7 @@ It contains the firmware for a family AI speaker built on the [Waveshare ESP32-S
 
 - A voice assistant that answers in Korean when you call "Computer" (or "Alexa")
 - Runs on an API key from OpenAI, Google Gemini, or both (Live mode / Saver mode)
-- Internet radio, reading family Telegram messages aloud, note and schedule reminders, English conversation practice
+- Internet radio, reading family Telegram messages aloud, note and schedule reminders, Korean conversation practice (Korean teacher)
 - Works with just your phone and the speaker, no separate server (first-time setup over BLE, everyday control over the LAN on the same Wi-Fi)
 
 ## Folders

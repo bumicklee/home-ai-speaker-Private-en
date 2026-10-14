@@ -2,12 +2,10 @@
  * Radio presets: /storage/presets.json on the storage (littlefs) partition (design document Section 2.9, RAD-08/12).
  * URLs are long and can exceed the NVS string limit (4,000B), so they live in a file.
  *
- * 13 default presets (RAD-12, user request 2026-10-03: Korean channels + CNN/Bloomberg + US/Korean talk).
- * All are direct MP3/AAC streams (this player can't play HLS). Connection and format checked on a Mac 2026-10-03.
- * - Major Korean broadcasters (KBS, MBC, SBS, CBS, YTN, TBS, EBS, OBS Gyeongin, TBN, Arirang) are all HLS (mostly tokenized), so they're not included.
- *   The Korean channels are internet stations (K-POP, oldies) and community radio (Mapo FM, Jeonju FM, mostly talk).
+ * 13 default presets (RAD-12): 6 US music stations (KEXP, KCRW, WQXR, WWOZ, WFMU, KJazz) + CNN/Bloomberg + US/UK news and talk.
+ * All are direct MP3/AAC streams (this player can't play HLS); the music stations were checked to return audio/mpeg.
  * - CNN, CNN International and Bloomberg are TuneIn CDN URLs. They aren't the broadcasters' official URLs and may change or be blocked.
- * - Names carry both Korean and English so "블룸버그 틀어 줘" (play Bloomberg) also matches part of a name (radio_presets_find is a partial match).
+ * - Names are plain English station names, so "play Bloomberg" or "play KEXP" matches part of a name (radio_presets_find is a partial match).
  * Devices still using the old 6 defaults unchanged are switched to the new defaults at boot (user-edited lists are left alone).
  */
 #include <stdio.h>
@@ -29,17 +27,17 @@ static const char *TAG = "PRESETS";
 
 static const char DEFAULTS[] =
     "["
-    "{\"name\":\"Big B Radio K-POP 케이팝\",\"url\":\"https://antares.dribbcast.com/proxy/kpop?mp=/s\",\"genre\":\"kpop,pop,korean\"},"
-    "{\"name\":\"ARA FM 아라FM\",\"url\":\"http://141.164.38.238/listen/ara_fm/radio.mp3\",\"genre\":\"kpop,ballad,chill,korean\"},"
-    "{\"name\":\"올드팝카페 Oldpop Cafe\",\"url\":\"http://cast.oldpopcafe.net:7080/\",\"genre\":\"oldies,pop,newage,korean\"},"
-    "{\"name\":\"LISTEN.moe K-POP\",\"url\":\"https://listen.moe/kpop/fallback\",\"genre\":\"kpop,pop\"},"
-    "{\"name\":\"마포FM 공동체라디오\",\"url\":\"http://onair.mapofm.net/mapofm\",\"genre\":\"talk,community,korean\"},"
-    "{\"name\":\"전주FM 공동체라디오\",\"url\":\"http://radiostream.communityradio.kr/jcfm1\",\"genre\":\"talk,community,korean\"},"
+    "{\"name\":\"KEXP Seattle\",\"url\":\"https://kexp-mp3-128.streamguys1.com/kexp128.mp3\",\"genre\":\"alternative,indie,eclectic\"},"
+    "{\"name\":\"KCRW Eclectic24\",\"url\":\"https://streams.kcrw.com/e24_mp3\",\"genre\":\"eclectic,indie,electronic\"},"
+    "{\"name\":\"WQXR Classical\",\"url\":\"https://stream.wqxr.org/wqxr\",\"genre\":\"classical\"},"
+    "{\"name\":\"WWOZ New Orleans\",\"url\":\"https://wwoz-sc.streamguys1.com/wwoz-hi.mp3\",\"genre\":\"jazz,blues,roots\"},"
+    "{\"name\":\"WFMU Freeform\",\"url\":\"http://stream0.wfmu.org/freeform-128k\",\"genre\":\"freeform,eclectic,rock\"},"
+    "{\"name\":\"KJazz 88.1\",\"url\":\"https://streaming.live365.com/a49833\",\"genre\":\"jazz\"},"
     "{\"name\":\"CNN\",\"url\":\"https://tunein.cdnstream1.com/2868_96.mp3\",\"genre\":\"news,talk,english\"},"
     "{\"name\":\"CNN International\",\"url\":\"https://tunein.cdnstream1.com/3519_96.aac\",\"genre\":\"news,world,english\"},"
-    "{\"name\":\"블룸버그 Bloomberg Radio\",\"url\":\"https://tunein.cdnstream1.com/3521_96.mp3\",\"genre\":\"business,finance,news,english\"},"
-    "{\"name\":\"NPR 미국 공영라디오\",\"url\":\"http://npr-ice.streamguys1.com/live.mp3\",\"genre\":\"talk,news,english\"},"
-    "{\"name\":\"WNYC 뉴욕 공영라디오\",\"url\":\"https://fm939.wnyc.org/wnycfm-web\",\"genre\":\"talk,news,english\"},"
+    "{\"name\":\"Bloomberg Radio\",\"url\":\"https://tunein.cdnstream1.com/3521_96.mp3\",\"genre\":\"business,finance,news,english\"},"
+    "{\"name\":\"NPR\",\"url\":\"http://npr-ice.streamguys1.com/live.mp3\",\"genre\":\"talk,news,english\"},"
+    "{\"name\":\"WNYC\",\"url\":\"https://fm939.wnyc.org/wnycfm-web\",\"genre\":\"talk,news,english\"},"
     "{\"name\":\"C-SPAN Radio\",\"url\":\"https://playerservices.streamtheworld.com/api/livestream-redirect/CSPANRADIO.mp3\",\"genre\":\"politics,talk,english\"},"
     "{\"name\":\"BBC World Service\",\"url\":\"https://stream.live.vc.bbcmedia.co.uk/bbc_world_service\",\"genre\":\"news,world,english\"}"
     "]";

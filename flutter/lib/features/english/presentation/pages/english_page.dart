@@ -59,7 +59,7 @@ class _EnglishView extends StatelessWidget {
                   _ChoiceRow<bool>(
                     label: l.engExplain,
                     value: o.explainKorean,
-                    options: {true: l.engExplainKorean, false: l.engExplainEnglish},
+                    options: {false: l.engExplainEnglish, true: l.engExplainKorean},
                     onChanged: (v) => cubit.select(o.copyWith(explainKorean: v)),
                   ),
                   const SizedBox(height: 10),

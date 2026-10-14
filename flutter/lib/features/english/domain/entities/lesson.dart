@@ -16,9 +16,11 @@ enum LessonCourse {
 
 /// Lesson start settings
 class LessonOptions extends Equatable {
-  const LessonOptions({this.course = LessonCourse.basic, this.explainKorean = true, this.slow = true, this.minutes = 5});
+  const LessonOptions({this.course = LessonCourse.basic, this.explainKorean = false, this.slow = true, this.minutes = 5});
 
   final LessonCourse course;
+
+  /// true = "explain":"ko" (Korean only), false = "explain":"en" (mix in English when stuck, default)
   final bool explainKorean;
   final bool slow;
 

@@ -299,7 +299,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiInfoBody.
   ///
   /// In ko, this message translates to:
-  /// **'영어 수업은 발음을 실시간으로 들어야 해서 늘 실시간 API(OpenAI)로 해요. 요금은 하루 1시간 쓸 때 한 달 예상이에요. 바꾸면 다음 대화부터 적용돼요.'**
+  /// **'한국어 수업은 발음을 실시간으로 들어야 해서 늘 실시간 API(OpenAI)로 해요. 요금은 하루 1시간 쓸 때 한 달 예상이에요. 바꾸면 다음 대화부터 적용돼요.'**
   String get aiInfoBody;
 
   /// No description provided for @aiNoKeyError.
@@ -1055,7 +1055,7 @@ abstract class AppLocalizations {
   /// No description provided for @engTitle.
   ///
   /// In ko, this message translates to:
-  /// **'영어 선생님'**
+  /// **'한국어 선생님'**
   String get engTitle;
 
   /// No description provided for @engHomeSubtitle.
@@ -1067,7 +1067,7 @@ abstract class AppLocalizations {
   /// No description provided for @engIntro.
   ///
   /// In ko, this message translates to:
-  /// **'코스를 고르고 시작하면 바로 스피커와 영어로 프리토킹해요. 틀린 표현과 발음은 선생님이 대화하면서 고쳐 줘요.'**
+  /// **'코스를 고르고 시작하면 바로 스피커와 한국어로 프리토킹해요. 틀린 표현과 발음은 선생님이 대화하면서 고쳐 줘요.'**
   String get engIntro;
 
   /// No description provided for @engCoursePron.
@@ -1085,19 +1085,19 @@ abstract class AppLocalizations {
   /// No description provided for @engCourseBasic.
   ///
   /// In ko, this message translates to:
-  /// **'기초 영어 회화'**
+  /// **'기초 한국어 회화'**
   String get engCourseBasic;
 
   /// No description provided for @engCourseBasicDesc.
   ///
   /// In ko, this message translates to:
-  /// **'쉬운 일상 이야기를 천천히. 막히면 한국어로 도와줘요'**
+  /// **'쉬운 일상 이야기를 천천히. 막히면 영어로 도와줘요'**
   String get engCourseBasicDesc;
 
   /// No description provided for @engCourseDaily.
   ///
   /// In ko, this message translates to:
-  /// **'생활 영어 회화'**
+  /// **'생활 한국어 회화'**
   String get engCourseDaily;
 
   /// No description provided for @engCourseDailyDesc.
@@ -1109,25 +1109,25 @@ abstract class AppLocalizations {
   /// No description provided for @engCourseBiz.
   ///
   /// In ko, this message translates to:
-  /// **'비즈니스 영어 회화'**
+  /// **'비즈니스 한국어 회화'**
   String get engCourseBiz;
 
   /// No description provided for @engCourseBizDesc.
   ///
   /// In ko, this message translates to:
-  /// **'회의·전화·협상 이야기를 정중한 말투로'**
+  /// **'회의·전화·협상 이야기를 존댓말로 정중하게'**
   String get engCourseBizDesc;
 
   /// No description provided for @engCourseAdv.
   ///
   /// In ko, this message translates to:
-  /// **'고급 영어 회화'**
+  /// **'고급 한국어 회화'**
   String get engCourseAdv;
 
   /// No description provided for @engCourseAdvDesc.
   ///
   /// In ko, this message translates to:
-  /// **'시사·의견 토론을 영어로만. 더 자연스럽게 다듬어 줘요'**
+  /// **'시사·의견 토론을 한국어로만. 더 자연스럽게 다듬어 줘요'**
   String get engCourseAdvDesc;
 
   /// No description provided for @engLevelAll.
@@ -1169,13 +1169,13 @@ abstract class AppLocalizations {
   /// No description provided for @engExplainKorean.
   ///
   /// In ko, this message translates to:
-  /// **'한국어 섞어서'**
+  /// **'한국어만'**
   String get engExplainKorean;
 
   /// No description provided for @engExplainEnglish.
   ///
   /// In ko, this message translates to:
-  /// **'영어로만'**
+  /// **'영어 섞기'**
   String get engExplainEnglish;
 
   /// No description provided for @engSpeed.
@@ -1217,7 +1217,7 @@ abstract class AppLocalizations {
   /// No description provided for @engVoiceHint.
   ///
   /// In ko, this message translates to:
-  /// **'말로도 시작해요: “알렉사, 영어 공부하자”'**
+  /// **'말로도 시작해요: “알렉사, 한국어 공부하자”'**
   String get engVoiceHint;
 
   /// No description provided for @engCostNote.
@@ -1259,7 +1259,7 @@ abstract class AppLocalizations {
   /// No description provided for @engListeningBody.
   ///
   /// In ko, this message translates to:
-  /// **'스피커에 대고 편하게 영어로 말하세요. 틀려도 괜찮아요, 선생님이 대화하면서 고쳐 줘요.'**
+  /// **'스피커에 대고 편하게 한국어로 말하세요. 틀려도 괜찮아요, 선생님이 대화하면서 고쳐 줘요.'**
   String get engListeningBody;
 
   /// No description provided for @engTopic.
@@ -1367,13 +1367,13 @@ abstract class AppLocalizations {
   /// No description provided for @engRealtimeNote.
   ///
   /// In ko, this message translates to:
-  /// **'영어 수업은 실시간 API(OpenAI)로 해요 · 분당 약 70원'**
+  /// **'한국어 수업은 실시간 API(OpenAI)로 해요 · 분당 약 70원'**
   String get engRealtimeNote;
 
   /// No description provided for @engNeedOpenAiKey.
   ///
   /// In ko, this message translates to:
-  /// **'영어 수업은 OpenAI 키가 필요해요. 비서 > AI · 대화 방식에서 OpenAI 키를 넣어 주세요.'**
+  /// **'한국어 수업은 OpenAI 키가 필요해요. 비서 > AI · 대화 방식에서 OpenAI 키를 넣어 주세요.'**
   String get engNeedOpenAiKey;
 
   /// No description provided for @homeTitle.
@@ -2600,6 +2600,12 @@ abstract class AppLocalizations {
   /// **'다음 방송'**
   String get radioNext;
 
+  /// No description provided for @radioGroupMusic.
+  ///
+  /// In ko, this message translates to:
+  /// **'음악'**
+  String get radioGroupMusic;
+
   /// No description provided for @radioGroupKorean.
   ///
   /// In ko, this message translates to:
@@ -3275,7 +3281,7 @@ abstract class AppLocalizations {
   /// No description provided for @sysKeyDeleteBodyOpenAi.
   ///
   /// In ko, this message translates to:
-  /// **'OpenAI를 쓰고 있으면 대화할 수 없어요. 영어 수업도 할 수 없어요.'**
+  /// **'OpenAI를 쓰고 있으면 대화할 수 없어요. 한국어 수업도 할 수 없어요.'**
   String get sysKeyDeleteBodyOpenAi;
 
   /// No description provided for @sysKeyDeleteBodyTelegram.

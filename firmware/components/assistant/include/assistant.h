@@ -31,11 +31,11 @@ esp_err_t assistant_forget(const char *key);
 char     *assistant_start_event(void);
 /**
  * Opens a short conversation that reads out new Telegram messages (TLG-10, auto-read).
- * ESP_ERR_INVALID_STATE or similar during a conversation or English lesson, or if it cannot start
+ * ESP_ERR_INVALID_STATE or similar during a conversation or Korean lesson, or if it cannot start
  */
 esp_err_t assistant_announce_telegram(int unread);
 /**
- * Opens a reminder conversation (main.c calls it while the notes module holds a batch). During a conversation or English lesson,
+ * Opens a reminder conversation (main.c calls it while the notes module holds a batch). During a conversation or Korean lesson,
  * or if it cannot start, ESP_ERR_INVALID_STATE (busy, try again later). Any other failure is treated as an internet or API key problem.
  */
 esp_err_t assistant_announce_reminders(void);

@@ -41,7 +41,7 @@ typedef struct {
      * AI choice and Live/Saver mode (docs/design-voice-saver-mode.md 11.5). live_voice does not read settings itself;
      * it talks to the assistant only through these handlers (assistant REQUIRES live_voice, so not the other way).
      */
-    /** If true, use openai.live regardless of settings (English lesson; Telegram auto-read is a stage 1 TODO) */
+    /** If true, use openai.live regardless of settings (Korean lesson; Telegram auto-read is a stage 1 TODO) */
     bool (*force_openai_live)(void);
     /** When a Saver mode session just starts (before listening). Same as guard_reset() etc. done by Live mode's assistant_start_event */
     void (*on_session_start)(void);
@@ -92,7 +92,7 @@ unsigned      live_voice_generation(void);
 
 /**
  * Time limits (ms) for the next session only. 0 means the default (10 minutes max, 60-second idle timeout).
- * Call before live_voice_start() (English lesson)
+ * Call before live_voice_start() (Korean lesson)
  */
 void      live_voice_set_next_limits(uint32_t max_ms, uint32_t idle_ms);
 

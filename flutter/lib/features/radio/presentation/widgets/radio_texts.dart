@@ -17,6 +17,7 @@ extension RadioTexts on AppLocalizations {
       };
 
   String presetGroupText(PresetGroup g) => switch (g) {
+        PresetGroup.music => radioGroupMusic,
         PresetGroup.korean => radioGroupKorean,
         PresetGroup.news => radioGroupNews,
         PresetGroup.talk => radioGroupTalk,

@@ -22,12 +22,12 @@ const firmwareJson = {
   'minutes': 5,
   'elapsed_s': 138,
   'remaining_s': 162,
-  'topic': '다음 주 팀 회의 준비',
+  'topic': "Preparing for next week's team meeting",
   'corrections': [
-    {'original': 'I want to suggest other way.', 'better': "I'd like to suggest a different approach.", 'note': '더 정중해요'},
+    {'original': '다른 방법 말하고 싶어요.', 'better': '다른 방법을 제안드리고 싶습니다. (dareun bangbeobeul jeandeurigo sipseumnida)', 'note': 'More polite: I would like to suggest a different approach'},
   ],
   'pronunciation': [
-    {'word': 'approach', 'tip': '‘프로우치’처럼'},
+    {'word': '제안', 'tip': 'je-an, two clear syllables'},
   ],
   'next_topic': '',
 };
@@ -41,13 +41,15 @@ void main() {
       expect(l.isActive, isTrue);
       expect(l.options, const LessonOptions(course: LessonCourse.biz, explainKorean: true, slow: true, minutes: 5));
       expect(l.remaining, const Duration(seconds: 162));
-      expect(l.corrections.single.better, "I'd like to suggest a different approach.");
-      expect(l.pronunciation.single.word, 'approach');
+      expect(l.corrections.single.better, startsWith('다른 방법을 제안드리고 싶습니다.'));
+      expect(l.pronunciation.single.word, '제안');
     });
 
     test('빈 값·모르는 값은 기본값', () {
       final l = LessonModel.fromJson({'state': 'idle', 'course': 'xx', 'minutes': 15});
       expect(l.options.course, LessonCourse.basic);
+      expect(l.options.explainKorean, isFalse);
+      expect(l.options.toJson()['explain'], 'en');
       expect(l.options.minutes, 5);
       expect(l.corrections, isEmpty);
       expect(l.remaining, isNull);

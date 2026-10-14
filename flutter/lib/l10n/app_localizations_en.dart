@@ -123,7 +123,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiInfoBody =>
-      'English lessons always use the real-time API (OpenAI) because the teacher must hear pronunciation live. Prices are monthly estimates for 1 hour a day. Changes apply from the next conversation.';
+      'Korean lessons always use the real-time API (OpenAI) because the teacher must hear pronunciation live. Prices are monthly estimates for 1 hour a day. Changes apply from the next conversation.';
 
   @override
   String aiNoKeyError(String provider) {
@@ -549,7 +549,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'It was just changed on the speaker. Check the new version and edit again';
 
   @override
-  String get engTitle => 'English teacher';
+  String get engTitle => 'Korean teacher';
 
   @override
   String get engHomeSubtitle =>
@@ -557,42 +557,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get engIntro =>
-      'Pick a course and start free-talking in English with the speaker right away. The teacher corrects your phrasing and pronunciation as you talk.';
+      'Pick a course and start free-talking in Korean with the speaker right away. The teacher corrects your phrasing and pronunciation as you talk.';
 
   @override
   String get engCoursePron => 'Pronunciation';
 
   @override
   String get engCoursePronDesc =>
-      'Talk freely; mispronounced words get pointed out as you go';
+      'Talk freely in Korean; mispronounced words get pointed out as you go';
 
   @override
   String get engCourseBasic => 'Basic conversation';
 
   @override
   String get engCourseBasicDesc =>
-      'Easy everyday talk, slowly. Korean help when you get stuck';
+      'Easy everyday Korean, slowly. English help when you get stuck';
 
   @override
   String get engCourseDaily => 'Everyday conversation';
 
   @override
   String get engCourseDailyDesc =>
-      'Natural talk in situations like travel, restaurants, hospitals';
+      'Natural Korean in situations like travel, restaurants, hospitals';
 
   @override
   String get engCourseBiz => 'Business conversation';
 
   @override
   String get engCourseBizDesc =>
-      'Meetings, calls and negotiations in a polite tone';
+      'Meetings, calls and negotiations in polite, honorific Korean';
 
   @override
   String get engCourseAdv => 'Advanced conversation';
 
   @override
   String get engCourseAdvDesc =>
-      'Current affairs and opinions, English only, polished to sound natural';
+      'Current affairs and opinions, Korean only, polished to sound natural';
 
   @override
   String get engLevelAll => 'All levels';
@@ -613,10 +613,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get engExplain => 'Explanations';
 
   @override
-  String get engExplainKorean => 'Mix in Korean';
+  String get engExplainKorean => 'Korean only';
 
   @override
-  String get engExplainEnglish => 'English only';
+  String get engExplainEnglish => 'Mix in English';
 
   @override
   String get engSpeed => 'Speed';
@@ -641,7 +641,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get engVoiceHint => 'Or say: “Alexa, let\'s study English”';
+  String get engVoiceHint => 'Or say: “Alexa, let\'s study Korean”';
 
   @override
   String get engCostNote =>
@@ -668,7 +668,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get engListeningBody =>
-      'Talk to the speaker in English. Mistakes are fine; the teacher corrects you as you talk.';
+      'Talk to the speaker in Korean. Mistakes are fine; the teacher corrects you as you talk.';
 
   @override
   String get engTopic => 'Current topic';
@@ -726,11 +726,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get engRealtimeNote =>
-      'English lessons use the real-time API (OpenAI) · about ₩70 a minute';
+      'Korean lessons use the real-time API (OpenAI) · about ₩70 a minute';
 
   @override
   String get engNeedOpenAiKey =>
-      'English lessons need an OpenAI key. Add it in Assistant > AI · Conversation mode.';
+      'Korean lessons need an OpenAI key. Add it in Assistant > AI · Conversation mode.';
 
   @override
   String get homeTitle => 'Speaker';
@@ -1418,6 +1418,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioNext => 'Next station';
 
   @override
+  String get radioGroupMusic => 'Music';
+
+  @override
   String get radioGroupKorean => 'Korean music';
 
   @override
@@ -1800,7 +1803,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sysKeyDeleteBodyOpenAi =>
-      'If the speaker uses OpenAI, it can\'t talk. English lessons also stop working.';
+      'If the speaker uses OpenAI, it can\'t talk. Korean lessons also stop working.';
 
   @override
   String get sysKeyDeleteBodyTelegram => 'Telegram messages stop arriving.';

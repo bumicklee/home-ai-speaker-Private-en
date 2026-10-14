@@ -8,7 +8,7 @@ class LessonModel {
       state: j['state'] as String? ?? 'idle',
       options: LessonOptions(
         course: LessonCourse.fromId(j['course'] as String?),
-        explainKorean: (j['explain'] as String? ?? 'ko') == 'ko',
+        explainKorean: (j['explain'] as String? ?? 'en') == 'ko',
         slow: (j['speed'] as String? ?? 'slow') == 'slow',
         minutes: LessonOptions.allowedMinutes.contains(minutes) ? minutes : 5,
       ),

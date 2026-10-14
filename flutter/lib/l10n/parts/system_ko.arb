@@ -152,7 +152,7 @@
   "sysKeyAdd": "넣기",
   "sysKeyDelete": "지우기",
   "sysKeyDeleteTitle": "스피커에서 이 키를 지울까요?",
-  "sysKeyDeleteBodyOpenAi": "OpenAI를 쓰고 있으면 대화할 수 없어요. 영어 수업도 할 수 없어요.",
+  "sysKeyDeleteBodyOpenAi": "OpenAI를 쓰고 있으면 대화할 수 없어요. 한국어 수업도 할 수 없어요.",
   "sysKeyDeleteBodyTelegram": "텔레그램 메시지를 더 이상 받지 않아요.",
   "sysKeyDeleted": "스피커에서 지웠어요",
   "sysKeySend": "스피커로 보내기",

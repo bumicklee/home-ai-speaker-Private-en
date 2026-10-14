@@ -80,7 +80,7 @@ static cJSON *read_json(httpd_req_t *req)
     return j;
 }
 
-/* ── English Tutor ─────────────────────────────────────────── */
+/* ── Korean Tutor ─────────────────────────────────────────── */
 
 static esp_err_t get_lesson(httpd_req_t *req)
 {

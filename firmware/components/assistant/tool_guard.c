@@ -43,7 +43,7 @@ static const char *const SIDE_EFFECT_TOOLS[] = {
     "set_volume", "set_location", "set_units", "set_name", "set_voice", "remember", "forget_memory",
     /* telegram_send was removed (2026-10-03 user decision): reply right after reading. Chapter 15, Section 15.2.4 */
     "radio_play", "spotify_play", "music_control", "calibrate_microphone", "set_auto_gain",
-    "set_microphone_gain", "set_wake_word", "start_english_lesson",
+    "set_microphone_gain", "set_wake_word", "start_korean_lesson",
     "notes_add", "notes_update", "notes_delete", "notes_snooze",
 };
 

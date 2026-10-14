@@ -1,12 +1,12 @@
 /*
- * English tutor (see lesson.h). New on 2026-10-03.
+ * Korean tutor (see lesson.h). New on 2026-10-03.
  *
  * Flow
  *   App "Start free talking" → lesson_start → STARTING → live_voice_start
  *   → assistant_start_event calls lesson_start_event → ACTIVE (tutor instructions, lesson length limit)
  *   → collects transcript fragments and extracts corrected expressions every 45 seconds (tool worker, HTTPS)
  *   → session ends (time, button, hang-up phrase, app) → SUMMARIZING → final summary → DONE, saved to /storage/lesson.json
- *   A voice request ("영어 공부하자", let's study English) waits in WAITING, then goes to STARTING when the current conversation ends.
+ *   A voice request ("Let's study Korean") waits in WAITING, then goes to STARTING when the current conversation ends.
  *
  * Transcripts and summaries are never logged (design document 2.2, Coding Rules). The state struct and transcript buffer are in PSRAM.
  */
@@ -84,7 +84,7 @@ static lesson_t *L;
 static SemaphoreHandle_t s_lock;
 static bool s_record_loaded;    /* the last summary file is loaded on the first read after /storage is mounted */
 static void load_record(void);
-static lesson_cfg_t s_defaults = {.course = LESSON_BASIC, .explain_korean = true, .slow = true, .minutes = 5};
+static lesson_cfg_t s_defaults = {.course = LESSON_BASIC, .explain_english = true, .slow = true, .minutes = 5};
 
 #define LOCK()   xSemaphoreTake(s_lock, portMAX_DELAY)
 #define UNLOCK() xSemaphoreGive(s_lock)
@@ -160,7 +160,7 @@ bool lesson_parse_cfg(const cJSON *j, lesson_cfg_t *out)
         if (!cJSON_IsString(v) || (strcmp(v->valuestring, "ko") && strcmp(v->valuestring, "en"))) {
             return false;
         }
-        out->explain_korean = !strcmp(v->valuestring, "ko");
+        out->explain_english = !strcmp(v->valuestring, "en");
     }
     v = cJSON_GetObjectItemCaseSensitive(j, "speed");
     if (v) {
@@ -293,21 +293,23 @@ static const char *course_focus(lesson_course_t c)
 {
     switch (c) {
     case LESSON_PRON:
-        return "Course: pronunciation. Keep topics light and everyday. When the learner mispronounces a word, say the word clearly, "
-               "describe the mouth or tongue position in one short sentence, and invite one more try, then move on.";
+        return "Course: Korean pronunciation. Keep topics light and everyday. Focus on Korean sounds: plain, aspirated and tense "
+               "consonants (ㄱ/ㅋ/ㄲ), the vowels ㅓ and ㅗ, and final consonants (batchim). When the learner mispronounces a word, "
+               "say the word clearly, describe the mouth or tongue position in one short sentence, and invite one more try, then move on.";
     case LESSON_BASIC:
-        return "Course: basic conversation for a beginner. Use very simple words and short sentences. Topics: greetings, family, "
-               "food, weather, shopping, hobbies, daily routine. Accept simple answers and correct only the most important mistake.";
+        return "Course: basic Korean conversation for a beginner. Use very simple Korean words and short sentences in the polite "
+               "해요체 style. Topics: greetings, family, food, weather, shopping, hobbies, daily routine. Accept simple answers and "
+               "correct only the most important mistake.";
     case LESSON_DAILY:
-        return "Course: everyday English. Practice real situations as role-play (travel, restaurant, hotel, hospital, shopping, "
+        return "Course: everyday Korean. Practice real situations as role-play (travel, restaurant, hotel, hospital, shopping, "
                "phone calls, small talk): set up the situation, play the other person, and keep it realistic.";
     case LESSON_BIZ:
-        return "Course: business English. Talk about meetings, phone calls, negotiations, presentations and emails. "
-               "Teach polite, professional phrasing and natural business expressions.";
+        return "Course: business Korean. Talk about meetings, phone calls, negotiations, presentations and emails. "
+               "Teach polite, professional phrasing with honorifics (합쇼체 and 존댓말) and natural business expressions.";
     case LESSON_ADV:
     default:
-        return "Course: advanced conversation. Discuss current events, opinions, culture and ideas in depth. Ask challenging "
-               "follow-up questions, use natural idioms, and refine the learner's sentences so they sound native.";
+        return "Course: advanced Korean conversation. Discuss current events, opinions, culture and ideas in depth. Ask challenging "
+               "follow-up questions, use natural Korean idioms, and refine the learner's sentences so they sound like natural spoken Korean.";
     }
 }
 
@@ -327,17 +329,17 @@ char *lesson_start_event(const char *voice)
         goto done;
     }
     snprintf(instructions, 3072,
-             "You are a friendly, patient English conversation teacher talking with a Korean learner through a home speaker. "
-             "This is free talking: start right away by greeting the learner in English and opening a topic that suits the course. "
+             "You are a friendly, patient Korean conversation teacher talking with an English-speaking learner through a home speaker. "
+             "This is free talking: start right away by greeting the learner in Korean and opening a topic that suits the course. "
              "Then keep a natural conversation going with short turns (one to three sentences) and one question at a time; let the learner talk more than you. "
              "When the learner makes a mistake, briefly say the more natural way to put it, one correction at a time, prioritizing mistakes "
              "that change the meaning, then continue the conversation. Do not correct every sentence. Praise good attempts. "
              "%s %s %s "
              "The lesson lasts about %u minutes. When you are told that time is almost up, wrap up warmly. "
-             "Speak naturally without markdown or lists. Stay in the lesson; if the learner asks for something unrelated, answer briefly and return to English practice.",
+             "Speak naturally without markdown or lists. Stay in the lesson; if the learner asks for something unrelated, answer briefly and return to Korean practice.",
              course_focus(cfg.course),
-             cfg.explain_korean ? "If the learner seems stuck or asks, explain briefly in Korean, then return to English."
-                                : "Use English only; if the learner is stuck, rephrase with simpler English.",
+             cfg.explain_english ? "If the learner seems stuck or asks, explain briefly in English, then return to Korean."
+                                 : "Use Korean only; if the learner is stuck, rephrase with simpler Korean.",
              cfg.slow ? "Speak slowly and clearly, with small pauses." : "Speak at a natural pace.", cfg.minutes);
 
     cJSON_AddStringToObject(root, "type", "session.start");
@@ -355,7 +357,7 @@ char *lesson_start_event(const char *voice)
     cJSON *backend = cJSON_AddObjectToObject(delegation, "responses");
     cJSON_AddStringToObject(backend, "model", APP_BACKEND_MODEL_DEFAULT);
     cJSON_AddStringToObject(backend, "instructions",
-                            "You support an English conversation teacher. Answer the teacher's questions about English usage, "
+                            "You support a Korean conversation teacher. Answer the teacher's questions about Korean usage, "
                             "word meanings and pronunciation briefly and accurately. Do not change device settings.");
     cJSON_AddArrayToObject(backend, "tools");
     text = cJSON_PrintUnformatted(root);
@@ -605,14 +607,16 @@ static void extract_job(void *arg)
     if (user) {
         char system[1200];
         snprintf(system, sizeof(system),
-                 "You read part of a spoken English lesson between a Learner (Korean speaker) and a Teacher. The text comes from speech "
-                 "recognition and may contain recognition errors; ignore those. Extract: corrections = phrases the Learner said that the "
-                 "Teacher corrected or that clearly needed a more natural form (original = learner's words, better = natural version, "
-                 "note = very short reason in %s); pronunciation = words the Teacher gave pronunciation advice on (tip in %s); "
-                 "topic = the current conversation topic as a short phrase in Korean; next_topic = %s. Return at most 5 corrections and "
+                 "You read part of a spoken Korean lesson between a Learner (English speaker learning Korean) and a Teacher. The text comes "
+                 "from speech recognition and may contain recognition errors; ignore those. Extract: corrections = phrases the Learner said "
+                 "that the Teacher corrected or that clearly needed a more natural form (original = learner's words, better = natural "
+                 "version written in Korean (Hangul) + romanization in parentheses + a short English meaning, e.g. "
+                 "\"감사합니다 (gamsahamnida) — thank you\", note = very short reason in %s); pronunciation = Korean words the Teacher "
+                 "gave pronunciation advice on (word in Hangul with romanization in parentheses, tip in %s); topic = the current "
+                 "conversation topic as a short phrase in English; next_topic = %s. Return at most 5 corrections and "
                  "3 pronunciation items, only new ones. Return empty arrays when there is nothing.",
-                 cfg.explain_korean ? "Korean" : "English", cfg.explain_korean ? "Korean" : "English",
-                 final ? "a short Korean suggestion for the next lesson topic" : "an empty string");
+                 cfg.explain_english ? "English" : "simple Korean", cfg.explain_english ? "English" : "simple Korean",
+                 final ? "a short English suggestion for the next lesson topic" : "an empty string");
         cJSON *notes = call_responses(system, user);
         free(user);
         if (notes) {
@@ -725,7 +729,7 @@ cJSON *lesson_json(void)
     LOCK();
     cJSON_AddStringToObject(j, "state", STATE_NAMES[L->state]);
     cJSON_AddStringToObject(j, "course", COURSE_IDS[L->cfg.course]);
-    cJSON_AddStringToObject(j, "explain", L->cfg.explain_korean ? "ko" : "en");
+    cJSON_AddStringToObject(j, "explain", L->cfg.explain_english ? "en" : "ko");
     cJSON_AddStringToObject(j, "speed", L->cfg.slow ? "slow" : "normal");
     cJSON_AddNumberToObject(j, "minutes", L->cfg.minutes);
     if (L->started_ms) {

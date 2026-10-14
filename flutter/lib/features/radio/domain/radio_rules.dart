@@ -112,11 +112,15 @@ RadioPreset presetFromStation(RadioStation s) => RadioPreset(
     );
 
 /// Screen groups (design order)
-enum PresetGroup { korean, news, talk, other }
+enum PresetGroup { music, news, talk, korean, other }
 
 const _talkTags = {'talk', 'community', 'politics'};
 const _newsTags = {'news', 'business', 'finance', 'world', 'economy'};
 const _koreanTags = {'korean', 'kpop', 'k-pop', 'korea', 'trot'};
+const _musicTags = {
+  'music', 'jazz', 'classical', 'rock', 'indie', 'alternative', 'eclectic', 'electronic', 'blues', 'roots',
+  'freeform', 'pop', 'ambient', 'chill', 'mellow', 'lofi', 'oldies', 'ballad', 'newage', 'country', 'hiphop',
+};
 
 /// Pick the group. Talk beats music; when news and talk are both present, the tag that comes first wins
 /// (CNN "news,talk" → News & Business, NPR "talk,news" → Talk. Same as the design)
@@ -127,6 +131,7 @@ PresetGroup groupOf(RadioPreset p) {
   if (talkAt >= 0 && (newsAt < 0 || talkAt < newsAt)) return PresetGroup.talk;
   if (newsAt >= 0) return PresetGroup.news;
   if (tags.any(_koreanTags.contains)) return PresetGroup.korean;
+  if (tags.any(_musicTags.contains)) return PresetGroup.music;
   return PresetGroup.other;
 }
 

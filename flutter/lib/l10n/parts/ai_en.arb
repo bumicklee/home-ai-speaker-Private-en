@@ -64,7 +64,7 @@
     }
   },
   "aiInfoTitle": "Good to know",
-  "aiInfoBody": "English lessons always use the real-time API (OpenAI) because the teacher must hear pronunciation live. Prices are monthly estimates for 1 hour a day. Changes apply from the next conversation.",
+  "aiInfoBody": "Korean lessons always use the real-time API (OpenAI) because the teacher must hear pronunciation live. Prices are monthly estimates for 1 hour a day. Changes apply from the next conversation.",
   "aiNoKeyError": "This speaker has no {provider} key. Please add the key first.",
   "@aiNoKeyError": {
     "placeholders": {

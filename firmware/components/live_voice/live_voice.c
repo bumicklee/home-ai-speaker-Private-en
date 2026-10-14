@@ -541,7 +541,7 @@ static bool upload_audio(esp_websocket_client_handle_t client, input_frame_t *fr
     return esp_websocket_client_send_text(client, s_upload->json, size, pdMS_TO_TICKS(1000)) == size;
 }
 
-/* Time limits for the next session only (English lesson: lesson length, 2 minutes even with silence). 0 means the default */
+/* Time limits for the next session only (Korean lesson: lesson length, 2 minutes even with silence). 0 means the default */
 static atomic_uint s_next_max_ms, s_next_idle_ms;
 
 void live_voice_set_next_limits(uint32_t max_ms, uint32_t idle_ms)

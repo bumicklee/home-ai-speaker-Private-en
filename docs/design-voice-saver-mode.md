@@ -63,7 +63,7 @@ The biggest share is speech synthesis. The shorter the speaker talks, the cheape
 |:--|:--|:--|
 | Detecting the end of speech (VAD) | ✅ | esp-sr includes VADNet (`vadnet1_medium`) and WebRTC VAD. Attach it to the microphone processing (audio after AEC). About 0.6MB of the 3MB model partition is used now |
 | Uploading the spoken audio | ✅ | 16kHz 16-bit = 32KB per second. 15 seconds = 480KB → collect in PSRAM and send over HTTPS in one go (`/v1/audio/transcriptions`) |
-| Text model + tools | ✅ | Responses API (`/v1/responses`) function calling. The English lesson summary already uses the Responses API. Tool execution stays as it is now: the tool worker and `assistant_execute()` |
+| Text model + tools | ✅ | Responses API (`/v1/responses`) function calling. The Korean lesson summary already uses the Responses API. Tool execution stays as it is now: the tool worker and `assistant_execute()` |
 | Playing speech synthesis | ✅ | `/v1/audio/speech` `pcm` (24kHz) streaming → convert to 16kHz (esp_audio_effects resampler) → the current voice playback queue. Play as it arrives so the first sound comes out quickly |
 | Memory (internal RAM about 18KB) | △ | Use **only one TLS connection at a time** (transcription → AI → synthesis in order). The current conversation WebSocket is also one TLS connection, so it's the same level. Audio and conversation history in PSRAM. **Reusing the same connection (keep-alive)** cuts down TLS handshakes |
 | Conversation history | ✅ | Keep the last 20 turns in PSRAM and send them every time (`store:false`, nothing kept on the server). The instructions stay fixed at the front → cache discount |
@@ -79,7 +79,7 @@ Ways to cut it: connection reuse, **splitting the AI's reply into sentences and 
 
 - Barge-in while it speaks (stop at once and listen): in stage 1 it stops **only with the center button**. (Barging in with "Computer" is stage 2: the speaker's own sound gets into the microphone and risks false recognition → AEC needs verifying)
 - Emotion and intonation may be less natural than Live.
-- English lessons: pronunciation correction and free talking are much better on Live → **English lessons are always Live** (5.4).
+- Korean lessons: pronunciation correction and free talking are much better on Live → **Korean lessons are always Live** (5.4).
 
 **Conclusion: feasible.** About 1/8 the cost, replies 1–2 seconds slower. The existing tools, guards, and reminders stay as they are.
 
@@ -145,10 +145,10 @@ Wake word/button ─▶ voice_engine (depending on settings)
 - Tool call → tool worker → append the result and request again (up to 4 times). The Telegram guard (TLG-14) stays as it is: "the person spoke anew" = a new transcription result.
 - Receive the reply by streaming and pass it to synthesis **each time a sentence ends**.
 
-### 5.4 English Lessons, Reminders, Auto-Read
+### 5.4 Korean Lessons, Reminders, Auto-Read
 | Feature | In Saver mode |
 |:--|:--|
-| English lesson | **Always Live** (the app says "English lessons run on Live"). Decided in Section 9 |
+| Korean lesson | **Always Live** (the app says "Korean lessons run on Live"). Decided in Section 9 |
 | Schedule reminder | The speaker writes the reminder sentence itself without AI, **speech synthesis only** → cheapest. Then listen for 15 seconds ("Got it", "Again in 10 minutes") |
 | Telegram auto-read | Read "Message from ○○: …" with speech synthesis and listen for 15 seconds. Replies happen in the listening stage |
 | Microphone calibration | Runs on Live (the flow is Live-only) |
@@ -171,7 +171,7 @@ Wake word/button ─▶ voice_engine (depending on settings)
 - Below it, a "Conversation mode" card: pick one of two (with per-provider price wording)
   - **Saver mode** — "About 1/8 the cost. Replies are 1–2 seconds slower. While it's talking, stop it with the center button."
   - **Live** — "The most natural. You're charged for the time the conversation is connected (OpenAI about 70 won a minute / Gemini about 1/3)."
-  - One line underneath: "English lessons always use Live."
+  - One line underneath: "Korean lessons always use Live."
 - Show the current mode small on the Home status card (for example, "Saver mode").
 - Design on the canvas first (assistant settings screen changes).
 
@@ -204,12 +204,12 @@ Wake word/button ─▶ voice_engine (depending on settings)
 | # | Question | Decision |
 |:--|:--|:--|
 | 1 | Defaults | Start as proposed (new speakers Saver, current speakers Live), but **let it be changed any time in the app** |
-| 2 | English lessons | **Always Live (OpenAI)**. The app's English Tutor screen and AI settings screen say "Uses the Live API · about 70 won a minute". Without an OpenAI key, English lessons can't be opened |
+| 2 | Korean lessons | **Always Live (OpenAI)**. The app's Korean Tutor screen and AI settings screen say "Uses the Live API · about 70 won a minute". Without an OpenAI key, Korean lessons can't be opened |
 | 3 | Barge-in | **Live only**. Saver mode stops with the center button |
 | 4 | Order of choice | **① AI (OpenAI / Gemini) first → ② that AI's Live / Saver mode**. Remember the last mode per provider |
 | 5 | Keys | **The app (the phone's secure storage) remembers both the OpenAI and Gemini keys** and sends them again when needed. **An AI whose key isn't on the speaker can't be chosen** (locked on screen, with an "Enter key" prompt). First-time setup needs at least one of the two |
 | 6 | Order of work | Stage 1 OpenAI Saver → stage 2 Gemini Saver → stage 3 Gemini Live → stage 4 polish |
-| 7 | Design | Implement after canvas approval: first-time setup (AI → required key → mode), Assistant (AI and conversation mode row), new screen "AI & Conversation Mode", English Tutor (Live notice) |
+| 7 | Design | Implement after canvas approval: first-time setup (AI → required key → mode), Assistant (AI and conversation mode row), new screen "AI & Conversation Mode", Korean Tutor (Live notice) |
 | 8 | Registering a new speaker | **It can't be registered without the chosen AI's key.** In first-time setup, enter that AI's key, or choose "이미 이 AI 키가 저장된 스피커예요" (This speaker already has this AI's key), which is checked with `device.info` after connecting. If neither, "Find speaker" is locked |
 | 9 | Changing settings | Change the AI and Live/Saver any time under Assistant > "AI & Conversation Mode" |
 
@@ -221,10 +221,10 @@ Wake word/button ─▶ voice_engine (depending on settings)
 ## 10. (First Questions — Decided in Section 9)
 
 1. **Defaults**: new speakers in Saver mode, current speakers stay on Live (changed in the app) — is that OK? Or should current speakers switch to Saver mode too?
-2. **English lessons are always Live** — is that OK?
+2. **Korean lessons are always Live** — is that OK?
 3. **Barge-in**: in stage 1, only stopping with the center button — is that OK?
 4. **Design**: should the assistant settings and key entry screen changes be shown on the canvas first?
-5. **English lessons + Gemini**: English lessons are currently built only on OpenAI (gpt-live-1 + summary). For someone who uses only Gemini: ① English lessons only when an OpenAI key exists (stage 1) ② lessons on Gemini Live too (stage 3 or later) — is it OK to start with ①?
+5. **Korean lessons + Gemini**: Korean lessons are currently built only on OpenAI (gpt-live-1 + summary). For someone who uses only Gemini: ① Korean lessons only when an OpenAI key exists (stage 1) ② lessons on Gemini Live too (stage 3 or later) — is it OK to start with ①?
 6. **Order**: is it OK to go 1 (OpenAI Saver) → 2 (Gemini Saver) → 3 (Gemini Live)? (the order that cuts the bill fastest)
 
 ---
@@ -301,7 +301,7 @@ App "AI & Conversation Mode": no key → "No key · can't be used"; key present 
 ```mermaid
 flowchart TD
     W["Wake word · button · app · auto-read · reminder"] --> VS["live_voice_start()<br/>(outside unchanged)"]
-    VS --> D{"Settings: ai_provider · mode<br/>English lesson → always openai.live"}
+    VS --> D{"Settings: ai_provider · mode<br/>Korean lesson → always openai.live"}
     D -- "openai.live" --> L["Current live_voice session<br/>(gpt-live-1 WebSocket)"]
     D -- "openai.saver (stage 1)" --> SV["saver_voice session (new)"]
     D -- "gemini.saver (stage 2)" --> SV
@@ -314,7 +314,7 @@ flowchart TD
 ```
 
 - **The outside functions stay the same**: `live_voice_start/stop/active/ready/state`, the `voice_state` event, the 20-second idle timeout and 10-minute maximum, hang-up phrases, the center button. So main, the app, the LED, reminders, and Telegram auto-read don't change.
-- **English lessons**: if `lesson_wants_session()`, it's `openai.live` regardless of the settings. Without an OpenAI key, `lesson/start` returns 409 `NO_API_KEY` (app: "English lessons need an OpenAI key").
+- **Korean lessons**: if `lesson_wants_session()`, it's `openai.live` regardless of the settings. Without an OpenAI key, `lesson/start` returns 409 `NO_API_KEY` (app: "Korean lessons need an OpenAI key").
 - **Barge-in**: Live only. In Saver mode the speaker doesn't upload microphone audio while it's talking (which also removes the echo transcription problem). Center button short = stop the current reply and listen; long = end the conversation.
 
 ### 11.6 One Round of Saver Mode (OpenAI, Stage 1)
@@ -370,7 +370,7 @@ sequenceDiagram
 | Assistant screen | An "AI & Conversation Mode" row at the top (shows the current value) |
 | AI & Conversation Mode (new) | ① AI (locked if no key or coming soon) → ② mode (per-provider price and features). "Enter ○○ key" → BLE `secret.set` (same flow as entering the OpenAI key now) |
 | System > Keys | Add entering and deleting the Gemini key |
-| English Tutor | "English lessons use the Live API (OpenAI) · about 70 won a minute"; start button locked without an OpenAI key |
+| Korean Tutor | "Korean lessons use the Live API (OpenAI) · about 70 won a minute"; start button locked without an OpenAI key |
 | Home | "OpenAI · Saver mode" on the status card |
 | Storage | Add secure storage `vault_gemini_key` |
 
@@ -380,7 +380,7 @@ sequenceDiagram
 |:--|:--|:--|
 | 1 | 13 settings keys, old-settings migration, key check; `gemini_key` secure storage, BLE, LAN, status | Key storage (`vault_gemini_key`), first-time setup AI/key/mode, key check after connecting, BLE `settings.set` |
 | 2 | `/status.ai` (provider, mode, available) | Assistant "AI & Conversation Mode" row, new screen, System > Gemini key |
-| 3 | Mode split inside `live_voice_start` (English lessons go to openai.live) | English Tutor Live notice and OpenAI key check |
+| 3 | Mode split inside `live_voice_start` (Korean lessons go to openai.live) | Korean Tutor Live notice and OpenAI key check |
 | 4 | `saver_voice`: VAD, transcription, Responses (tool loop), TTS streaming, playback, reused connection | Home status display |
 | 5 | Reminders and auto-read via synthesis | Tests |
 | 6 | Self-test (settings migration, VAD boundaries, noise filter), build, real-board time-per-stage and internal RAM measurement | analyze, test |

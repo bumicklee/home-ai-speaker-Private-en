@@ -145,18 +145,18 @@ All handled by OpenAI's hosted `web_search`. The device only puts location, unit
 
 | ID | Feature | Detailed behavior | FW / APP | Priority | Phase | Completion criterion |
 |:--|:--|:--|:--|:--|:--|:--|
-| RAD-01 | Preset playback | "Play KBS Classic", "Play the radio" (last station, NVS `last_preset`/`last_url`) | media_radio, assistant | P1 | 3 | Sound within 3 seconds of the command |
+| RAD-01 | Preset playback | "Play KEXP", "Play the radio" (last station, NVS `last_preset`/`last_url`) | media_radio, assistant | P1 | 3 | Sound within 3 seconds of the command |
 | RAD-02 | Genre playback | "Play jazz radio" → a preset with a matching genre → if none, the top result of a Radio-Browser search | media_radio | P1 | 3 | |
 | RAD-03 | Stop, pause, resume | Voice "Turn off the radio", app buttons (Key2 short press starts a conversation, Q5 decision) | media_radio | P1 | 3 | |
 | RAD-04 | Now playing | Song title from ICY metadata. "What song is this?" / shown in the app | media_radio | P1 | 3 | Station name only if there's no metadata |
-| RAD-05 | Format support | MP3, AAC (including HE-AAC), HTTP/HTTPS, `.pls`, `.m3u`, 302 redirects | media_radio | P1 | 3 | All 7 default presets play |
+| RAD-05 | Format support | MP3, AAC (including HE-AAC), HTTP/HTTPS, `.pls`, `.m3u`, 302 redirects | media_radio | P1 | 3 | All 13 default presets play |
 | RAD-06 | Auto-reconnect | If the stream drops, retry starting at 1 second up to a 30-second interval. After 5 failures, stop and play an alert tone | media_radio | P1 | 3 | Recovers after a router reboot |
 | RAD-07 | Buffering indication | Slow white LED blink while buffering | media_radio, led_ring | P2 | 3 | |
 | RAD-08 | Preset management | Add, delete, reorder, rename in the app. Up to 20 (littlefs `/presets.json`) | local_api / music | P1 | 3 | |
 | RAD-09 | Station search | The app searches the Radio-Browser API by name, genre, and country (doesn't go through the device) | music | P1 | 3 | |
 | RAD-10 | Preview | Preview the stream in the app itself, then add it as a preset | music | P2 | 3 | |
 | RAD-11 | Play from the app | Tap in the preset list to play on the speaker | local_api / music | P1 | 3 | |
-| RAD-12 | Default presets | Radio Paradise Mellow and Rock, SomaFM Groove Salad, DefCon, and Indie Pop Rocks, KEXP (6. KBS 1FM removed because it's HLS, 2026-10-03) | media_radio | P1 | 3 | |
+| RAD-12 | Default presets | 13: US music stations KEXP Seattle, KCRW Eclectic24, WQXR Classical, WWOZ New Orleans, WFMU Freeform, KJazz 88.1 (direct MP3 streams), then CNN, CNN International, Bloomberg Radio, NPR, WNYC, C-SPAN Radio, BBC World Service. HLS streams can't be played, so they aren't included | media_radio | P1 | 3 | |
 
 ## 8. Spotify (SPT)
 
@@ -238,7 +238,7 @@ Preparation: in **each home that uses the speaker, one main account creates a Sp
 | "Give me today's news briefing" | `web_search` | INF-03 |
 | "Set the volume to 30" / "Turn it up a bit" | `get_device_settings` → `set_volume` | AUD-01 |
 | "Play jazz radio" | `radio_play(genre)` | RAD-02 |
-| "Play KBS Classic" | `radio_play(station)` | RAD-01 |
+| "Play KEXP" | `radio_play(station)` | RAD-01 |
 | "What song is playing now?" | `get_now_playing` | RAD-04, SPT-06 |
 | "Play IU songs" | `spotify_play(query, artist)` | SPT-04 |
 | "Next song" / "Stop" / "Play again" | `music_control` | SPT-05, RAD-03 |

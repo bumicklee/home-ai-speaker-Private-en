@@ -56,7 +56,7 @@
 #define APP_TIME_VALID_EPOCH        1767225600  /* 2026-01-01 UTC. Anything earlier means the time is not set */
 
 /* ── Voice conversation ────────────────────────────────────────────── */
-/* idle timeout cut to save on cost (2026-10-04, user). English lessons use their own limit */
+/* idle timeout cut to save on cost (2026-10-04, user). Korean lessons use their own limit */
 #define APP_VOICE_IDLE_TIMEOUT_MS   (20 * 1000)        /* 20-second idle timeout (60 → 30 → 15 → 30 → 20 s, book Chapter 16, Bug 2) */
 #define APP_VOICE_MAX_SESSION_MS    (10 * 60 * 1000)   /* conversation 10 min max */
 #define APP_VOICE_USAGE_WAIT_MS     (15 * 1000)        /* wait for usage after the session ends */

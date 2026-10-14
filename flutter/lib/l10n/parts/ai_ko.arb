@@ -64,7 +64,7 @@
     }
   },
   "aiInfoTitle": "알아 두세요",
-  "aiInfoBody": "영어 수업은 발음을 실시간으로 들어야 해서 늘 실시간 API(OpenAI)로 해요. 요금은 하루 1시간 쓸 때 한 달 예상이에요. 바꾸면 다음 대화부터 적용돼요.",
+  "aiInfoBody": "한국어 수업은 발음을 실시간으로 들어야 해서 늘 실시간 API(OpenAI)로 해요. 요금은 하루 1시간 쓸 때 한 달 예상이에요. 바꾸면 다음 대화부터 적용돼요.",
   "aiNoKeyError": "이 스피커에는 {provider} 키가 없어요. 먼저 키를 넣어 주세요.",
   "@aiNoKeyError": {
     "placeholders": {

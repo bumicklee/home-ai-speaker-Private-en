@@ -120,7 +120,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get aiInfoBody =>
-      '영어 수업은 발음을 실시간으로 들어야 해서 늘 실시간 API(OpenAI)로 해요. 요금은 하루 1시간 쓸 때 한 달 예상이에요. 바꾸면 다음 대화부터 적용돼요.';
+      '한국어 수업은 발음을 실시간으로 들어야 해서 늘 실시간 API(OpenAI)로 해요. 요금은 하루 1시간 쓸 때 한 달 예상이에요. 바꾸면 다음 대화부터 적용돼요.';
 
   @override
   String aiNoKeyError(String provider) {
@@ -529,14 +529,14 @@ class AppLocalizationsKo extends AppLocalizations {
   String get errorDeviceConflict => '스피커에서 방금 바뀌었어요. 바뀐 내용을 보고 다시 고쳐 주세요';
 
   @override
-  String get engTitle => '영어 선생님';
+  String get engTitle => '한국어 선생님';
 
   @override
   String get engHomeSubtitle => '발음 · 기초 · 생활 · 비즈니스 · 고급';
 
   @override
   String get engIntro =>
-      '코스를 고르고 시작하면 바로 스피커와 영어로 프리토킹해요. 틀린 표현과 발음은 선생님이 대화하면서 고쳐 줘요.';
+      '코스를 고르고 시작하면 바로 스피커와 한국어로 프리토킹해요. 틀린 표현과 발음은 선생님이 대화하면서 고쳐 줘요.';
 
   @override
   String get engCoursePron => '발음 교정';
@@ -545,28 +545,28 @@ class AppLocalizationsKo extends AppLocalizations {
   String get engCoursePronDesc => '편하게 이야기하면서 틀린 발음을 그때그때 짚어 줘요';
 
   @override
-  String get engCourseBasic => '기초 영어 회화';
+  String get engCourseBasic => '기초 한국어 회화';
 
   @override
-  String get engCourseBasicDesc => '쉬운 일상 이야기를 천천히. 막히면 한국어로 도와줘요';
+  String get engCourseBasicDesc => '쉬운 일상 이야기를 천천히. 막히면 영어로 도와줘요';
 
   @override
-  String get engCourseDaily => '생활 영어 회화';
+  String get engCourseDaily => '생활 한국어 회화';
 
   @override
   String get engCourseDailyDesc => '여행·식당·병원 같은 상황으로 자연스럽게 대화';
 
   @override
-  String get engCourseBiz => '비즈니스 영어 회화';
+  String get engCourseBiz => '비즈니스 한국어 회화';
 
   @override
-  String get engCourseBizDesc => '회의·전화·협상 이야기를 정중한 말투로';
+  String get engCourseBizDesc => '회의·전화·협상 이야기를 존댓말로 정중하게';
 
   @override
-  String get engCourseAdv => '고급 영어 회화';
+  String get engCourseAdv => '고급 한국어 회화';
 
   @override
-  String get engCourseAdvDesc => '시사·의견 토론을 영어로만. 더 자연스럽게 다듬어 줘요';
+  String get engCourseAdvDesc => '시사·의견 토론을 한국어로만. 더 자연스럽게 다듬어 줘요';
 
   @override
   String get engLevelAll => '모든 수준';
@@ -587,10 +587,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get engExplain => '설명 말';
 
   @override
-  String get engExplainKorean => '한국어 섞어서';
+  String get engExplainKorean => '한국어만';
 
   @override
-  String get engExplainEnglish => '영어로만';
+  String get engExplainEnglish => '영어 섞기';
 
   @override
   String get engSpeed => '말 빠르기';
@@ -615,7 +615,7 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
-  String get engVoiceHint => '말로도 시작해요: “알렉사, 영어 공부하자”';
+  String get engVoiceHint => '말로도 시작해요: “알렉사, 한국어 공부하자”';
 
   @override
   String get engCostNote => '수업은 최대 5분이에요. 수업 시간만큼 OpenAI 음성 대화 요금이 나와요.';
@@ -641,7 +641,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get engListeningBody =>
-      '스피커에 대고 편하게 영어로 말하세요. 틀려도 괜찮아요, 선생님이 대화하면서 고쳐 줘요.';
+      '스피커에 대고 편하게 한국어로 말하세요. 틀려도 괜찮아요, 선생님이 대화하면서 고쳐 줘요.';
 
   @override
   String get engTopic => '지금 이야기';
@@ -697,11 +697,11 @@ class AppLocalizationsKo extends AppLocalizations {
   String get engLastLesson => '지난 수업 정리 보기';
 
   @override
-  String get engRealtimeNote => '영어 수업은 실시간 API(OpenAI)로 해요 · 분당 약 70원';
+  String get engRealtimeNote => '한국어 수업은 실시간 API(OpenAI)로 해요 · 분당 약 70원';
 
   @override
   String get engNeedOpenAiKey =>
-      '영어 수업은 OpenAI 키가 필요해요. 비서 > AI · 대화 방식에서 OpenAI 키를 넣어 주세요.';
+      '한국어 수업은 OpenAI 키가 필요해요. 비서 > AI · 대화 방식에서 OpenAI 키를 넣어 주세요.';
 
   @override
   String get homeTitle => '스피커';
@@ -1370,6 +1370,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get radioNext => '다음 방송';
 
   @override
+  String get radioGroupMusic => '음악';
+
+  @override
   String get radioGroupKorean => '한국 음악';
 
   @override
@@ -1743,7 +1746,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get sysKeyDeleteBodyOpenAi =>
-      'OpenAI를 쓰고 있으면 대화할 수 없어요. 영어 수업도 할 수 없어요.';
+      'OpenAI를 쓰고 있으면 대화할 수 없어요. 한국어 수업도 할 수 없어요.';
 
   @override
   String get sysKeyDeleteBodyTelegram => '텔레그램 메시지를 더 이상 받지 않아요.';

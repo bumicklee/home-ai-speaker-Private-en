@@ -28,9 +28,9 @@ const statusJson = <String, dynamic>{
 };
 
 void main() {
-  final ko = lookupAppLocalizations(const Locale('ko'));
+  final en = lookupAppLocalizations(const Locale('en'));
 
-  test('/status 파싱', () {
+  test('/status parsing', () {
     final s = SystemStatusModel.fromJson(statusJson);
     expect(s.firmware, '0.5.0');
     expect(s.buildDate, 'Oct  3 2026 10:12:00');
@@ -44,44 +44,44 @@ void main() {
     expect(s.failures, isEmpty);
   });
 
-  test('wifi_rssi null(연결 안 됨)과 빠진 필드', () {
+  test('wifi_rssi null (not connected) and missing fields', () {
     final s = SystemStatusModel.fromJson(const {'fw': '0.5.0', 'wifi_rssi': null, 'failures': ['ota fail', {'c': 1}]});
     expect(s.wifiRssi, isNull);
     expect(s.wifiBand, isNull);
     expect(s.uptime, Duration.zero);
     expect(s.failures, ['ota fail', '{"c":1}']);
-    expect(formatWifi(ko, null), '연결 안 됨');
+    expect(formatWifi(en, null), 'Not connected');
   });
 
-  test('켜진 시간 문구', () {
-    expect(formatUptime(ko, const Duration(hours: 3, minutes: 12, seconds: 40)), '3시간 12분');
-    expect(formatUptime(ko, const Duration(minutes: 7)), '7분');
-    expect(formatUptime(ko, const Duration(seconds: 20)), '0분');
-    expect(formatUptime(ko, const Duration(days: 2, hours: 5, minutes: 30)), '2일 5시간');
+  test('uptime text', () {
+    expect(formatUptime(en, const Duration(hours: 3, minutes: 12, seconds: 40)), '3 h 12 min');
+    expect(formatUptime(en, const Duration(minutes: 7)), '7 min');
+    expect(formatUptime(en, const Duration(seconds: 20)), '0 min');
+    expect(formatUptime(en, const Duration(days: 2, hours: 5, minutes: 30)), '2 d 5 h');
   });
 
-  test('Wi-Fi 신호 구간 (홈과 같은 기준: -60, -72)', () {
+  test('Wi-Fi signal bands (same thresholds as Home: -60, -72)', () {
     expect(WifiBand.fromRssi(-51), WifiBand.good);
     expect(WifiBand.fromRssi(-60), WifiBand.good);
     expect(WifiBand.fromRssi(-61), WifiBand.fair);
     expect(WifiBand.fromRssi(-72), WifiBand.fair);
     expect(WifiBand.fromRssi(-73), WifiBand.weak);
-    expect(formatWifi(ko, -51), '좋음 (-51 dBm)');
-    expect(formatWifi(ko, -80), '약함 (-80 dBm)');
+    expect(formatWifi(en, -51), 'Good (-51 dBm)');
+    expect(formatWifi(en, -80), 'Weak (-80 dBm)');
   });
 
-  test('시작 이유', () {
-    expect(formatResetReason(ko, 3), '다시 시작');
-    expect(formatResetReason(ko, 6), '응답 없음으로 다시 시작');
-    expect(formatResetReason(ko, 12), '기타 (12)');
-    expect(formatKb(ko, 81920), '80 KB');
+  test('reset reason', () {
+    expect(formatResetReason(en, 3), 'Restart');
+    expect(formatResetReason(en, 6), 'Restarted after a hang');
+    expect(formatResetReason(en, 12), 'Other (12)');
+    expect(formatKb(en, 81920), '80 KB');
   });
 
-  test('휴대폰 목록: {"phones": [...]}, self, created 0 = 모름', () {
+  test('phone list: {"phones": [...]}, self, created 0 = unknown', () {
     final list = RegisteredPhoneModel.listFromJson({
       'phones': [
-        {'phone_id': 'p1', 'name': '엄마 Galaxy S24', 'created': 1790000000, 'self': true},
-        {'phone_id': 'p2', 'name': '아빠 iPhone', 'created': 0, 'self': false},
+        {'phone_id': 'p1', 'name': "Mom's Galaxy S24", 'created': 1790000000, 'self': true},
+        {'phone_id': 'p2', 'name': "Dad's iPhone", 'created': 0, 'self': false},
       ],
     });
     expect(list.length, 2);
@@ -92,7 +92,7 @@ void main() {
   });
 
   group('/status.ai', () {
-    test('새 펌웨어: provider·mode·available', () {
+    test('new firmware: provider, mode, available', () {
       final j = {
         ...statusJson,
         'secrets': {'openai_key': true, 'gemini_key': false},
@@ -113,7 +113,7 @@ void main() {
       expect(DeviceStatusModel.fromJson(j).ai, s.ai);
     });
 
-    test('옛 펌웨어(ai 없음)·모양이 틀리면 OpenAI 실시간만', () {
+    test('old firmware (no ai) or malformed: OpenAI real-time only', () {
       for (final ai in [null, 'x', 3, <String, dynamic>{}]) {
         final s = SystemStatusModel.fromJson({...statusJson, 'ai': ai});
         expect(s.ai.provider, AiProvider.openai, reason: '$ai');
@@ -124,7 +124,7 @@ void main() {
       expect(DeviceStatusModel.fromJson(statusJson).ai, AiStatus.legacy);
     });
 
-    test('모르는 값은 기본값, 글자가 아닌 available은 버린다', () {
+    test('unknown values fall back to defaults, non-string available entries are dropped', () {
       final ai = AiStatus.fromJson({
         'provider': 'claude',
         'mode': 'turbo',

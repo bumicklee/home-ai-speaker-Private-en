@@ -294,18 +294,18 @@ static const char *course_focus(lesson_course_t c)
     switch (c) {
     case LESSON_PRON:
         return "Course: Korean pronunciation. Keep topics light and everyday. Focus on Korean sounds: plain, aspirated and tense "
-               "consonants (ㄱ/ㅋ/ㄲ), the vowels ㅓ and ㅗ, and final consonants (batchim). When the learner mispronounces a word, "
+               "consonants (g/k/kk), the vowels eo and o, and final consonants (batchim). When the learner mispronounces a word, "
                "say the word clearly, describe the mouth or tongue position in one short sentence, and invite one more try, then move on.";
     case LESSON_BASIC:
         return "Course: basic Korean conversation for a beginner. Use very simple Korean words and short sentences in the polite "
-               "해요체 style. Topics: greetings, family, food, weather, shopping, hobbies, daily routine. Accept simple answers and "
+               "haeyo-che style. Topics: greetings, family, food, weather, shopping, hobbies, daily routine. Accept simple answers and "
                "correct only the most important mistake.";
     case LESSON_DAILY:
         return "Course: everyday Korean. Practice real situations as role-play (travel, restaurant, hotel, hospital, shopping, "
                "phone calls, small talk): set up the situation, play the other person, and keep it realistic.";
     case LESSON_BIZ:
         return "Course: business Korean. Talk about meetings, phone calls, negotiations, presentations and emails. "
-               "Teach polite, professional phrasing with honorifics (합쇼체 and 존댓말) and natural business expressions.";
+               "Teach polite, professional phrasing with honorifics (hapsyo-che and jondaetmal) and natural business expressions.";
     case LESSON_ADV:
     default:
         return "Course: advanced Korean conversation. Discuss current events, opinions, culture and ideas in depth. Ask challenging "
@@ -608,14 +608,16 @@ static void extract_job(void *arg)
         char system[1200];
         snprintf(system, sizeof(system),
                  "You read part of a spoken Korean lesson between a Learner (English speaker learning Korean) and a Teacher. The text comes "
-                 "from speech recognition and may contain recognition errors; ignore those. Extract: corrections = phrases the Learner said "
+                 "from speech recognition and may contain recognition errors; ignore those. Write Korean in the notes only in Revised "
+                 "Romanization; never use Hangul characters. Extract: corrections = phrases the Learner said "
                  "that the Teacher corrected or that clearly needed a more natural form (original = learner's words, better = natural "
-                 "version written in Korean (Hangul) + romanization in parentheses + a short English meaning, e.g. "
-                 "\"감사합니다 (gamsahamnida) — thank you\", note = very short reason in %s); pronunciation = Korean words the Teacher "
-                 "gave pronunciation advice on (word in Hangul with romanization in parentheses, tip in %s); topic = the current "
+                 "version in Revised Romanization + a short English meaning, e.g. "
+                 "\"eoje gasseoyo — I went yesterday\", note = very short reason in %s); pronunciation = Korean words the Teacher "
+                 "gave pronunciation advice on (word in Revised Romanization, e.g. \"gamsahamnida\"; tip in %s, e.g. "
+                 "\"the b before n sounds like m\"; describe sounds with Latin letters, e.g. \"tense kk\"); topic = the current "
                  "conversation topic as a short phrase in English; next_topic = %s. Return at most 5 corrections and "
                  "3 pronunciation items, only new ones. Return empty arrays when there is nothing.",
-                 cfg.explain_english ? "English" : "simple Korean", cfg.explain_english ? "English" : "simple Korean",
+                 cfg.explain_english ? "English" : "simple Korean (romanized)", cfg.explain_english ? "English" : "simple Korean (romanized)",
                  final ? "a short English suggestion for the next lesson topic" : "an empty string");
         cJSON *notes = call_responses(system, user);
         free(user);

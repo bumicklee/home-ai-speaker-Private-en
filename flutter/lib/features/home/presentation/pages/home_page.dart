@@ -448,7 +448,7 @@ class _FeatureTile extends StatelessWidget {
   }
 }
 
-/// The subtitle comes from the phone's copy ("오늘 2개 · 3시 병원", 2 today · hospital at 3). Synced with the speaker once when Home opens
+/// The subtitle comes from the phone's copy ("2 today · 3 o'clock Doctor"). Synced with the speaker once when Home opens
 class _NotesTile extends StatefulWidget {
   const _NotesTile();
 

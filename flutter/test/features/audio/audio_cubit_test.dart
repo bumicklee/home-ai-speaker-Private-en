@@ -43,7 +43,7 @@ void main() {
 
   Future<void> pump() => Future<void>.delayed(Duration.zero);
 
-  test('세 그룹을 모두 불러온다', () async {
+  test('loads all three groups', () async {
     final c = build();
     await c.load();
     expect(c.state.audio, audio);
@@ -53,7 +53,7 @@ void main() {
     await c.close();
   });
 
-  test('하나라도 실패하면 실패 화면', () async {
+  test('shows the failure screen if any one fails', () async {
     when(() => repo.ledBrightness()).thenAnswer((_) async => const Left(timeout));
     final c = build();
     await c.load();
@@ -62,7 +62,7 @@ void main() {
     await c.close();
   });
 
-  test('바뀐 키 하나만 PUT 한다', () async {
+  test('PUTs only the one changed key', () async {
     when(() => repo.updateAudio(any())).thenAnswer((_) async => Right(audio.copyWith(duckDb: 30)));
     when(() => repo.updateWake(any())).thenAnswer((_) async => Right(wake.copyWith(phrase: WakePhrase.alexa)));
     when(() => repo.setLedBrightness(any())).thenAnswer((_) async => const Right(25));
@@ -83,7 +83,7 @@ void main() {
     await c.close();
   });
 
-  test('저장 실패하면 기기 값으로 되돌리고 오류를 알린다', () async {
+  test('reverts to the device value and reports the error when saving fails', () async {
     when(() => repo.updateWake(any())).thenAnswer((_) async => const Left(timeout));
     final c = build();
     await c.load();
@@ -97,12 +97,12 @@ void main() {
     await c.close();
   });
 
-  test('마이크 게인은 기기가 받는 값만 (0–30 3단위, 36)', () {
+  test('mic gain offers only values the device accepts (0–30 in steps of 3, 36)', () {
     expect(AudioSettings.micGainSteps, [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 36]);
     expect(AudioSettings.micGainSteps.contains(33), isFalse);
   });
 
-  test('마이크 게인 저장', () async {
+  test('saves mic gain', () async {
     when(() => repo.updateAudio(any())).thenAnswer((_) async => Right(audio.copyWith(micGain: 24)));
     final c = build();
     await c.load();
@@ -112,7 +112,7 @@ void main() {
     await c.close();
   });
 
-  test('볼륨 이벤트로 슬라이더 값이 바뀐다', () async {
+  test('a volume event updates the slider value', () async {
     final c = build();
     await c.load();
     stream.add(const DeviceEvent('volume', {'value': 65}));
@@ -121,7 +121,7 @@ void main() {
     await c.close();
   });
 
-  test('감지 테스트: 이벤트 수를 세고 60초 뒤 끝난다', () async {
+  test('detection test: counts events and ends after 60 seconds', () async {
     when(() => repo.startWakeTest()).thenAnswer((_) async => const Right(unit));
     final c = build(tick: const Duration(milliseconds: 2));
     await c.load();
@@ -146,7 +146,7 @@ void main() {
     await c.close();
   });
 
-  test('감지 테스트: 대화 중이면 409 오류', () async {
+  test('detection test: 409 error while a conversation is active', () async {
     when(() => repo.startWakeTest())
         .thenAnswer((_) async => Left(DeviceFailure.fromStatus(409, 'VOICE_ACTIVE')));
     final c = build();
@@ -157,7 +157,7 @@ void main() {
     await c.close();
   });
 
-  test('펌웨어 JSON 파싱 (phrase 0 Alexa / 1 Computer)', () {
+  test('parses firmware JSON (phrase 0 Alexa / 1 Computer)', () {
     expect(
       AudioSettingsModel.wakeFromJson({'enabled': false, 'phrase': 0, 'sensitivity': 50, 'gain_db': 6}),
       const WakeSettings(enabled: false, phrase: WakePhrase.alexa, sensitivity: 50, gainDb: 6),

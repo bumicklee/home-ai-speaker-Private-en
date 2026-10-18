@@ -309,14 +309,14 @@ bool notes_selftest(void)
 
     /* UTF-8 */
     ok &= notes_utf8_valid("hello", 5);
-    ok &= notes_utf8_valid("우유 사기", strlen("우유 사기"));
+    ok &= notes_utf8_valid("caf\xC3\xA9 \xE2\x82\xAC", 9);
     ok &= !notes_utf8_valid("\xC0\x80", 2);          /* overlong */
     ok &= !notes_utf8_valid("\xE0\x80", 2);          /* truncated */
     ok &= !notes_utf8_valid("\xED\xA0\x80", 3);      /* UTF-16 surrogate range */
     {
         char out[16];
-        notes_utf8_truncate("우유 사기 우유 사기", 5, out);   /* "우유" is 2 chars = 6 bytes, so cutting it at 5 leaves 3 bytes (one char) */
-        /* "우" = 3 bytes. With a 5-byte limit, "우유" (6 bytes) doesn't fit; only "우" (3 bytes) does */
+        notes_utf8_truncate("\xE2\x82\xAC\xE2\x82\xAC\xE2\x82\xAC", 5, out);   /* "€€€": each "€" is 3 bytes */
+        /* With a 5-byte limit, "€€" (6 bytes) doesn't fit; only "€" (3 bytes) does */
         ok &= strlen(out) == 3;
         notes_utf8_truncate("hello", 3, out);
         ok &= !strcmp(out, "hel");
@@ -325,11 +325,11 @@ bool notes_selftest(void)
     }
 
     /* search */
-    ok &= notes_search_match("병원 (정형외과) 예약", "정형외과");
+    ok &= notes_search_match("Doctor (orthopedics) appointment", "orthopedics");
     ok &= notes_search_match("Milk and Eggs", "milkandeggs");      /* ignores case and spaces */
-    ok &= notes_search_match("우유 사기", "우 유");                  /* ignores spaces (on both sides) */
-    ok &= !notes_search_match("우유 사기", "계란");
-    ok &= notes_search_match("아무거나", "");                       /* an empty query passes */
+    ok &= notes_search_match("buy milk", "mi lk");                   /* ignores spaces (on both sides) */
+    ok &= !notes_search_match("buy milk", "eggs");
+    ok &= notes_search_match("anything", "");                       /* an empty query passes */
 
     /* id */
     {

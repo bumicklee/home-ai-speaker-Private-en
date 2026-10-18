@@ -11,11 +11,11 @@ void main() {
     expect(keys, isNotEmpty);
     for (final lang in ['ko', 'en']) {
       final arb = jsonDecode(File('lib/l10n/app_$lang.arb').readAsStringSync()) as Map<String, dynamic>;
-      expect(keys.difference(arb.keys.toSet()), isEmpty, reason: 'app_$lang.arb에 없는 키');
+      expect(keys.difference(arb.keys.toSet()), isEmpty, reason: 'keys missing from app_$lang.arb');
     }
   });
 
-  test('ko·en ARB 키가 같다', () {
+  test('ko and en ARBs have the same keys', () {
     Set<String> keysOf(String lang) =>
         (jsonDecode(File('lib/l10n/app_$lang.arb').readAsStringSync()) as Map<String, dynamic>).keys
             .where((k) => !k.startsWith('@'))

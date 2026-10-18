@@ -33,8 +33,8 @@ void main() {
           secrets: {'openai_key': true},
         )));
     when(() => repo.phones()).thenAnswer((_) async => const Right([
-          RegisteredPhone(phoneId: 'p1', name: '엄마 Galaxy S24', self: true),
-          RegisteredPhone(phoneId: 'p2', name: '아빠 iPhone'),
+          RegisteredPhone(phoneId: 'p1', name: "Mom's Galaxy S24", self: true),
+          RegisteredPhone(phoneId: 'p2', name: "Dad's iPhone"),
         ]));
     when(() => vault.openAiKey()).thenAnswer((_) async => 'sk-abcdefWXYZ');
     when(() => vault.geminiKey()).thenAnswer((_) async => null);
@@ -46,32 +46,32 @@ void main() {
 
   Widget app(Widget home) => MaterialApp(
         theme: AppTheme.light(),
-        locale: const Locale('ko'),
+        locale: const Locale('en'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: home,
       );
 
-  testWidgets('시스템 화면: 정보, 휴대폰 (2 / 5), 이 휴대폰 배지, 등록 해지', (t) async {
+  testWidgets('System page: info, phones (2 / 5), this-phone badge, revoke', (t) async {
     await t.pumpWidget(app(const SystemPage()));
     await t.pumpAndSettle();
     expect(find.text('0.5.0'), findsOneWidget);
-    expect(find.text('3시간 12분'), findsOneWidget);
-    expect(find.text('좋음 (-51 dBm)'), findsOneWidget);
+    expect(find.text('3 h 12 min'), findsOneWidget);
+    expect(find.text('Good (-51 dBm)'), findsOneWidget);
     expect(find.text('192.168.0.156'), findsOneWidget);
-    expect(find.text('등록된 휴대폰 (2 / 5)'), findsOneWidget);
-    expect(find.text('이 휴대폰'), findsOneWidget);
-    expect(find.text('등록 해지'), findsOneWidget);
-    expect(find.text('스피커 다시 시작'), findsOneWidget);
+    expect(find.text('Registered phones (2 / 5)'), findsOneWidget);
+    expect(find.text('This phone'), findsOneWidget);
+    expect(find.text('Revoke'), findsOneWidget);
+    expect(find.text('Restart speaker'), findsOneWidget);
   });
 
-  testWidgets('키 화면: 휴대폰 키는 가려서 보인다', (t) async {
+  testWidgets('Keys page: phone keys are masked', (t) async {
     await t.pumpWidget(app(const KeysPage()));
     await t.pumpAndSettle();
     expect(find.text('••••WXYZ'), findsOneWidget);
-    expect(find.text('저장됨'), findsOneWidget);
-    expect(find.text('바꾸기'), findsOneWidget);
-    expect(find.text('넣기'), findsNWidgets(2)); // the Gemini key and Telegram token are not on the speaker
-    expect(find.text('Gemini API 키'), findsNWidgets(2)); // two rows: speaker and phone
+    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Replace'), findsOneWidget);
+    expect(find.text('Add'), findsNWidgets(2)); // the Gemini key and Telegram token are not on the speaker
+    expect(find.text('Gemini API key'), findsNWidgets(2)); // two rows: speaker and phone
   });
 }

@@ -9,8 +9,8 @@ These are the feature table, design documents and app screen drawings used while
 | `design-voice-saver-mode.md` | Chapters 17 and 18 | Design for Saver mode and choosing an AI |
 | `design-notes-schedule.md` | Chapter 16 | Design for notes, schedule, and reminders |
 | `dev-environment.md` | Chapter 1 | The development environment (version table, install commands, common problems) |
-| `AI-PA 앱 화면.pdf` | Chapter 11, Appendix F | The 25 screens of the finished app (one screen per page) |
-| `Jarvis 스피커 앱 디자인.html` | Chapter 11 | The first design canvas, exported (11 screens) |
+| `ai-pa-app-screens.pdf` | Chapter 11, Appendix F | The 25 screens of the finished app (one screen per page) |
+| `jarvis-app-design.html` | Chapter 11 | The first design canvas, exported (11 screens; its labels are still in Korean) |
 
 - Dates and "Phase N" labels are kept as they were recorded during the build. The book calls them "Chapter N."
 - The plan document, step-by-step work logs and root cause analysis (RCA) documents are not included. The same content is in the matching chapters of the book, and the code comments also point to the book's chapters and sections.

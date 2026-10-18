@@ -58,7 +58,7 @@ void main() {
 
   HomeCubit build() => HomeCubit(devices, control, current, events);
 
-  test('상태를 불러오고 실시간 이벤트로 갱신한다', () async {
+  test('loads status and updates on live events', () async {
     final c = build();
     await c.refresh();
     expect(c.state.status?.volume, 40);
@@ -75,7 +75,7 @@ void main() {
     await c.close();
   });
 
-  test('401이면 재등록 안내 상태', () async {
+  test('401 puts it in the re-register prompt state', () async {
     when(() => devices.status(any())).thenAnswer((_) async => Left(DeviceFailure.fromStatus(401, null)));
     final c = build();
     await c.refresh();
@@ -83,7 +83,7 @@ void main() {
     await c.close();
   });
 
-  test('대화 중이면 버튼이 대화 끝내기', () async {
+  test('while talking, the button ends the conversation', () async {
     when(() => devices.status(any())).thenAnswer((_) async => Right(status.copyWith(voiceState: 'live')));
     when(() => control.stopVoice()).thenAnswer((_) async => const Right(unit));
     final c = build();
@@ -94,7 +94,7 @@ void main() {
     await c.close();
   });
 
-  test('볼륨 실패 시 다시 불러온다', () async {
+  test('reloads when setting volume fails', () async {
     when(() => control.setVolume(70))
         .thenAnswer((_) async => const Left(DeviceFailure(errorKey: ErrorKeys.deviceTimeout)));
     final c = build();

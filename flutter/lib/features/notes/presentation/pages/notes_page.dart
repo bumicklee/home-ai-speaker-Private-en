@@ -12,7 +12,7 @@ import 'notes_settings_page.dart';
 import 'notes_texts.dart';
 import 'notes_widgets.dart';
 
-/// Notes and schedule list (design "메모·일정"): search, schedule/notes/trash tabs, create new
+/// Notes and schedule list (design "Notes & schedule"): search, schedule/notes/trash tabs, create new
 class NotesPage extends StatelessWidget {
   const NotesPage({super.key});
 

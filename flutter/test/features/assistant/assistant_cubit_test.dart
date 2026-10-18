@@ -27,13 +27,14 @@ const saved = AssistantSettings(
   timezone: 'Asia/Seoul',
 );
 
-const gangnam = PlaceParts(
-  isoCountryCode: 'KR',
-  country: '대한민국',
-  administrativeArea: '서울특별시',
-  subLocality: '강남구',
-  thoroughfare: '테헤란로',
-  name: '역삼동 736-1',
+const mission = PlaceParts(
+  isoCountryCode: 'US',
+  country: 'United States',
+  administrativeArea: 'California',
+  locality: 'San Francisco',
+  subLocality: 'Mission District',
+  thoroughfare: 'Valencia St',
+  name: '500 Valencia St',
 );
 
 void main() {
@@ -46,7 +47,7 @@ void main() {
     when(() => repo.settings()).thenAnswer((_) async => const Right(saved));
     when(() => repo.voices()).thenAnswer((_) async => const Right(['alloy', 'marin', 'verse']));
     when(() => repo.memories()).thenAnswer(
-        (_) async => const Right([AssistantMemory(key: 'favorite_food', value: '김치찌개')]));
+        (_) async => const Right([AssistantMemory(key: 'favorite_food', value: 'kimchi stew')]));
   });
 
   Future<AssistantCubit> loaded() async {
@@ -55,7 +56,7 @@ void main() {
     return c;
   }
 
-  test('설정·보이스·기억 수를 불러온다', () async {
+  test('loads settings, voices and memory count', () async {
     final c = await loaded();
     expect(c.state.original, saved);
     expect(c.state.draft, saved);
@@ -65,7 +66,7 @@ void main() {
     await c.close();
   });
 
-  test('불러오기 실패면 failure', () async {
+  test('load failure gives failure', () async {
     when(() => repo.settings()).thenAnswer((_) async => const Left(DeviceFailure.timeout()));
     final c = await loaded();
     expect(c.state.draft, isNull);
@@ -73,11 +74,11 @@ void main() {
     await c.close();
   });
 
-  test('저장은 바뀐 키만 보내고 기기 응답으로 원본을 바꾼다', () async {
-    final edited = saved.copyWith(name: '자비스', autoMemory: true);
+  test('save sends only changed keys and replaces the original with the device response', () async {
+    final edited = saved.copyWith(name: 'Friday', autoMemory: true);
     when(() => repo.update(any())).thenAnswer((_) async => Right(edited));
     final c = await loaded();
-    c.edit((d) => d.copyWith(name: '자비스'));
+    c.edit((d) => d.copyWith(name: 'Friday'));
     c.edit((d) => d.copyWith(autoMemory: true));
     c.edit((d) => d.copyWith(units: 'imperial'));
     c.edit((d) => d.copyWith(units: 'metric')); // a value changed back is not sent
@@ -85,13 +86,13 @@ void main() {
 
     expect(await c.save(), isNull);
     final sent = verify(() => repo.update(captureAny())).captured.single as Map<String, dynamic>;
-    expect(sent, {'name': '자비스', 'auto_memory': true});
+    expect(sent, {'name': 'Friday', 'auto_memory': true});
     expect(c.state.original, edited);
     expect(c.state.dirty, isFalse);
     await c.close();
   });
 
-  test('바뀐 것이 없으면 보내지 않는다', () async {
+  test('sends nothing when nothing changed', () async {
     final c = await loaded();
     c.edit((d) => d.copyWith(location: '  '));
     c.edit((d) => d.copyWith(location: ''));
@@ -100,7 +101,7 @@ void main() {
     await c.close();
   });
 
-  test('저장 실패(400 INVALID_ARG)면 고친 값을 남긴다', () async {
+  test('save failure (400 INVALID_ARG) keeps the edited values', () async {
     when(() => repo.update(any())).thenAnswer((_) async => Left(DeviceFailure.fromStatus(400, 'INVALID_ARG')));
     final c = await loaded();
     c.edit((d) => d.copyWith(voice: 'verse'));
@@ -112,52 +113,52 @@ void main() {
     await c.close();
   });
 
-  group('검사 (UTF-8 바이트)', () {
-    test('이름은 32바이트까지: 한글 10자(30바이트) 통과, 11자(33바이트) 거부', () async {
+  group('validation (UTF-8 bytes)', () {
+    test('name up to 32 bytes: 10 three-byte chars (30 bytes) pass, 11 (33 bytes) rejected', () async {
       final c = await loaded();
-      c.edit((d) => d.copyWith(name: '가나다라마바사아자차'));
+      c.edit((d) => d.copyWith(name: '€' * 10));
       expect(c.state.errors, isEmpty);
-      c.edit((d) => d.copyWith(name: '가나다라마바사아자차카'));
+      c.edit((d) => d.copyWith(name: '€' * 11));
       expect(c.state.errors, [AssistantFieldError.nameTooLong]);
       expect(await c.save(), isNull);
       verifyNever(() => repo.update(any()));
       await c.close();
     });
 
-    test('빈 이름은 거부', () {
+    test('rejects an empty name', () {
       expect(saved.copyWith(name: '  ').validate(), [AssistantFieldError.nameEmpty]);
     });
 
-    test('동네는 96바이트까지', () {
-      expect(saved.copyWith(location: '가' * 32).validate(), isEmpty); // 96 bytes
-      expect(saved.copyWith(location: '${'가' * 32}a').validate(), [AssistantFieldError.locationTooLong]);
+    test('location up to 96 bytes', () {
+      expect(saved.copyWith(location: '€' * 32).validate(), isEmpty); // 96 bytes
+      expect(saved.copyWith(location: '${'€' * 32}a').validate(), [AssistantFieldError.locationTooLong]);
     });
 
-    test('목적은 600바이트까지', () {
+    test('purpose up to 600 bytes', () {
       expect(saved.copyWith(purpose: 'a' * 600).validate(), isEmpty);
       expect(saved.copyWith(purpose: 'a' * 601).validate(), [AssistantFieldError.purposeTooLong]);
     });
   });
 
-  group('현재 위치로', () {
-    test('동네 이름과 (표에 있는) 휴대폰 시간대를 넣는다. 좌표는 보내지 않는다', () async {
-      when(() => location.currentPlace()).thenAnswer((_) async => gangnam);
+  group('use current location', () {
+    test('fills in the place name and the phone time zone (when in the table); coordinates are not sent', () async {
+      when(() => location.currentPlace()).thenAnswer((_) async => mission);
       when(() => location.phoneTimezone()).thenAnswer((_) async => 'Asia/Tokyo');
-      when(() => repo.update(any())).thenAnswer((_) async => Right(saved.copyWith(location: '서울 강남구 역삼동')));
+      when(() => repo.update(any())).thenAnswer((_) async => Right(saved.copyWith(location: 'Mission District, San Francisco, California, United States')));
       final c = await loaded();
       expect(await c.locate(), LocateResult.filled);
-      expect(c.state.draft?.location, '서울 강남구 역삼동');
+      expect(c.state.draft?.location, 'Mission District, San Francisco, California, United States');
       expect(c.state.draft?.timezone, 'Asia/Tokyo');
       expect(c.state.timezone, isNull);
 
       await c.save();
       final sent = verify(() => repo.update(captureAny())).captured.single as Map<String, dynamic>;
-      expect(sent, {'location': '서울 강남구 역삼동', 'timezone': 'Asia/Tokyo'});
+      expect(sent, {'location': 'Mission District, San Francisco, California, United States', 'timezone': 'Asia/Tokyo'});
       await c.close();
     });
 
-    test('표에 없는 시간대면 시간대는 그대로 두고 Asia/Seoul·UTC 후보를 보인다', () async {
-      when(() => location.currentPlace()).thenAnswer((_) async => gangnam);
+    test('time zone not in the table: keeps the time zone and offers Asia/Seoul and UTC', () async {
+      when(() => location.currentPlace()).thenAnswer((_) async => mission);
       when(() => location.phoneTimezone()).thenAnswer((_) async => 'Asia/Kolkata');
       final c = await loaded();
       expect(await c.locate(), LocateResult.filledTimezoneUnsupported);
@@ -171,7 +172,7 @@ void main() {
       await c.close();
     });
 
-    test('권한 거부는 결과로 알리고 값은 바꾸지 않는다', () async {
+    test('permission denial is reported as the result and values stay unchanged', () async {
       when(() => location.currentPlace())
           .thenThrow(const LocationLookupException(LocationError.deniedForever));
       final c = await loaded();

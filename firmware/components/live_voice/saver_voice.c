@@ -909,9 +909,7 @@ static bool gemini_tts_speak(const char *key, const char *voice, const char *sen
 
     cJSON *req = cJSON_CreateObject();
     gemini_add_system_instruction(req,
-        "Speak only the given text verbatim, nothing else. Speak slowly and clearly, in a warm tone "
-        "(\xec\xb2\x9c\xec\xb2\x9c\xed\x9e\x88 \xeb\x98\x90\xeb\xb0\x95\xeb\x98\x91\xed\x9e\x88 "
-        "\xeb\x94\xb0\xeb\x9c\xbb\xed\x95\x98\xea\xb2\x8c).");
+        "Speak only the given text verbatim, nothing else. Speak slowly and clearly, in a warm tone.");
     cJSON *contents = cJSON_AddArrayToObject(req, "contents");
     cJSON *turn = cJSON_CreateObject();
     cJSON_AddStringToObject(turn, "role", "user");

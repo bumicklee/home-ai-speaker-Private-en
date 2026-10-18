@@ -22,12 +22,12 @@ void main() {
   final hospital = Note(
     id: 'n_1',
     kind: NoteKind.event,
-    title: '병원',
+    title: 'Doctor',
     start: NoteTime.at(today.add(const Duration(days: 1, hours: 15))),
     remind: const [1440, 60],
     rev: 4,
   );
-  const milk = Note(id: 'n_2', title: '우유 사기', body: '마트 갈 때', rev: 3);
+  const milk = Note(id: 'n_2', title: 'Buy milk', body: 'On the way to the store', rev: 3);
 
   setUpAll(() {
     registerFallbackValue(const Note(id: 'x'));
@@ -55,65 +55,66 @@ void main() {
   }
 
   Widget app() => const MaterialApp(
-        locale: Locale('ko'),
+        locale: Locale('en'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: NotesPage(),
       );
 
-  testWidgets('일정 묶음·알림 표시, 메모 탭', (tester) async {
+  testWidgets('event groups and reminder badges, memos tab', (tester) async {
     tall(tester);
     when(() => repo.sync()).thenAnswer((_) async => Right(NotesCache(rev: 4, items: [hospital, milk])));
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    expect(find.textContaining('내일 ·'), findsOneWidget);
-    expect(find.text('병원'), findsOneWidget);
-    expect(find.text('하루 전 · 1시간 전'), findsOneWidget);
-    expect(find.text('알림 예정'), findsOneWidget);
-    expect(find.text('새로 만들기'), findsOneWidget);
-    await tester.tap(find.text('메모'));
+    expect(find.textContaining('Tomorrow ·'), findsOneWidget);
+    expect(find.text('Doctor'), findsOneWidget);
+    expect(find.text('1 day before · 1 hr before'), findsOneWidget);
+    expect(find.text('Reminder set'), findsOneWidget);
+    expect(find.text('New'), findsOneWidget);
+    await tester.tap(find.text('Memos'));
     await tester.pumpAndSettle();
-    expect(find.text('우유 사기'), findsOneWidget);
-    expect(find.text('병원'), findsNothing);
+    expect(find.text('Buy milk'), findsOneWidget);
+    expect(find.text('Doctor'), findsNothing);
   });
 
-  testWidgets('스피커에 닿지 않으면 안내 + 새로 만들기 없음', (tester) async {
+  testWidgets('when the speaker is unreachable: notice and no New button', (tester) async {
     tall(tester);
     when(() => repo.sync()).thenAnswer((_) async => const Left(NetworkFailure()));
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    expect(find.text('집 Wi-Fi에서 고칠 수 있어요'), findsOneWidget);
-    expect(find.text('새로 만들기'), findsNothing);
-    expect(find.text('병원'), findsOneWidget, reason: '사본은 보인다');
+    expect(find.text('You can edit on your home Wi-Fi'), findsOneWidget);
+    expect(find.text('New'), findsNothing);
+    expect(find.text('Doctor'), findsOneWidget, reason: 'the local copy is still shown');
   });
 
-  testWidgets('편집: 알림 칩은 3개까지, 삭제는 스피커에서도 지워진다고 묻고 DELETE', (tester) async {
+  testWidgets('edit: up to 3 reminder chips; delete warns it is removed from the speaker too, then DELETEs', (tester) async {
     tall(tester);
     when(() => repo.sync()).thenAnswer((_) async => Right(NotesCache(rev: 4, items: [hospital, milk])));
     when(() => repo.delete(any())).thenAnswer((_) async => const Right(NotesCache(rev: 4, items: [milk])));
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('병원'));
+    await tester.tap(find.text('Doctor'));
     await tester.pumpAndSettle();
-    expect(find.text('일정 편집'), findsOneWidget);
-    expect(find.text('스피커가 하루 전, 1시간 전에 말로 알려 줘요'), findsOneWidget);
-    expect(find.text('여러 개 고를 수 있어요'), findsOneWidget);
+    expect(find.text('Edit event'), findsOneWidget);
+    expect(find.text('The speaker will tell you 1 day before, 1 hr before'), findsOneWidget);
+    expect(find.text('You can pick several'), findsOneWidget);
 
-    await tester.tap(find.text('10분 전'));
+    await tester.tap(find.text('10 min before'));
     await tester.pumpAndSettle();
-    expect(find.text('최대 3개'), findsOneWidget);
-    expect(find.text('스피커가 하루 전, 1시간 전, 10분 전에 말로 알려 줘요'), findsOneWidget);
-    await tester.tap(find.text('30분 전')); // disabled
+    expect(find.text('Up to 3'), findsOneWidget);
+    expect(find.text('The speaker will tell you 1 day before, 1 hr before, 10 min before'), findsOneWidget);
+    await tester.tap(find.text('30 min before')); // disabled
     await tester.pumpAndSettle();
-    expect(find.text('스피커가 하루 전, 1시간 전, 10분 전에 말로 알려 줘요'), findsOneWidget);
+    expect(find.text('The speaker will tell you 1 day before, 1 hr before, 10 min before'), findsOneWidget);
 
-    await tester.tap(find.text('삭제'));
+    await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
-    expect(find.text('“병원” 지울까요?'), findsOneWidget);
-    expect(find.text('스피커에서도 지워지고 되살릴 수 없어요. 다른 가족 휴대폰에서도 사라져요.'), findsOneWidget);
-    await tester.tap(find.text('지우기'));
+    expect(find.text('Delete “Doctor”?'), findsOneWidget);
+    expect(find.text("It will be deleted from the speaker too and can't be restored. It will also disappear from other family phones."), findsOneWidget);
+    // the edit page's Delete button and the dialog's action share the same English label
+    await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pumpAndSettle();
     verify(() => repo.delete(hospital)).called(1);
-    expect(find.text('일정 편집'), findsNothing);
+    expect(find.text('Edit event'), findsNothing);
   });
 }

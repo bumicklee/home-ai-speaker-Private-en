@@ -68,7 +68,7 @@ The biggest share is speech synthesis. The shorter the speaker talks, the cheape
 | Memory (internal RAM about 18KB) | △ | Use **only one TLS connection at a time** (transcription → AI → synthesis in order). The current conversation WebSocket is also one TLS connection, so it's the same level. Audio and conversation history in PSRAM. **Reusing the same connection (keep-alive)** cuts down TLS handshakes |
 | Conversation history | ✅ | Keep the last 20 turns in PSRAM and send them every time (`store:false`, nothing kept on the server). The instructions stay fixed at the front → cache discount |
 | Web search | ✅ | The Responses API `web_search` tool |
-| Hang-up phrase ("goodbye computer"; "잘가 컴퓨터" also works) | ✅ | Run the current matcher (`hangup_phrase`) on the transcription result as is |
+| Hang-up phrase ("goodbye computer") | ✅ | Run the current matcher (`hangup_phrase`) on the transcription result as is |
 
 ### 2.3 Reply Speed (Estimate)
 
@@ -89,7 +89,7 @@ Ways to cut it: connection reuse, **splitting the AI's reply into sentences and 
 |:--|:--|:--|
 | Key | ✅ | A Google AI Studio API key (a single string). Like the current OpenAI key: app → BLE → the speaker's secure storage, also remembered on the phone |
 | Gemini Live | ✅ | Live API WebSocket (`BidiGenerateContent`). Input 16kHz PCM (same as now), output 24kHz → converted to 16kHz. Supports function calling and barge-in. Web search is the Google Search tool (5,000 calls a month free, then $14 per 1,000) |
-| Gemini Saver | ✅ | Put the audio (WAV) straight into `generateContent` and get the reply text → there's no transcription stage, so it's **one stage shorter** than OpenAI Saver. However, the hang-up phrase ("goodbye computer" / "잘가 컴퓨터") and the Telegram guard need "what the person said," so ask it to **also return the transcribed text** along with the reply (JSON output) |
+| Gemini Saver | ✅ | Put the audio (WAV) straight into `generateContent` and get the reply text → there's no transcription stage, so it's **one stage shorter** than OpenAI Saver. However, the hang-up phrase ("goodbye computer") and the Telegram guard need "what the person said," so ask it to **also return the transcribed text** along with the reply (JSON output) |
 | Synthesis | ✅ | `gemini-3.8-flash-lite-tts`, output PCM 24kHz |
 | Tools | ✅ | The function declaration format differs slightly from OpenAI → convert one tool list into both formats |
 | Backend delegation | Different | There's no gpt-live-1-style "hand it to the backend model" → call the tools directly (same way as Saver mode) |
@@ -138,7 +138,7 @@ Wake word/button ─▶ voice_engine (depending on settings)
 
 ### 5.2 Transcription
 - `POST /v1/audio/transcriptions` (`gpt-transcribe`, WAV, no `language: ko`, automatic — to handle speech mixed with English).
-- If the result is empty or noise-like (1–2 characters, or the whole result is only a filler such as "Thank you for watching.", "Thank you.", "Bye." or "감사합니다" (thank you); never a partial match), ignore it and keep listening → so TV or noise doesn't run up AI charges.
+- If the result is empty or noise-like (1–2 characters, or the whole result is only a filler such as "Thank you for watching.", "Thank you." or "Bye."; never a partial match), ignore it and keep listening → so TV or noise doesn't run up AI charges.
 
 ### 5.3 Text Model
 - `POST /v1/responses`, model `gpt-5.6-luna`, `store:false`, instructions = the current Live instructions trimmed **short and easy to read aloud** + the tool list (same JSON schema as now).
@@ -155,7 +155,7 @@ Wake word/button ─▶ voice_engine (depending on settings)
 
 ### 5.5 Voice
 - The TTS voice list is different (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer, and so on). Use the assistant settings' voice as is if the same name exists; otherwise the closest one.
-- TTS `instructions`: "천천히, 또박또박, 따뜻하게" (slowly, clearly, warmly) (for elderly users).
+- TTS `instructions`: "slowly, clearly, warmly" (for elderly users).
 
 ### 5.6 Memory and Stability
 - Audio buffer 1MB in PSRAM (30 seconds), conversation history in PSRAM, 1 new task (stack in PSRAM; it never runs at the same time as the current conversation task → first consider sharing the conversation task).
@@ -210,7 +210,7 @@ Wake word/button ─▶ voice_engine (depending on settings)
 | 5 | Keys | **The app (the phone's secure storage) remembers both the OpenAI and Gemini keys** and sends them again when needed. **An AI whose key isn't on the speaker can't be chosen** (locked on screen, with an "Enter key" prompt). First-time setup needs at least one of the two |
 | 6 | Order of work | Stage 1 OpenAI Saver → stage 2 Gemini Saver → stage 3 Gemini Live → stage 4 polish |
 | 7 | Design | Implement after canvas approval: first-time setup (AI → required key → mode), Assistant (AI and conversation mode row), new screen "AI & Conversation Mode", Korean Tutor (Live notice) |
-| 8 | Registering a new speaker | **It can't be registered without the chosen AI's key.** In first-time setup, enter that AI's key, or choose "이미 이 AI 키가 저장된 스피커예요" (This speaker already has this AI's key), which is checked with `device.info` after connecting. If neither, "Find speaker" is locked |
+| 8 | Registering a new speaker | **It can't be registered without the chosen AI's key.** In first-time setup, enter that AI's key, or choose "This speaker already has this AI's key", which is checked with `device.info` after connecting. If neither, "Find speaker" is locked |
 | 9 | Changing settings | Change the AI and Live/Saver any time under Assistant > "AI & Conversation Mode" |
 
 **Behavior when there is no key**

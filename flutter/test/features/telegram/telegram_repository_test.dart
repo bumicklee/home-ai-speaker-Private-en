@@ -60,11 +60,11 @@ void main() {
     repo = TelegramRepositoryImpl(remote, TelegramBotApiDataSource(dio), ble, current, events);
   });
 
-  test('overview: 펌웨어 JSON (chats·state·bot·unread)을 읽는다', () async {
+  test('overview: reads the firmware JSON (chats, state, bot, unread)', () async {
     when(() => remote.chats()).thenAnswer((_) async => {
           'chats': [
-            {'chat_id': 12345678, 'alias': '엄마', 'title': 'Kim Mira', 'type': 'private'},
-            {'chat_id': -1001234567890.0, 'alias': '가족방', 'title': '우리 가족', 'type': 'supergroup'},
+            {'chat_id': 12345678, 'alias': 'Mom', 'title': 'Kim Mira', 'type': 'private'},
+            {'chat_id': -1001234567890.0, 'alias': 'Family', 'title': 'Our Family', 'type': 'supergroup'},
           ],
           'state': 'ok',
           'bot': 'jarvis_home_bot',
@@ -76,12 +76,12 @@ void main() {
     expect(o.bot, 'jarvis_home_bot');
     expect(o.unread, 2);
     expect(o.hasToken, isTrue);
-    expect(o.chats[1], const TelegramChat(chatId: -1001234567890, alias: '가족방', title: '우리 가족', type: 'supergroup'));
+    expect(o.chats[1], const TelegramChat(chatId: -1001234567890, alias: 'Family', title: 'Our Family', type: 'supergroup'));
     expect(o.chats[1].isGroup, isTrue);
     verifyNever(() => remote.secrets());
   });
 
-  test('overview: state off면 /status secrets로 토큰 유무를 확인한다', () async {
+  test('overview: when state is off, checks /status secrets for the token', () async {
     when(() => remote.chats()).thenAnswer((_) async => {'chats': [], 'state': 'off', 'bot': '', 'unread': 0});
     when(() => remote.secrets()).thenAnswer((_) async => {'openai_key': true, 'tg_bot_token': false});
     final o = (await repo.overview()).getOrElse(() => throw 'fail');
@@ -91,7 +91,7 @@ void main() {
     expect((await repo.overview()).getOrElse(() => throw 'fail').hasToken, isTrue);
   });
 
-  test('pair: 코드·만료·봇 이름, 토큰이 없으면 409 NO_TOKEN', () async {
+  test('pair: code, expiry, bot name; 409 NO_TOKEN without a token', () async {
     when(() => remote.pair()).thenAnswer((_) async => {'code': '482913', 'expires_s': 300, 'bot': 'jarvis_home_bot'});
     expect(await repo.startPairing(),
         const Right(PairingCode(code: '482913', expiresIn: Duration(minutes: 5), bot: 'jarvis_home_bot')));
@@ -101,7 +101,7 @@ void main() {
     expect(f, isA<DeviceFailure>().having((d) => d.status, 'status', 409).having((d) => d.code, 'code', 'NO_TOKEN'));
   });
 
-  test('saveTokenToSpeaker: BLE로 tg_bot_token을 쓰고 창을 닫고 끊는다', () async {
+  test('saveTokenToSpeaker: writes tg_bot_token over BLE, closes the window, disconnects', () async {
     expect(await repo.saveTokenToSpeaker(token), const Right(unit));
     verifyInOrder([
       () => ble.connectById(mac),
@@ -111,7 +111,7 @@ void main() {
     ]);
   });
 
-  test('saveTokenToSpeaker: BLE 실패는 BleFailure, 연결은 끊는다', () async {
+  test('saveTokenToSpeaker: BLE failure is BleFailure, still disconnects', () async {
     when(() => session.setSecret(any(), any())).thenThrow(const BleException(BleErrorCode.disconnected));
     final f = (await repo.saveTokenToSpeaker(token)).swap().getOrElse(() => throw 'fail');
     expect(f, isA<BleFailure>());
@@ -119,31 +119,31 @@ void main() {
     verifyNever(() => session.closeWindow());
   });
 
-  test('saveTokenToSpeaker: 스피커를 못 찾으면 BleFailure', () async {
+  test('saveTokenToSpeaker: BleFailure when the speaker is not found', () async {
     when(() => ble.connectById(mac)).thenThrow(const BleException(BleErrorCode.notFound));
     expect((await repo.saveTokenToSpeaker(token)).isLeft(), isTrue);
   });
 
-  test('rename·options: 펌웨어 경로와 본문', () async {
+  test('rename and options: firmware paths and bodies', () async {
     when(() => remote.rename(any(), any())).thenAnswer((_) async {});
     when(() => remote.saveOptions(any()))
         .thenAnswer((_) async => {'auto_read': true, 'quiet_start': 23, 'quiet_end': 6});
-    expect(await repo.rename(-100123, '가족'), const Right(unit));
-    verify(() => remote.rename(-100123, '가족')).called(1);
+    expect(await repo.rename(-100123, 'Family'), const Right(unit));
+    verify(() => remote.rename(-100123, 'Family')).called(1);
     final saved = await repo.saveOptions(const TelegramOptions(autoRead: true, quietStart: 23, quietEnd: 6));
     expect(saved, const Right(TelegramOptions(autoRead: true, quietStart: 23, quietEnd: 6)));
     verify(() => remote.saveOptions({'auto_read': true, 'quiet_start': 23, 'quiet_end': 6})).called(1);
   });
 
-  test('이벤트: tg_paired·tg_status·tg_message', () async {
+  test('events: tg_paired, tg_status, tg_message', () async {
     final paired = repo.paired().first;
     final status = repo.statusChanges().first;
     final unread = repo.unreadChanges().first;
     stream
-      ..add(const DeviceEvent('tg_paired', {'chat_id': 42, 'title': '우리 가족', 'type': 'group'}))
+      ..add(const DeviceEvent('tg_paired', {'chat_id': 42, 'title': 'Our Family', 'type': 'group'}))
       ..add(const DeviceEvent('tg_status', {'state': 'conflict'}))
       ..add(const DeviceEvent('tg_message', {'unread': 3}));
-    expect(await paired, const PairedChat(chatId: 42, title: '우리 가족', type: 'group'));
+    expect(await paired, const PairedChat(chatId: 42, title: 'Our Family', type: 'group'));
     expect(await status, TelegramState.conflict);
     expect(await unread, 3);
   });
@@ -152,7 +152,7 @@ void main() {
     final url = 'https://api.telegram.org/bot$token/getMe';
     RequestOptions req() => RequestOptions(path: url);
 
-    test('맞는 토큰: 봇 이름', () async {
+    test('valid token: bot name', () async {
       when(() => dio.get<Map<String, dynamic>>(url)).thenAnswer((_) async => Response(
             requestOptions: req(),
             statusCode: 200,
@@ -164,7 +164,7 @@ void main() {
       expect(await repo.checkToken(token), const Right('jarvis_home_bot'));
     });
 
-    test('Telegram이 거절(401): null', () async {
+    test('Telegram rejects (401): null', () async {
       when(() => dio.get<Map<String, dynamic>>(url)).thenThrow(DioException(
         requestOptions: req(),
         response: Response(requestOptions: req(), statusCode: 401),
@@ -173,12 +173,12 @@ void main() {
       expect(await repo.checkToken(token), const Right(null));
     });
 
-    test('모양이 틀린 토큰은 보내지 않고 null', () async {
+    test('malformed token is not sent, null', () async {
       expect(await repo.checkToken('abc/../x'), const Right(null));
       verifyNever(() => dio.get<Map<String, dynamic>>(any()));
     });
 
-    test('Telegram에 닿지 못함: NetworkFailure, 원문(URL·토큰)은 남기지 않는다', () async {
+    test('cannot reach Telegram: NetworkFailure, raw text (URL, token) is not kept', () async {
       when(() => dio.get<Map<String, dynamic>>(url))
           .thenThrow(DioException(requestOptions: req(), type: DioExceptionType.connectionError, message: url));
       final f = (await repo.checkToken(token)).swap().getOrElse(() => throw 'fail');

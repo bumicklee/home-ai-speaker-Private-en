@@ -14,10 +14,10 @@ import '../../domain/repositories/assistant_repository.dart';
 enum AiLock {
   none,
 
-  /// The speaker has no key for this provider ("키 없음 · 쓸 수 없어요")
+  /// The speaker has no key for this provider ("No key · can't use")
   noKey,
 
-  /// This firmware can't do it yet (not in `/status.ai.available`, "준비 중")
+  /// This firmware can't do it yet (not in `/status.ai.available`, "Coming soon")
   notReady,
 }
 
@@ -147,11 +147,11 @@ class AiModeCubit extends Cubit<AiModeState> {
     });
   }
 
-  /// Key remembered on the phone (pre-fills the "키 넣기" field)
+  /// Key remembered on the phone (pre-fills the "Add key" field)
   Future<String> rememberedKey(AiProvider p) async =>
       (p == AiProvider.openai ? await _vault.openAiKey() : await _vault.geminiKey()) ?? '';
 
-  /// "○○ 키 넣기" (enter key): BLE `secret.set` (after the user holds Key2 for 3 seconds to open the BLE window). On success, the phone remembers it too
+  /// "Add ○○ key": BLE `secret.set` (after the user holds Key2 for 3 seconds to open the BLE window). On success, the phone remembers it too
   Future<Failure?> sendKey(AiProvider p, String value) async {
     final r = await _system.sendKeyOverBle(p.secretKey, value);
     if (isClosed) return r.fold((f) => f, (_) => null);

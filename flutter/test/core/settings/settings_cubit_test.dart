@@ -12,12 +12,12 @@ void main() {
     prefs = await SharedPreferences.getInstance();
   });
 
-  test('기본값: 시스템 테마, 시스템 언어', () {
+  test('defaults: system theme, system language', () {
     expect(SettingsCubit(prefs).state, const SettingsState());
   });
 
   blocTest<SettingsCubit, SettingsState>(
-    '테마·언어를 바꾸고 저장한다',
+    'changes and saves theme and language',
     build: () => SettingsCubit(prefs),
     act: (c) async {
       await c.setThemeMode(ThemeMode.dark);
@@ -36,13 +36,13 @@ void main() {
     },
   );
 
-  test('저장된 값을 읽어 온다', () async {
+  test('loads saved values', () async {
     SharedPreferences.setMockInitialValues({'theme_mode': 'light', 'locale': 'en'});
     final c = SettingsCubit(await SharedPreferences.getInstance());
     expect(c.state, const SettingsState(themeMode: ThemeMode.light, locale: Locale('en')));
   });
 
-  test('지원하지 않는 시스템 언어는 ko', () {
+  test('unsupported system language falls back to ko', () {
     const supported = [Locale('en'), Locale('ko')];
     expect(SettingsCubit.resolve(const Locale('ja'), supported), const Locale('ko'));
     expect(SettingsCubit.resolve(const Locale('en', 'US'), supported), const Locale('en'));

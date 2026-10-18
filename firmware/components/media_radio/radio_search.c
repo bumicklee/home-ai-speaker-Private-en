@@ -1,6 +1,6 @@
 /*
  * Station search via Radio-Browser (https://www.radio-browser.info) (RAD-02).
- * "재즈 라디오 틀어 줘" (play jazz radio) → if no preset has jazz, search here with tag=jazz.
+ * "Play jazz radio" → if no preset has jazz, search here with tag=jazz.
  * Picks up to 3 stations, by popularity (clickcount), that look playable by this player (direct MP3/AAC streams).
  * The URL alone doesn't always reveal HLS (a playlist that contains HLS), so if the player fails it moves to the next candidate.
  * The response is external data, so it is not logged (station names only).

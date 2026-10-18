@@ -246,7 +246,7 @@ Search result order: schedule items soonest first (past ones at the end, most re
 |:--|:--|
 | Home | "Notes & Schedule" tile (below Korean Tutor). Subtitle: "2 items today · next: hospital at 3" |
 | Notes & Schedule | Search field. Tabs **Schedule** (today, tomorrow, this week, later, past) / **Notes** / **Trash** (restore, delete permanently). Next to each item, a reminder icon and a label like "1 hour before", and the status (sent, acknowledged, no answer, missed) |
-| Edit item | Note/schedule item, title, contents, date and time, all-day. **Reminder time**: chips (on time, 10 min, 30 min, 1 hour, 2 hours, 1 day before, custom), multi-select, up to 3, "No reminder". Save / Delete (confirmation dialog "스피커에서도 지워져요" (It will be deleted from the speaker too)) |
+| Edit item | Note/schedule item, title, contents, date and time, all-day. **Reminder time**: chips (on time, 10 min, 30 min, 1 hour, 2 hours, 1 day before, custom), multi-select, up to 3, "No reminder". Save / Delete (confirmation dialog: it will be deleted from the speaker too) |
 | Reminder settings | Default reminder (timed items / all-day), all-day reminder time, reminders on/off, one line about cost |
 | Help | Example phrases: "Computer, add a hospital appointment at 3 tomorrow and remind me 1 hour before", "Computer, make a note to buy milk", "Computer, tell me tomorrow's schedule" |
 
@@ -260,7 +260,7 @@ Design: as before, draw it first on the Claude Artifacts design canvas, get it a
 - **Technical additions (from the app investigation)**
   - To read `"note"` from a 409 response, put the response body (`data`) into `DeviceApiException` (`core/errors/exceptions.dart`, `core/network/device_api_client.dart`). Existing behavior unchanged.
   - Add ErrorKeys and messages for the new error codes `FULL` and `CONFLICT` (right now every 409 shows as "busy").
-- Away from home: the copy is read-only + "집 Wi-Fi에서 고칠 수 있어요" (You can edit this on your home Wi-Fi).
+- Away from home: the copy is read-only + "You can edit on your home Wi-Fi".
 - Localization `notes_ko.arb`/`notes_en.arb`; tests (model, merge, conflict, reminder chips, cubit).
 
 ---

@@ -19,7 +19,7 @@ class MockEvents extends Mock implements DeviceEventService {}
 
 class MockRemote extends Mock implements NotesRemoteDataSource {}
 
-Map<String, dynamic> memo(String id, int rev, {String title = '메모', String state = 'active'}) =>
+Map<String, dynamic> memo(String id, int rev, {String title = 'Memo', String state = 'active'}) =>
     {'id': id, 'kind': 'memo', 'title': title, 'rev': rev, 'state': state};
 
 void main() {
@@ -42,24 +42,24 @@ void main() {
 
   tearDown(() => dir.delete(recursive: true));
 
-  group('합치기 (NotesCache.merge)', () {
+  group('merge (NotesCache.merge)', () {
     const n = Note(id: 'a', title: 'old', rev: 5);
 
-    test('rev가 큰 쪽이 이긴다', () {
+    test('the higher rev wins', () {
       final c = const NotesCache(rev: 5, items: [n]);
       expect(c.merge(6, [const Note(id: 'a', title: 'new', rev: 6)]).items.single.title, 'new');
       expect(c.merge(6, [const Note(id: 'a', title: 'stale', rev: 4)]).items.single.title, 'old');
       expect(c.merge(6, const []).rev, 6);
-      expect(c.merge(3, const []).rev, 5, reason: '사본 rev는 줄지 않는다');
+      expect(c.merge(3, const []).rev, 5, reason: 'the local copy rev never goes down');
     });
 
-    test('gone은 사본에서 지운다', () {
+    test('gone removes it from the local copy', () {
       final c = const NotesCache(rev: 5, items: [n, Note(id: 'b', rev: 2)]);
       final m = c.merge(7, [const Note(id: 'a', rev: 7, state: NoteState.gone)]);
       expect(m.items.map((x) => x.id), ['b']);
     });
 
-    test('전체(replace)면 받은 것에 없는 항목은 지운다', () {
+    test('a full (replace) sync removes items not received', () {
       final c = const NotesCache(rev: 50, items: [n]);
       final m = c.merge(3, [const Note(id: 'z', rev: 3)], replace: true);
       expect(m.items.map((x) => x.id), ['z']);
@@ -68,7 +68,7 @@ void main() {
   });
 
   group('sync', () {
-    test('처음엔 since=0으로 전체, 다음엔 since=rev로 바뀐 것만 받아 파일에 저장', () async {
+    test('first a full sync with since=0, then only changes with since=rev, saved to file', () async {
       when(() => remote.changes(0)).thenAnswer((_) async => {
             'rev': 10,
             'items': [memo('a', 3), memo('b', 10), memo('c', 9, state: 'gone')],
@@ -78,11 +78,11 @@ void main() {
 
       when(() => remote.changes(10)).thenAnswer((_) async => {
             'rev': 12,
-            'items': [memo('a', 11, title: '바뀜'), memo('b', 12, state: 'gone'), memo('d', 12)],
+            'items': [memo('a', 11, title: 'Changed'), memo('b', 12, state: 'gone'), memo('d', 12)],
           });
       final second = (await repo.sync()).getOrElse(() => throw 'x');
       expect(second.rev, 12);
-      expect({for (final n in second.items) n.id: n.title}, {'a': '바뀜', 'd': '메모'});
+      expect({for (final n in second.items) n.id: n.title}, {'a': 'Changed', 'd': 'Memo'});
 
       // the same copy from the file even after the app restarts
       final saved = await NotesLocalStore(directory: () async => dir).read('A1B2C3');
@@ -90,7 +90,7 @@ void main() {
       expect(saved.items.map((n) => n.id).toSet(), {'a', 'd'});
     });
 
-    test('스피커 rev가 사본보다 작으면(초기화) 전체를 다시 받아 바꾼다', () async {
+    test('if the speaker rev is below the local copy (reset), fetches everything again and replaces it', () async {
       await store.write('A1B2C3', const NotesCache(rev: 40, items: [Note(id: 'old', rev: 40)]));
       when(() => remote.changes(40)).thenAnswer((_) async => {'rev': 2, 'items': []});
       when(() => remote.changes(0)).thenAnswer((_) async => {
@@ -102,7 +102,7 @@ void main() {
       expect(c.rev, 2);
     });
 
-    test('스피커에 닿지 않으면 NetworkFailure, 사본은 그대로', () async {
+    test('NetworkFailure when the speaker is unreachable; the local copy stays as is', () async {
       await store.write('A1B2C3', const NotesCache(rev: 4, items: [Note(id: 'a', rev: 4)]));
       when(() => remote.changes(4)).thenThrow(const NetworkException('refused'));
       final r = await repo.sync();
@@ -111,48 +111,48 @@ void main() {
     });
   });
 
-  group('고치기·지우기', () {
+  group('update and delete', () {
     final event = Note(
-        id: 'n_1', kind: NoteKind.event, title: '병원', start: NoteTime.at(DateTime(2026, 10, 5, 15)), remind: const [60], rev: 5);
+        id: 'n_1', kind: NoteKind.event, title: 'Doctor', start: NoteTime.at(DateTime(2026, 10, 5, 15)), remind: const [60], rev: 5);
 
     setUp(() async {
       await store.write('A1B2C3', NotesCache(rev: 5, items: [event]));
     });
 
-    test('409 CONFLICT: 사본을 본문의 최신 항목으로 바꾸고 errorDeviceConflict', () async {
+    test('409 CONFLICT: replaces the local copy with the latest item from the body and returns errorDeviceConflict', () async {
       when(() => remote.update(any(), any())).thenThrow(DeviceApiException(409, 'CONFLICT', 'conflict', {
             'error': 'CONFLICT',
-            'note': {'id': 'n_1', 'kind': 'event', 'title': '병원 (말로 바꿈)', 'start': '2026-10-05T16:00', 'rev': 8},
+            'note': {'id': 'n_1', 'kind': 'event', 'title': 'Doctor (changed by voice)', 'start': '2026-10-05T16:00', 'rev': 8},
           }));
-      final draft = NoteDraft(kind: NoteKind.event, title: '병원 2', start: event.start, remind: const [30]);
+      final draft = NoteDraft(kind: NoteKind.event, title: 'Doctor 2', start: event.start, remind: const [30]);
       final r = await repo.update(event, draft);
       final f = r.fold((f) => f, (_) => null);
       expect(f?.errorKey, ErrorKeys.deviceConflict);
       expect(f?.code, 'CONFLICT');
       final latest = (await repo.cached()).items.single;
-      expect(latest.title, '병원 (말로 바꿈)');
+      expect(latest.title, 'Doctor (changed by voice)');
       expect(latest.rev, 8);
       final body = verify(() => remote.update('n_1', captureAny())).captured.single as Map<String, dynamic>;
       expect(body['base_rev'], 5);
       expect(body['remind'], [30]);
     });
 
-    test('고친 항목을 반영해도 사본 rev는 그대로 (그 사이 다른 변경을 놓치지 않게)', () async {
+    test('applying an updated item keeps the local copy rev (so other changes in between are not missed)', () async {
       when(() => remote.update(any(), any())).thenAnswer((_) async => {
             'id': 'n_1',
             'kind': 'event',
-            'title': '병원 2',
+            'title': 'Doctor 2',
             'start': '2026-10-05T15:00',
             'remind': [30],
             'rev': 9,
           });
-      final c = (await repo.update(event, NoteDraft(kind: NoteKind.event, title: '병원 2', start: event.start)))
+      final c = (await repo.update(event, NoteDraft(kind: NoteKind.event, title: 'Doctor 2', start: event.start)))
           .getOrElse(() => throw 'x');
-      expect(c.items.single.title, '병원 2');
+      expect(c.items.single.title, 'Doctor 2');
       expect(c.rev, 5);
     });
 
-    test('지우기: DELETE 뒤 사본에서 뺀다', () async {
+    test('delete: removes it from the local copy after DELETE', () async {
       when(() => remote.delete('n_1')).thenAnswer((_) async => {'id': 'n_1', 'rev': 6, 'state': 'gone'});
       final c = (await repo.delete(event)).getOrElse(() => throw 'x');
       expect(c.items, isEmpty);
@@ -160,12 +160,12 @@ void main() {
 
     test('409 FULL → errorDeviceNotesFull', () async {
       when(() => remote.create(any())).thenThrow(const DeviceApiException(409, 'FULL'));
-      final r = await repo.create(const NoteDraft(kind: NoteKind.memo, title: '우유'));
+      final r = await repo.create(const NoteDraft(kind: NoteKind.memo, title: 'Buy milk'));
       expect(r.fold((f) => f.errorKey, (_) => null), ErrorKeys.deviceNotesFull);
     });
   });
 
-  test('알림 설정: 받아서 사본에도 둔다, 저장은 바뀐 키만', () async {
+  test('reminder settings: loads and keeps them in the local copy; saving sends only changed keys', () async {
     when(() => remote.settings()).thenAnswer((_) async => {
           'enabled': true,
           'default_remind': [60],
@@ -187,7 +187,7 @@ void main() {
     verify(() => remote.saveSettings({'all_day_time': '08:00'})).called(1);
   });
 
-  test('WS notes·reminder 이벤트와 다시 연결될 때 알린다 (다른 이벤트는 무시)', () async {
+  test('notifies on WS notes/reminder events and on reconnect (ignores other events)', () async {
     final ws = StreamController<DeviceEvent>.broadcast();
     final conn = StreamController<EventConnection>.broadcast();
     when(() => events.events).thenAnswer((_) => ws.stream);

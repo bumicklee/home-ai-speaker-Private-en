@@ -34,7 +34,7 @@ It contains no API keys, Telegram bot tokens, Wi-Fi passwords or OTA signing key
 When you follow the book, you build everything yourself in your repository (`~/home-ai-speaker`), which you create in Chapter 1. Clone this finished source into a different folder so it doesn't overlap, and use it for comparison.
 
 ```bash
-git clone https://github.com/bumicklee/home-ai-speaker-Private-en.git ~/home-ai-speaker-final
+git clone https://github.com/bumicklee/home-ai-speaker-en.git ~/home-ai-speaker-final
 ```
 
 ## Building the Firmware
@@ -75,7 +75,7 @@ Make the release APK with `./scripts/build-flutter-release.sh android`; it lands
 When you start Claude Code in this repository, the skills and agents in `.claude/` are registered automatically. To install them as a plugin:
 
 ```bash
-claude plugin marketplace add bumicklee/home-ai-speaker-Private-en
+claude plugin marketplace add bumicklee/home-ai-speaker-en
 claude plugin install home-ai-speaker@home-ai-speaker-book
 ```
 

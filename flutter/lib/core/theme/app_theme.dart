@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Colors from the design (Claude Artifact "Jarvis 스피커 앱 디자인", Jarvis speaker app design). Contrast AA or better under white text
+/// Colors from the design (Claude Artifact "Jarvis speaker app design", docs/jarvis-app-design.html). Contrast AA or better under white text
 class AppColors {
   AppColors._();
 

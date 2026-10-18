@@ -42,26 +42,27 @@ void main() {
     await stream.close();
   });
 
-  // so all three cards fit on one screen
+  // so all three cards fit on one screen; 440 wide so the English slider end
+  // labels fit in the test font (Ahem draws every glyph as a full square)
   void tall(WidgetTester tester) {
-    tester.view.physicalSize = const Size(400, 1600);
+    tester.view.physicalSize = const Size(440, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
   }
 
   Widget app() => const MaterialApp(
-        locale: Locale('ko'),
+        locale: Locale('en'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: AudioPage(),
       );
 
-  testWidgets('설정을 보여주고 볼륨 이벤트로 갱신한다', (tester) async {
+  testWidgets('shows settings and updates on a volume event', (tester) async {
     tall(tester);
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
-    expect(find.text('컴퓨터'), findsOneWidget);
-    expect(find.text('알렉사'), findsOneWidget);
+    expect(find.text('Computer'), findsOneWidget);
+    expect(find.text('Alexa'), findsOneWidget);
     expect(find.text('40 / 80'), findsOneWidget);
     expect(find.text('60%'), findsOneWidget);
     expect(find.textContaining('spotify', findRichText: true), findsNothing);
@@ -71,7 +72,7 @@ void main() {
     expect(find.text('55 / 80'), findsOneWidget);
   });
 
-  testWidgets('마이크 감도는 기기가 받는 값만 고른다', (tester) async {
+  testWidgets('mic sensitivity picks only values the device accepts', (tester) async {
     tall(tester);
     when(() => repo.updateAudio(any())).thenAnswer((_) async => Right(audio.copyWith(micGain: 30)));
     await tester.pumpWidget(app());

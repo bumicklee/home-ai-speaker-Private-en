@@ -3,7 +3,7 @@ library;
 
 import 'entities/note.dart';
 
-/// Schedule groups (design "메모·일정": today · tomorrow · this week · later · past events)
+/// Schedule groups (design "Notes & schedule": today · tomorrow · this week · later · past events)
 enum EventGroupKind { today, tomorrow, thisWeek, later, past }
 
 class EventGroup {
@@ -11,7 +11,7 @@ class EventGroup {
 
   final EventGroupKind kind;
 
-  /// Date of the today/tomorrow groups (title "오늘 · 10월 4일 (일)")
+  /// Date of the today/tomorrow groups (title "Today · Sun, Oct 4")
   final DateTime day;
   final List<Note> items;
 }
@@ -89,7 +89,7 @@ int trashDaysLeft(Note n, DateTime now, {int keepDays = 30}) {
 /// How long a reminder counts as just finished (within this, show the result even if another reminder is still pending)
 const alertFreshFor = Duration(hours: 6);
 
-/// Status: the recent reminder result if any; "알림 예정" (reminder scheduled) if a reminder is still to ring; "놓침" (missed) if only missed ones remain
+/// Status: the recent reminder result if any; "Reminder set" if a reminder is still to ring; "Missed" if only missed ones remain
 NoteBadge badgeOf(Note n, DateTime now, ClockTime allDayTime) {
   if (!n.isEvent || !n.isActive) return NoteBadge.none;
   final pending = n.pendingReminders(now, allDayTime).isNotEmpty || (n.snoozeAt?.isAfter(now) ?? false);
@@ -111,7 +111,7 @@ NoteBadge badgeOf(Note n, DateTime now, ClockTime allDayTime) {
   return NoteBadge.none;
 }
 
-/// Home tile subtitle ("오늘 2개 · 3시 병원")
+/// Home tile subtitle ("2 today · 3 o'clock Doctor")
 class TodaySummary {
   const TodaySummary(this.count, this.next);
 

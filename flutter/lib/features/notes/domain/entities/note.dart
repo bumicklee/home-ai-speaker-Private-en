@@ -105,7 +105,7 @@ class ClockTime extends Equatable {
   List<Object?> get props => [hour, minute];
 }
 
-/// Last reminder (`alert`). offset = how many minutes before it was (-1 = a "나중에 다시" (remind me later) reminder)
+/// Last reminder (`alert`). offset = how many minutes before it was (-1 = a "remind me later" reminder)
 class NoteAlert extends Equatable {
   const NoteAlert({required this.offset, required this.status, this.at});
 

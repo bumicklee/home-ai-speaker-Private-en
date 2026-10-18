@@ -44,12 +44,12 @@ void main() {
     repo = SystemRepositoryImpl(current, ble);
   });
 
-  test('host = 선택된 기기 IP', () => expect(repo.host, '192.168.0.156'));
+  test('host = selected device IP', () => expect(repo.host, '192.168.0.156'));
 
   test('phones: GET /system/phones', () async {
     when(() => client.get<dynamic>(ApiPaths.phones)).thenAnswer((_) async => {
           'phones': [
-            {'phone_id': 'p1', 'name': '엄마', 'created': 0, 'self': true},
+            {'phone_id': 'p1', 'name': 'Mom', 'created': 0, 'self': true},
           ],
         });
     final r = await repo.phones();
@@ -76,7 +76,7 @@ void main() {
     verify(() => client.delete<dynamic>('/api/v1/keys/openai_key')).called(1);
   });
 
-  test('sendKeyOverBle: 기기 ID로 찾아 secret.set → prov.close → 연결 끊기 (LAN은 안 씀)', () async {
+  test('sendKeyOverBle: finds by device ID, secret.set → prov.close → disconnect (no LAN)', () async {
     final r = await repo.sendKeyOverBle(SecretKey.openai, key);
     expect(r.isRight(), isTrue);
     verifyInOrder([
@@ -88,7 +88,7 @@ void main() {
     verifyNever(() => current.client);
   });
 
-  test('sendKeyOverBle: 쓰기 실패해도 연결은 끊는다', () async {
+  test('sendKeyOverBle: disconnects even if the write fails', () async {
     when(() => session.setSecret(any(), any()))
         .thenThrow(const BleCommandException(BleCmdError.notAllowed));
     final r = await repo.sendKeyOverBle(SecretKey.openai, key);
@@ -97,7 +97,7 @@ void main() {
     verify(() => session.disconnect()).called(1);
   });
 
-  test('sendKeyOverBle: 광고가 안 보이면 bleNotFound', () async {
+  test('sendKeyOverBle: bleNotFound when no advertisement is seen', () async {
     when(() => ble.connectById(any())).thenThrow(const BleException(BleErrorCode.notFound));
     final r = await repo.sendKeyOverBle(SecretKey.openai, key);
     expect(r.fold((f) => f, (_) => null), isA<BleFailure>());

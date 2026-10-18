@@ -11,7 +11,7 @@ import '../bloc/assistant_cubit.dart';
 import '../widgets/assistant_editors.dart';
 import 'memories_page.dart';
 
-/// Assistant settings (design "비서"): name, language, voice, location, search, memory. Saving after edits sends only the changed keys
+/// Assistant settings (design "Assistant"): name, language, voice, location, search, memory. Saving after edits sends only the changed keys
 class AssistantPage extends StatelessWidget {
   const AssistantPage({super.key});
 

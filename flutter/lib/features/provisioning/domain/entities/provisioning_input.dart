@@ -23,7 +23,7 @@ class ProvisioningInput extends Equatable {
   final String openAiKey;
   final String geminiKey;
 
-  /// "이미 이 AI 키가 저장된 스피커예요" (This speaker already has this AI's key saved) — checked after connecting via `device.info.secrets`
+  /// "This speaker already has this AI's key" — checked after connecting via `device.info.secrets`
   final bool existingKey;
   final String telegramToken;
   final String phoneName;
@@ -33,7 +33,7 @@ class ProvisioningInput extends Equatable {
   /// Whether the key for the chosen AI was entered
   bool get hasChosenKey => keyFor(provider).isNotEmpty;
 
-  /// Whether "스피커 찾기" (Find speaker) can be tapped: the chosen AI's key was entered, or the user said the speaker already has it
+  /// Whether "Find speaker" can be tapped: the chosen AI's key was entered, or the user said the speaker already has it
   bool get canSearch => hasChosenKey || existingKey;
 
   ProvisioningInput copyWith({

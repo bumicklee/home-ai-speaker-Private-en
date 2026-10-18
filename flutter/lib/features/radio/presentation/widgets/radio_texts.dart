@@ -24,7 +24,7 @@ extension RadioTexts on AppLocalizations {
         PresetGroup.other => radioGroupOther,
       };
 
-  /// 409 NOT_PLAYING has no shared key, so pick it here (the shared one shows as "바빠요" (Busy))
+  /// 409 NOT_PLAYING has no shared key, so pick it here (the shared one shows as "Busy")
   String radioFailureText(Failure f) =>
       f is DeviceFailure && f.code == 'NOT_PLAYING' ? radioNotPlaying : errorText(f);
 }

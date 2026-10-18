@@ -71,7 +71,7 @@ class DeviceLocationService implements LocationService {
   Future<PlaceParts> _place(Position p) async {
     final List<Placemark> marks;
     try {
-      // The address must come back in Korean to build the "서울 강남구 역삼동" form (abroad, the country name comes back in Korean)
+      // The address must come back in Korean to build the Korean "Seoul Gangnam-gu Yeoksam-dong" form (abroad, the country name comes back in Korean)
       marks = await Geocoding().placemarkFromCoordinates(p.latitude, p.longitude, locale: const Locale('ko', 'KR'));
     } catch (_) {
       throw const LocationLookupException(LocationError.unavailable);

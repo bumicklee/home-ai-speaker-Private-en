@@ -26,32 +26,32 @@ void main() {
   });
 
   Widget app(RadioCubit cubit, Widget child) => MaterialApp(
-        locale: const Locale('ko'),
+        locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: BlocProvider.value(value: cubit, child: child),
       );
 
-  testWidgets('묶음 제목과 재생 중 방송을 보인다', (tester) async {
+  testWidgets('shows group titles and the playing station', (tester) async {
     final cubit = RadioCubit(repo, events);
     await tester.runAsync(cubit.load);
     await tester.pumpWidget(app(cubit, const RadioView()));
     await tester.pump();
-    expect(find.text('뉴스·경제'), findsOneWidget);
-    expect(find.text('한국 음악'), findsOneWidget);
+    expect(find.text('News & business'), findsOneWidget);
+    expect(find.text('Korean music'), findsOneWidget);
     expect(find.text('CNN'), findsNWidgets(2)); // header card + list
-    expect(find.byTooltip('일시정지'), findsOneWidget);
+    expect(find.byTooltip('Pause'), findsOneWidget);
     expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
     await tester.runAsync(cubit.close);
   });
 
-  testWidgets('편집 화면이 그려진다', (tester) async {
+  testWidgets('renders the edit page', (tester) async {
     final cubit = RadioCubit(repo, events);
     await tester.runAsync(cubit.load);
     await tester.pumpWidget(app(cubit, const PresetEditPage()));
     await tester.pump();
     expect(find.text('Big B'), findsOneWidget);
-    expect(find.text('2 / 20개'), findsOneWidget);
+    expect(find.text('2 / 20'), findsOneWidget);
     await tester.runAsync(cubit.close);
   });
 }

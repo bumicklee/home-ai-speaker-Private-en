@@ -4,14 +4,14 @@ library;
 import '../../../l10n/app_localizations.dart';
 import '../domain/entities/system_status.dart';
 
-/// "3시간 12분" (3 h 12 min); over a day, "2일 3시간" (2 days 3 h)
+/// "3 h 12 min"; over a day, "2 d 3 h"
 String formatUptime(AppLocalizations l, Duration d) {
   if (d.inDays > 0) return l.sysUptimeDays(d.inDays, d.inHours % 24);
   if (d.inHours > 0) return l.sysUptimeHours(d.inHours, d.inMinutes % 60);
   return l.sysUptimeMinutes(d.inMinutes);
 }
 
-/// "좋음 (-51 dBm)" (Good), or "연결 안 됨" (Not connected) if not connected
+/// "Good (-51 dBm)", or "Not connected" if not connected
 String formatWifi(AppLocalizations l, int? rssi) {
   if (rssi == null) return l.sysWifiNone;
   return switch (WifiBand.fromRssi(rssi)) {

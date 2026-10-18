@@ -24,10 +24,14 @@ const firmwareJson = {
   'remaining_s': 162,
   'topic': "Preparing for next week's team meeting",
   'corrections': [
-    {'original': '다른 방법 말하고 싶어요.', 'better': '다른 방법을 제안드리고 싶습니다. (dareun bangbeobeul jeandeurigo sipseumnida)', 'note': 'More polite: I would like to suggest a different approach'},
+    {
+      'original': 'dareun bangbeop malhago sipeoyo',
+      'better': 'dareun bangbeobeul jeandeurigo sipseumnida — I would like to suggest a different approach',
+      'note': 'More polite for a meeting',
+    },
   ],
   'pronunciation': [
-    {'word': '제안', 'tip': 'je-an, two clear syllables'},
+    {'word': 'gamsahamnida', 'tip': 'the b before n sounds like m'},
   ],
   'next_topic': '',
 };
@@ -36,16 +40,16 @@ void main() {
   setUpAll(() => registerFallbackValue(const LessonOptions()));
 
   group('LessonModel', () {
-    test('펌웨어 JSON을 읽는다', () {
+    test('reads the firmware JSON', () {
       final l = LessonModel.fromJson(Map<String, dynamic>.from(firmwareJson));
       expect(l.isActive, isTrue);
       expect(l.options, const LessonOptions(course: LessonCourse.biz, explainKorean: true, slow: true, minutes: 5));
       expect(l.remaining, const Duration(seconds: 162));
-      expect(l.corrections.single.better, startsWith('다른 방법을 제안드리고 싶습니다.'));
-      expect(l.pronunciation.single.word, '제안');
+      expect(l.corrections.single.better, startsWith('dareun bangbeobeul jeandeurigo sipseumnida'));
+      expect(l.pronunciation.single.word, 'gamsahamnida');
     });
 
-    test('빈 값·모르는 값은 기본값', () {
+    test('empty or unknown values fall back to defaults', () {
       final l = LessonModel.fromJson({'state': 'idle', 'course': 'xx', 'minutes': 15});
       expect(l.options.course, LessonCourse.basic);
       expect(l.options.explainKorean, isFalse);
@@ -55,7 +59,7 @@ void main() {
       expect(l.remaining, isNull);
     });
 
-    test('시작 본문은 펌웨어 키 그대로', () {
+    test('start body uses the firmware keys as is', () {
       expect(const LessonOptions(course: LessonCourse.adv, explainKorean: false, slow: false, minutes: 3).toJson(),
           {'course': 'adv', 'explain': 'en', 'speed': 'normal', 'minutes': 3});
     });
@@ -69,7 +73,7 @@ void main() {
       when(() => repo.saveOptions(any())).thenAnswer((_) async {});
     });
 
-    test('기억해 둔 옵션으로 시작하고, 시작하면 수업을 넘긴다', () async {
+    test('starts from the remembered options and hands over the lesson once started', () async {
       final started = LessonModel.fromJson({'state': 'starting', 'course': 'pron', 'minutes': 5});
       when(() => repo.start(any())).thenAnswer((_) async => Right(started));
       final c = EnglishCubit(repo);
@@ -82,7 +86,7 @@ void main() {
       await c.close();
     });
 
-    test('대화 중이면 실패를 보인다', () async {
+    test('shows a failure while a conversation is active', () async {
       when(() => repo.start(any())).thenAnswer((_) async => Left(DeviceFailure.fromStatus(409, 'VOICE_ACTIVE')));
       final c = EnglishCubit(repo);
       await c.start();
@@ -92,7 +96,7 @@ void main() {
       await c.close();
     });
 
-    test('스피커에 OpenAI 키가 없으면 시작을 잠근다 (Gemini를 써도 수업은 OpenAI)', () async {
+    test('locks start when the speaker has no OpenAI key (lessons use OpenAI even with Gemini)', () async {
       when(() => repo.openAiKeySaved()).thenAnswer((_) async => const Right(false));
       final c = EnglishCubit(repo);
       expect(c.state.canStart, isTrue); // not blocked before it is confirmed
@@ -105,7 +109,7 @@ void main() {
       await c.close();
     });
 
-    test('키 확인에 실패하면 모르는 채로 (시작 가능), 시작이 409 NO_API_KEY면 잠근다', () async {
+    test('if the key check fails it stays unknown (can start); locks on a 409 NO_API_KEY start', () async {
       when(() => repo.openAiKeySaved()).thenAnswer((_) async => const Left(NetworkFailure()));
       when(() => repo.start(any())).thenAnswer((_) async => Left(DeviceFailure.fromStatus(409, 'NO_API_KEY')));
       final c = EnglishCubit(repo);
@@ -129,7 +133,7 @@ void main() {
       when(() => repo.current()).thenAnswer((_) async => Right(LessonModel.fromJson(Map<String, dynamic>.from(firmwareJson))));
     });
 
-    test('불러오고, WS로 고친 표현이 늘면 바뀐다', () async {
+    test('loads, then updates when WS adds a correction', () async {
       final c = LessonCubit(repo);
       await c.refresh();
       expect(c.state.lesson?.corrections, hasLength(1));
@@ -144,7 +148,7 @@ void main() {
       await c.close();
     });
 
-    test('남은 시간을 화면에서 1초씩 줄인다 (수업 중일 때만)', () async {
+    test('counts the remaining time down each second on screen (only while active)', () async {
       final c = LessonCubit(repo, tick: const Duration(milliseconds: 10));
       await c.refresh();
       final before = c.state.lesson!.remaining!;
@@ -156,7 +160,7 @@ void main() {
       await c.close();
     });
 
-    test('주제 바꾸기·끝내기 실패는 화면에 알린다', () async {
+    test('shows change-topic and stop failures on screen', () async {
       when(() => repo.changeTopic()).thenAnswer((_) async => Left(DeviceFailure.fromStatus(409, 'NOT_ACTIVE')));
       when(() => repo.stop()).thenAnswer((_) async => const Right(unit));
       final c = LessonCubit(repo);

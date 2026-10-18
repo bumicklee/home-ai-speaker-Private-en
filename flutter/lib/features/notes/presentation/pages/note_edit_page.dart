@@ -12,7 +12,7 @@ import '../bloc/notes_cubit.dart';
 import 'notes_texts.dart';
 import 'notes_widgets.dart';
 
-/// Create/edit a note or event (design "일정 편집"). NotesCubit is passed in from the list screen
+/// Create/edit a note or event (design "Edit event"). NotesCubit is passed in from the list screen
 class NoteEditPage extends StatefulWidget {
   const NoteEditPage({super.key, this.note, this.newKind = NoteKind.event});
 

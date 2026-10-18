@@ -289,7 +289,7 @@ Use the existing code's session flow as is: check Wi-Fi → check the time → c
 
 1. **Time check**: use the RTC (PCF85063) time first, before waiting for SNTP. If the RTC is valid, start the TLS connection right away.
 2. **Asynchronous tool execution**: `session_task` only puts tool calls on the `tool_worker` queue. When the result comes back, it sends `function_call_output` + `response.create`. The upload loop never stops.
-3. **Language**: add `language` (default `en` in the English edition; `ko` and `en` are both accepted) to the assistant settings. Add "bye jarvis", "end conversation", "end the conversation" and "stop conversation" to the hang-up phrases; the Korean "잘가 자비스" (bye, Jarvis) and "대화 종료" (end conversation) are accepted too.
+3. **Language**: add `language` (default `en` in the English edition; `ko` and `en` are both accepted) to the assistant settings. Add "bye jarvis", "end conversation", "end the conversation" and "stop conversation" to the hang-up phrases. The English edition accepts English phrases only.
 4. **Model names are settings**: `live_model` (default `gpt-live-1`), `backend_model` (default `gpt-5.6-luna`). The app doesn't change them; the firmware defaults are used.
 
 #### Tool List
@@ -406,7 +406,7 @@ Token handling:
 **Family account policy**
 - Voice commands and the Web API run on the **single main account (A)** logged in from the app.
 - At boot, the receiver logs in with A's credentials and appears in A's device list. The `device_id` for the Web API is found by name in `GET /me/player/devices` (don't assume it equals the Zeroconf id).
-- When another family member (B) plays to this speaker from their own phone, the receiver runs as B. If someone then says "다음 곡" (next song), account A can't control it, so the speaker says "지금은 다른 가족 계정이 사용 중이에요" (another family account is using it right now) (it doesn't take over by force). B's credentials are not stored.
+- When another family member (B) plays to this speaker from their own phone, the receiver runs as B. If someone then says "next song", account A can't control it, so the speaker says that another family account is using it right now (it doesn't take over by force). B's credentials are not stored.
 - When B's playback ends, the receiver logs in as A again.
 
 Development-mode limits (applied per home): app owner must have Premium, 5 registered users, 10 search results. Another family member playing from their own Spotify app doesn't use the developer app's `client_id`, so no user registration is needed. The only account used for voice control is that home's single main account.
@@ -604,7 +604,7 @@ If completion saves the temporary SSID and password without checking whether the
 | While the window is open | Wi-Fi, conversation, and the LAN API keep running. Automatic Wi-Fi reconnect stays on too (except while new Wi-Fi details are being tested) |
 | Every time the window opens | NimBLE is initialized fresh (`nimble_port_init` + service registration). On close, `nimble_port_stop()` → `nimble_port_deinit()`. This approach does not permanently release controller memory, so the window can be reopened any number of times |
 
-Tasks that need the BLE window: first-time setup, changing Wi-Fi, writing secrets (OpenAI key, Telegram token, Spotify login), adding a phone. Before these tasks, the app shows the instruction "스피커의 가운데 버튼(Key2)을 3초 누르세요" (press the speaker's center button (Key2) for 3 seconds).
+Tasks that need the BLE window: first-time setup, changing Wi-Fi, writing secrets (OpenAI key, Telegram token, Spotify login), adding a phone. Before these tasks, the app shows the instruction "Hold the speaker's middle button (Key2) for 3 seconds".
 
 #### Security
 
@@ -659,7 +659,7 @@ Tasks that need the BLE window: first-time setup, changing Wi-Fi, writing secret
 | POST | `/api/v1/system/reboot` | Reboot | 409 in a conversation |
 | GET/DELETE | `/api/v1/system/phones[/{phone_id}]` | List of registered phones (`self: true` on the requesting phone) / revoke | |
 
-Factory reset is not done over the LAN. The app only shows the instruction "Key2를 10초 누르세요" (press Key2 for 10 seconds) (SYS-08).
+Factory reset is not done over the LAN. The app only shows the instruction to hold the middle button (Key2) for 10 seconds (SYS-08).
 
 `/status` fields: `fw`, `build_date`, `protocol_version`, `uptime_s`, `reset_reason`, `wifi_rssi`, `heap_internal_free`, `heap_internal_min`, `psram_free`, `task_stack_min` (minimum per task), `voice_state`, `media` (= `/media/now`), `volume`, `secrets` (bool per key), `telegram` (`state`: ok/conflict/token_invalid/off, `unread`), `spotify_state`, `failures` (last 5, fixed codes and times only; no URLs or response bodies).
 
@@ -889,14 +889,14 @@ The app sets the "neighborhood you live in" that the assistant uses for weather 
 |:--|:--|:--|
 | 1 | App | Request location permission (iOS `NSLocationWhenInUseUsageDescription`; on Android, `ACCESS_COARSE_LOCATION` is enough) |
 | 2 | App | Get the current coordinates once (`geolocator`, low accuracy) |
-| 3 | App | Coordinates → address (`geocoding`, the phone OS's reverse geocoding). For Korea, use only three levels, `시/도 + 구/군 + 동` (city/province + district + neighborhood) (for example "서울 중구 명동"). Drop the street number and building name |
+| 3 | App | Coordinates → address (`geocoding`, the phone OS's reverse geocoding). For Korea, use only three levels, city/province + district + neighborhood, as the Korean geocoder returns them (for example "Seoul Jung-gu Myeong-dong", written in Korean); elsewhere, neighborhood, city, state, country. Drop the street number and building name |
 | 4 | App | The phone's time zone (`flutter_timezone`) → IANA name (for example `Asia/Seoul`) |
-| 5 | App → speaker | LAN `PUT /api/v1/settings/assistant` `{"location": "서울 중구 명동", "timezone": "Asia/Seoul"}` (if the BLE window is open, `settings.set` with the same format works too) |
+| 5 | App → speaker | LAN `PUT /api/v1/settings/assistant` `{"location": "Mission District, San Francisco, California, United States", "timezone": "America/Los_Angeles"}` (if the BLE window is open, `settings.set` with the same format works too) |
 | 6 | Speaker | Save → apply the time zone on the chip (POSIX TZ) → from the next conversation, give the assistant the local time and attach `user_location` (country, neighborhood, time zone) to web searches |
 
 - **Coordinates are never sent to the speaker.** Only the neighborhood name (up to 96 bytes) and the time zone are sent. That text is also the only location information stored in the speaker's NVS.
-- App screen: a "현재 위치로 설정" (Set to current location) button + an input field for manual edits. No automatic periodic refresh (it's a home speaker, so the location doesn't change).
-- It can also be changed by voice: "내 위치는 ○○동이야" (my location is ○○-dong) → the `set_location` tool.
+- App screen: a "Use current location" button + an input field for manual edits. No automatic periodic refresh (it's a home speaker, so the location doesn't change).
+- It can also be changed by voice: "My location is Mission District, San Francisco" → the `set_location` tool.
 - An IANA name not in the firmware's time zone table (`assistant.c` `TIMEZONES`) gets `INVALID_ARG`. If the time zone isn't in the table, the app asks the user to pick the closer of `Asia/Seoul`/`UTC`. In the table: Asia/Seoul, Tokyo, Shanghai, Singapore; UTC; Europe/London, Berlin; America/New_York, Chicago, Denver, Los_Angeles; Australia/Sydney.
 
 ### 3.1 Tech Stack (Pinned Major Versions)
@@ -1043,7 +1043,7 @@ flowchart LR
 ```
 
 - Why keys are entered **before** the BLE connection: if the user leaves the app to copy a key in the browser, iOS stops delivering BLE events in the background, while the device's BLE window time keeps running. Background BLE mode (`bluetooth-central`) is not used.
-- **Remembering keys (changed 2026-10-03 by user decision)**: at first the rule was "keep keys in memory only and wipe them after sending," but at the user's request, **the OpenAI key and the Telegram bot token are remembered in the phone's secure storage (iOS Keychain / Android Keystore, `KeyVault`)**. They are filled in automatically on the next setup, when adding a phone, or when replacing a key. They can be turned off with "이 휴대폰에 키 기억하기" (Remember keys on this phone) on the key entry screen or cleared under System > Key Management. When the app is uninstalled and reinstalled, `InstallState` empties the secure storage. Keys still go to the speaker only over BLE (D6).
+- **Remembering keys (changed 2026-10-03 by user decision)**: at first the rule was "keep keys in memory only and wipe them after sending," but at the user's request, **the OpenAI key and the Telegram bot token are remembered in the phone's secure storage (iOS Keychain / Android Keystore, `KeyVault`)**. They are filled in automatically on the next setup, when adding a phone, or when replacing a key. They can be turned off with "Remember keys on this phone" on the key entry screen or cleared under System > Key Management. When the app is uninstalled and reinstalled, `InstallState` empties the secure storage. Keys still go to the speaker only over BLE (D6).
 - If the connection drops, `ProvisioningBloc` reconnects automatically and redoes only the remaining steps.
 
 **Adding a second phone / replacing keys / registering Telegram or Spotify (no reboot)**
@@ -1064,7 +1064,7 @@ flowchart LR
 
 **Handling pairing failures**
 - Bonds are not stored (Section 2.13), so no old key remains on the phone even after a factory reset.
-- Still, if the phone holds a bond from older firmware and an encrypted write fails with "insufficient authentication/encryption": on Android, `removeBond()` and retry once; on iOS, show the guide "설정 > Bluetooth에서 JARVIS_xxxx 기기 지우기" (forget the JARVIS_xxxx device under Settings > Bluetooth) (`errorBleBondFailed`).
+- Still, if the phone holds a bond from older firmware and an encrypted write fails with "insufficient authentication/encryption": on Android, `removeBond()` and retry once; on iOS, show the guide "Remove the JARVIS device in Settings > Bluetooth and try again" (`errorBleBondFailed`).
 
 ### 3.5 Data Paths per Screen
 
@@ -1115,9 +1115,9 @@ When two repositories move separately, constants easily drift apart. So these ru
 | **Phase 0 spike** | ⓪ Check the board: flash the factory firmware (`ESP32-S3-AUDIO-Board-Demo/Firmware/*.bin`, address 0x0) and confirm the microphone, speaker, buttons, and LEDs work. If anything goes wrong, go back to this image ① 48kHz I2S + resampling + AEC + WakeNet ② radio MP3 playback ③ cspot-family IDF 5.5 build and playback ④ Telegram long polling ⑤ minimum internal RAM with 3 simultaneous TLS connections | — | Numbers recorded for each item (`docs/03-analysis/phase0.md`) |
 | Phase 1 foundation | `board`, `audio_core` (for conversation), `wake`, `live_voice`, `assistant` (including the tool worker), `settings`, `net`, `app_events`, `led_ring`, `buttons` | Project creation, `core/*`, l10n, theme | The same conversations as the existing firmware + Korean. Solid red LED confirmed (RGB order); microphone, LEDs, and amp work across 20 power-off/on cycles |
 | Phase 2 app connection | `ble_prov`, `local_api`, mDNS | `provisioning`, `devices`, `keys`, `assistant`, `audio`, `system` (except OTA) | Set up a new board with the app alone and have a conversation |
-| Phase 3 radio | `mixer` ducking, `media_radio`, radio tools | `music` | "재즈 라디오 틀어줘" (play jazz radio), wake word during playback |
+| Phase 3 radio | `mixer` ducking, `media_radio`, radio tools | `music` | "Play jazz radio", wake word during playback |
 | Phase 4 Telegram | `messenger_telegram`, tools | `telegram` | Incoming notification, reading and sending by voice |
-| Phase 5 Spotify | `media_spotify` | `spotify` | Pick the speaker on the phone and play, "아이유 노래 틀어줘" (play IU's songs) |
+| Phase 5 Spotify | `media_spotify` | `spotify` | Pick the speaker on the phone and play, "Play songs by Taylor Swift" |
 | Phase 6 wrap-up | OTA, rollback, long-duration test | `system` OTA | 24 hours of continuous operation, rollback confirmed |
 
 ---

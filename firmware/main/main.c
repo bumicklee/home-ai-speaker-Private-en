@@ -46,7 +46,7 @@ typedef enum {
 
 static sys_mode_t s_mode = SYS_MODE_NORMAL;
 static bool s_app_marked_valid;
-/* Ready announcement (once per boot): wake word listening + Wi-Fi + OpenAI key → "AI 스피커가 준비되었습니다" (The AI speaker is ready) */
+/* Ready announcement (once per boot): wake word listening + Wi-Fi + OpenAI key → "The AI speaker is ready" (ready.mp3) */
 static bool s_wifi_ready, s_wake_ready, s_ready_announced;
 
 /*
@@ -218,7 +218,7 @@ static void on_button(const app_button_event_t *evt)
 }
 
 /*
- * Auto-read new Telegram messages (TLG-10). If the app's "새 메시지 바로 읽어 주기" (read new messages right away) is on and it isn't quiet hours,
+ * Auto-read new Telegram messages (TLG-10). If the app's "Read new messages aloud" is on and it isn't quiet hours,
  * open a short conversation and read them. If a conversation, Korean lesson, or BLE window blocks it, retry every 5 s.
  * Messages during quiet hours are announced only with the chime and purple LED, as before.
  */

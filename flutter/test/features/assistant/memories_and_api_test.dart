@@ -44,23 +44,23 @@ void main() {
     setUp(() {
       repo = MockRepo();
       when(() => repo.memories()).thenAnswer((_) async => const Right([
-            AssistantMemory(key: 'favorite_food', value: '김치찌개'),
-            AssistantMemory(key: 'pet_name', value: '초코'),
+            AssistantMemory(key: 'favorite_food', value: 'kimchi stew'),
+            AssistantMemory(key: 'pet_name', value: 'Choco'),
           ]));
     });
 
-    test('지우면 목록에서 뺀다', () async {
+    test('deleting removes it from the list', () async {
       when(() => repo.forget('pet_name')).thenAnswer((_) async => const Right(unit));
       final c = MemoriesCubit(repo);
       await c.load();
       expect(c.state.memories, hasLength(2));
       expect(await c.forget('pet_name'), isNull);
-      expect(c.state.memories, [const AssistantMemory(key: 'favorite_food', value: '김치찌개')]);
+      expect(c.state.memories, [const AssistantMemory(key: 'favorite_food', value: 'kimchi stew')]);
       expect(c.state.deleting, isEmpty);
       await c.close();
     });
 
-    test('지우기 실패면 목록을 그대로 두고 Failure', () async {
+    test('delete failure keeps the list and returns Failure', () async {
       when(() => repo.forget(any())).thenAnswer((_) async => Left(DeviceFailure.fromStatus(400, 'INVALID_ARG')));
       final c = MemoriesCubit(repo);
       await c.load();
@@ -72,7 +72,7 @@ void main() {
     });
   });
 
-  group('LAN 데이터소스·레포지토리', () {
+  group('LAN data source and repository', () {
     late MockCurrent current;
     late MockClient client;
     late AssistantRepositoryImpl repo;
@@ -84,7 +84,7 @@ void main() {
       repo = AssistantRepositoryImpl(AssistantLocalApiDataSource(current));
     });
 
-    test('설정 JSON (펌웨어 기본값) → 엔티티 → JSON 왕복', () async {
+    test('settings JSON (firmware defaults) → entity → JSON round trip', () async {
       when(() => client.get<Map<String, dynamic>>('/api/v1/settings/assistant'))
           .thenAnswer((_) async => Map<String, dynamic>.from(firmwareDefaults));
       final s = (await repo.settings()).getOrElse(() => throw StateError('x'));
@@ -93,7 +93,7 @@ void main() {
       expect(AssistantSettingsModel.toJson(s), firmwareDefaults);
     });
 
-    test('AI 키 3개: 읽기, 옛 펌웨어(키 없음)는 OpenAI 실시간, 모르는 값은 기본값', () async {
+    test('3 AI keys: read, old firmware (keys absent) means OpenAI real-time, unknown values use defaults', () async {
       final s = AssistantSettingsModel.fromJson(Map<String, dynamic>.from(firmwareDefaults));
       expect(s.aiProvider, AiProvider.openai);
       expect(s.aiMode, AiMode.saver);
@@ -117,7 +117,7 @@ void main() {
       expect(AssistantSettingsModel.diff(s, s.copyWith(aiProvider: AiProvider.gemini)), {'ai_provider': 'gemini'});
     });
 
-    test('PUT 본문은 바뀐 키만', () async {
+    test('PUT body has only the changed keys', () async {
       when(() => client.put<Map<String, dynamic>>(any(), any()))
           .thenAnswer((_) async => {...firmwareDefaults, 'units': 'imperial'});
       final r = await repo.update({'units': 'imperial'});
@@ -125,19 +125,19 @@ void main() {
       verify(() => client.put<Map<String, dynamic>>('/api/v1/settings/assistant', {'units': 'imperial'})).called(1);
     });
 
-    test('보이스 목록 {"voices": [...]}', () async {
+    test('voice list {"voices": [...]}', () async {
       when(() => client.get<Map<String, dynamic>>('/api/v1/voices')).thenAnswer((_) async => {
             'voices': ['alloy', 'marin'],
           });
       expect((await repo.voices()).getOrElse(() => const []), ['alloy', 'marin']);
     });
 
-    test('기억 목록은 {키: 값} 객체, 지우기는 DELETE /memories/{key}', () async {
+    test('memory list is a {key: value} object, delete is DELETE /memories/{key}', () async {
       when(() => client.get<Map<String, dynamic>>('/api/v1/memories'))
-          .thenAnswer((_) async => {'favorite_food': '김치찌개'});
+          .thenAnswer((_) async => {'favorite_food': 'kimchi stew'});
       when(() => client.delete<dynamic>(any())).thenAnswer((_) async => {'ok': true});
       final m = (await repo.memories()).getOrElse(() => const []);
-      expect(m, [const AssistantMemory(key: 'favorite_food', value: '김치찌개')]);
+      expect(m, [const AssistantMemory(key: 'favorite_food', value: 'kimchi stew')]);
       expect(await repo.forget('favorite_food'), const Right<Failure, Unit>(unit));
       verify(() => client.delete<dynamic>('/api/v1/memories/favorite_food')).called(1);
     });

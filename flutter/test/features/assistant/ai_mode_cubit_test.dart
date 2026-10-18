@@ -69,7 +69,7 @@ void main() {
     return c;
   }
 
-  test('load: 설정·키·가능한 조합', () async {
+  test('load: settings, keys, available combinations', () async {
     final c = await loaded();
     expect(c.state.provider, AiProvider.openai);
     expect(c.state.mode, AiMode.saver);
@@ -78,7 +78,7 @@ void main() {
     await c.close();
   });
 
-  test('잠금: 키 없음이 먼저, 키는 있는데 available에 없으면 준비 중', () async {
+  test('locks: missing key comes first; key present but not in available means coming soon', () async {
     final c = await loaded();
     expect(c.state.providerLock(AiProvider.openai), AiLock.none);
     expect(c.state.providerLock(AiProvider.gemini), AiLock.noKey);
@@ -100,7 +100,7 @@ void main() {
     await c.close();
   });
 
-  test('옛 펌웨어(ai 없음): OpenAI 실시간만 고를 수 있다', () async {
+  test('old firmware (no ai): only OpenAI real-time can be chosen', () async {
     when(() => system.status()).thenAnswer((_) async => Right(status(ai: AiStatus.legacy)));
     when(() => assistant.settings()).thenAnswer(
         (_) async => Right(AssistantSettingsModel.fromJson(const {'name': 'Jarvis'}))); // no AI keys
@@ -114,7 +114,7 @@ void main() {
     await c.close();
   });
 
-  test('상태를 못 읽으면 키로는 잠그지 않는다 (스피커가 409로 막는다)', () async {
+  test('if status cannot be read, nothing is locked by key (the speaker blocks with 409)', () async {
     when(() => system.status()).thenAnswer((_) async => const Left(NetworkFailure()));
     final c = await loaded();
     expect(c.state.settings, isNotNull);
@@ -124,7 +124,7 @@ void main() {
     await c.close();
   });
 
-  test('설정을 못 읽으면 화면 실패', () async {
+  test('if settings cannot be read, the screen fails', () async {
     when(() => assistant.settings()).thenAnswer((_) async => const Left(NetworkFailure()));
     final c = await loaded();
     expect(c.state.settings, isNull);
@@ -132,7 +132,7 @@ void main() {
     await c.close();
   });
 
-  test('잠긴 AI·방식은 보내지 않는다', () async {
+  test('does not send a locked AI or mode', () async {
     final c = await loaded();
     expect(await c.chooseProvider(AiProvider.gemini), isNull);
     expect(await c.chooseProvider(AiProvider.openai), isNull); // already chosen
@@ -141,7 +141,7 @@ void main() {
     await c.close();
   });
 
-  test('방식 바꾸기: 지금 AI의 mode_ 키만 PUT', () async {
+  test('changing mode: PUTs only the current AI mode_ key', () async {
     when(() => assistant.update(any())).thenAnswer((_) async => Right(settings({'mode_openai': 'live'})));
     final c = await loaded();
     expect(await c.chooseMode(AiMode.live), isNull);
@@ -151,7 +151,7 @@ void main() {
     await c.close();
   });
 
-  test('AI 바꾸기: 그 AI의 마지막 방식이 안 되면 되는 방식으로 함께 바꾼다', () async {
+  test('changing AI: if that AI last mode is unavailable, also switches to an available mode', () async {
     when(() => system.status()).thenAnswer((_) async => Right(status(gemini: true, ai: stage2)));
     when(() => assistant.update(any()))
         .thenAnswer((_) async => Right(settings({'ai_provider': 'gemini', 'mode_gemini': 'saver'})));
@@ -164,7 +164,7 @@ void main() {
     await c.close();
   });
 
-  test('AI 바꾸기: 마지막 방식이 되면 ai_provider만', () async {
+  test('changing AI: only ai_provider when the last mode is available', () async {
     when(() => system.status()).thenAnswer((_) async => Right(status(gemini: true, ai: stage2)));
     when(() => assistant.settings()).thenAnswer((_) async => Right(settings({'mode_gemini': 'saver'})));
     when(() => assistant.update(any())).thenAnswer((_) async => Right(settings({'ai_provider': 'gemini'})));
@@ -174,7 +174,7 @@ void main() {
     await c.close();
   });
 
-  test('409 NO_API_KEY: 실패를 돌려주고 그 AI를 키 없음으로 잠근다', () async {
+  test('409 NO_API_KEY: returns the failure and locks that AI as missing a key', () async {
     when(() => system.status()).thenAnswer((_) async => Right(status(gemini: true, ai: stage2)));
     when(() => assistant.update(any())).thenAnswer((_) async => const Left(
         DeviceFailure(errorKey: ErrorKeys.deviceNoApiKey, status: 409, code: 'NO_API_KEY')));
@@ -188,7 +188,7 @@ void main() {
     await c.close();
   });
 
-  test('키 넣기: gemini_key를 BLE로 보내고 휴대폰에 기억, 키 없음 잠금이 풀린다', () async {
+  test('adding a key: sends gemini_key over BLE, remembers it on the phone, unlocks the missing-key lock', () async {
     const key = 'AIzaSyA1234567890abcdefghijklmnopqrstu';
     when(() => system.sendKeyOverBle(SecretKey.gemini, key)).thenAnswer((_) async => const Right(unit));
     final c = await loaded();
@@ -201,7 +201,7 @@ void main() {
     await c.close();
   });
 
-  test('키 넣기 실패: 휴대폰에 저장하지 않는다', () async {
+  test('adding a key fails: does not save it on the phone', () async {
     when(() => system.sendKeyOverBle(any(), any()))
         .thenAnswer((_) async => const Left(BleFailure(errorKey: ErrorKeys.bleNotFound)));
     final c = await loaded();

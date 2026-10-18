@@ -44,27 +44,27 @@ void main() {
 
   Widget app(Widget home) => MaterialApp(
         theme: AppTheme.light(),
-        locale: const Locale('ko'),
+        locale: const Locale('en'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: home,
       );
 
-  testWidgets('AI · 대화 방식: 키 없는 AI 잠금, 키 넣기, 준비 중 방식, 영어 수업 안내', (t) async {
+  testWidgets('AI · conversation mode: locks AI without a key, add key, coming-soon mode, lesson notice', (t) async {
     await t.pumpWidget(app(const AiModePage()));
     await t.pumpAndSettle();
-    expect(find.text('AI · 대화 방식'), findsOneWidget);
-    expect(find.text('키 있음'), findsOneWidget);
-    expect(find.text('키 없음 · 쓸 수 없어요'), findsOneWidget);
-    expect(find.text('Gemini 키 넣기 (가운데 버튼 3초 → 블루투스로 보내요)'), findsOneWidget);
-    expect(find.text('② OpenAI 대화 방식'), findsOneWidget);
-    expect(find.text('월 약 15,000원'), findsOneWidget);
-    expect(find.text('준비 중'), findsOneWidget); // openai.live is not in available
-    expect(find.textContaining('실시간 API(OpenAI)'), findsOneWidget);
+    expect(find.text('AI · Conversation mode'), findsOneWidget);
+    expect(find.text('Key saved'), findsOneWidget);
+    expect(find.text("No key · can't use"), findsOneWidget);
+    expect(find.text('Add Gemini key (hold the middle button 3 s → sent over Bluetooth)'), findsOneWidget);
+    expect(find.text('② OpenAI conversation mode'), findsOneWidget);
+    expect(find.text('About ₩15,000/month'), findsOneWidget);
+    expect(find.text('Coming soon'), findsOneWidget); // openai.live is not in available
+    expect(find.textContaining('real-time API (OpenAI)'), findsOneWidget);
 
     await t.tap(find.text('Gemini'));
     await t.pump();
-    expect(find.text('이 스피커에는 Gemini 키가 없어요. 먼저 키를 넣어 주세요.'), findsOneWidget);
+    expect(find.text('This speaker has no Gemini key. Please add the key first.'), findsOneWidget);
     verifyNever(() => assistant.update(any()));
   });
 }

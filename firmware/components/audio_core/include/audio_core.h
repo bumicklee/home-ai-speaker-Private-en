@@ -40,7 +40,7 @@ esp_err_t audio_core_init(void);
 
 /** Decodes and plays the startup.mp3 embedded in the firmware (in the background) */
 esp_err_t audio_core_play_startup(void);
-/** "AI 스피커가 준비되었습니다" (The AI speaker is ready) (ready.mp3). If other sound is playing, waits until it ends */
+/** "The AI speaker is ready" announcement (ready.mp3, recorded in Korean). If other sound is playing, waits until it ends */
 esp_err_t audio_core_play_ready(void);
 
 esp_err_t audio_core_add_mic_sink(audio_mic_sink_t sink);

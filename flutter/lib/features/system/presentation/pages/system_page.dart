@@ -116,7 +116,7 @@ class _SystemView extends StatelessWidget {
     if (!await confirm(context, title: l.sysRebootTitle, body: l.sysRebootBody, action: l.sysRebootAction)) return;
     final f = await cubit.reboot();
     if (!context.mounted) return;
-    // 409 VOICE_ACTIVE → "대화 중에는 할 수 없어요" (Can't do this during a conversation)
+    // 409 VOICE_ACTIVE → "Not available during a conversation"
     f == null ? showMessage(context, l.sysRebooting) : showFailure(context, f);
   }
 

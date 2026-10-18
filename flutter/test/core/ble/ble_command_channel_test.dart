@@ -48,15 +48,15 @@ class FakeDevice implements BleCommandTransport {
 }
 
 void main() {
-  test('요청 id를 붙여 보내고 같은 id 응답을 받는다 (여러 조각)', () async {
+  test('sends with a request id and receives the response with the same id (multiple chunks)', () async {
     final dev = FakeDevice((r) => {'id': r['id'], 'ok': true, 'token': 't' * 43, 'phone_id': r['phone_id']});
     final writer = BleSecretWriter(BleCommandChannel(dev));
-    final r = await writer.pair(phoneId: 'p-1', phoneName: '엄마 폰');
+    final r = await writer.pair(phoneId: 'p-1', phoneName: "Mom's phone");
     expect(r.token, 't' * 43);
-    expect(dev.requests.single, {'id': 1, 'op': BleOp.apiPair, 'phone_id': 'p-1', 'phone_name': '엄마 폰'});
+    expect(dev.requests.single, {'id': 1, 'op': BleOp.apiPair, 'phone_id': 'p-1', 'phone_name': "Mom's phone"});
   });
 
-  test('ok:false → BleCommandException (응답 전체를 data로)', () async {
+  test('ok:false → BleCommandException (whole response as data)', () async {
     final dev = FakeDevice((r) => {'id': r['id'], 'ok': false, 'error': 'PHONES_FULL', 'phones': [{'phone_id': 'a'}]});
     final ch = BleCommandChannel(dev);
     await expectLater(
@@ -67,7 +67,7 @@ void main() {
     );
   });
 
-  test('요청은 하나씩 순서대로 (기기는 동시 요청에 BUSY)', () async {
+  test('requests go one at a time, in order (device answers BUSY to concurrent requests)', () async {
     var inFlight = 0, maxInFlight = 0;
     late FakeDevice dev;
     dev = FakeDevice((r) {
@@ -85,7 +85,7 @@ void main() {
     expect(maxInFlight, 1);
   });
 
-  test('응답이 없으면 시간 초과, 다음 요청은 정상 (늦은 옛 응답은 버린다)', () async {
+  test('no response times out, the next request works (a late stale response is dropped)', () async {
     late FakeDevice dev;
     var first = true;
     dev = FakeDevice((r) {
@@ -102,7 +102,7 @@ void main() {
     expect((await ch.request('next'))['v'], 2);
   });
 
-  test('device.info 해석', () async {
+  test('parses device.info', () async {
     final dev = FakeDevice((r) => {
           'id': r['id'],
           'ok': true,
@@ -119,7 +119,7 @@ void main() {
     expect(info.needsAppUpdate, isTrue);
   });
 
-  test('gemini_key: secret.set·secret.erase, device.info에 저장 여부', () async {
+  test('gemini_key: secret.set/secret.erase, stored flag in device.info', () async {
     const value = 'AIzaSyA1234567890abcdefghijklmnopqrstu';
     final dev = FakeDevice((r) => r['op'] == BleOp.deviceInfo
         ? {
@@ -139,7 +139,7 @@ void main() {
     expect(info.secrets['gemini_key'], isTrue);
   });
 
-  test('settings.set assistant: 키 없는 AI면 NO_API_KEY → deviceNoApiKey', () async {
+  test('settings.set assistant: AI without a key gives NO_API_KEY → deviceNoApiKey', () async {
     final dev = FakeDevice((r) => {'id': r['id'], 'ok': false, 'error': 'NO_API_KEY'});
     final writer = BleSecretWriter(BleCommandChannel(dev));
     final r = await guard(() => writer.setSettings('assistant', {'ai_provider': 'gemini', 'mode_gemini': 'saver'}));
@@ -154,7 +154,7 @@ void main() {
     expect(f?.errorKey, ErrorKeys.deviceNoApiKey);
   });
 
-  test('연결이 끊기면 기다리던 요청이 disconnected로 실패', () async {
+  test('on disconnect, the pending request fails as disconnected', () async {
     final ch = BleCommandChannel(FakeDevice((_) => null));
     final pending = ch.request('x');
     await Future<void>.delayed(Duration.zero);

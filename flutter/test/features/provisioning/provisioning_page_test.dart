@@ -26,34 +26,34 @@ void main() {
     sl.registerFactory<ProvisioningCubit>(() => ProvisioningCubit(repo, vault));
   });
 
-  testWidgets('첫 설정 1단계: 키도 "이미 있음"도 없으면 스피커 찾기 잠김', (t) async {
+  testWidgets('first setup step 1: Find speaker is locked without a key or "already set"', (t) async {
     await t.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => t.binding.setSurfaceSize(null));
     await t.pumpWidget(MaterialApp(
       theme: AppTheme.light(),
-      locale: const Locale('ko'),
+      locale: const Locale('en'),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: const ProvisioningPage(),
     ));
     await t.pumpAndSettle();
-    expect(find.text('어떤 AI를 쓸까요?'), findsOneWidget);
-    expect(find.text('OpenAI API 키 (필수)'), findsOneWidget);
-    expect(find.text('월 약 1.5만 원 · 대답 1~2초 늦음'), findsOneWidget);
-    expect(find.text('OpenAI API 키를 넣어야 다음으로 갈 수 있어요'), findsOneWidget);
-    FilledButton button() => t.widget<FilledButton>(find.widgetWithText(FilledButton, '스피커 찾기'));
+    expect(find.text('Which AI should it use?'), findsOneWidget);
+    expect(find.text('OpenAI API key (required)'), findsOneWidget);
+    expect(find.text('About ₩15k/month · Replies 1–2 s later'), findsOneWidget);
+    expect(find.text('Enter the OpenAI API key to continue'), findsOneWidget);
+    FilledButton button() => t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Find speaker'));
     expect(button().onPressed, isNull);
-    expect(find.text('(스피커에 따라 준비 중일 수 있어요)'), findsNothing); // OpenAI always works
+    expect(find.text('(may not be ready yet on some speakers)'), findsNothing); // OpenAI always works
 
     await t.tap(find.text('Gemini'));
     await t.pump();
-    expect(find.text('Gemini API 키 (필수)'), findsOneWidget);
-    expect(find.text('(스피커에 따라 준비 중일 수 있어요)'), findsOneWidget);
-    expect(find.text('월 약 1만 원 · 대답 1~2초 늦음'), findsOneWidget);
+    expect(find.text('Gemini API key (required)'), findsOneWidget);
+    expect(find.text('(may not be ready yet on some speakers)'), findsOneWidget);
+    expect(find.text('About ₩10k/month · Replies 1–2 s later'), findsOneWidget);
 
-    await t.tap(find.text('이미 이 AI 키가 저장된 스피커예요 (휴대폰 추가 등록)'));
+    await t.tap(find.text("This speaker already has this AI's key (adding another phone)"));
     await t.pump();
     expect(button().onPressed, isNotNull);
-    expect(find.text('Gemini API 키를 넣어야 다음으로 갈 수 있어요'), findsNothing);
+    expect(find.text('Enter the Gemini API key to continue'), findsNothing);
   });
 }

@@ -11,7 +11,7 @@ import 'package:mocktail/mocktail.dart';
 
 class MockRepo extends Mock implements NotesRepository {}
 
-const memo = Note(id: 'a', title: '우유', rev: 3);
+const memo = Note(id: 'a', title: 'Buy milk', rev: 3);
 const cache = NotesCache(rev: 3, items: [memo]);
 const conflict = DeviceFailure(errorKey: ErrorKeys.deviceConflict, status: 409, code: 'CONFLICT');
 
@@ -35,14 +35,14 @@ void main() {
 
   tearDown(() => changes.close());
 
-  test('사본을 먼저 보여 주고 맞춘 뒤 알림 설정을 받는다', () async {
+  test('shows the local copy first, syncs, then loads reminder settings', () async {
     const synced = NotesCache(rev: 5, items: [memo, Note(id: 'b', rev: 5)]);
     when(() => repo.sync()).thenAnswer((_) async => const Right(synced));
     final c = NotesCubit(repo);
     final seen = <NotesState>[];
     final sub = c.stream.listen(seen.add);
     await c.load();
-    expect(seen.first.items, [memo], reason: '사본 먼저');
+    expect(seen.first.items, [memo], reason: 'local copy first');
     expect(seen.first.loaded, isTrue);
     expect(c.state.items.length, 2);
     expect(c.state.rev, 5);
@@ -52,7 +52,7 @@ void main() {
     await c.close();
   });
 
-  test('스피커에 닿지 않으면 사본 + 읽기 전용 (오류 문구 대신 안내)', () async {
+  test('when the speaker is unreachable: local copy + read-only (a notice instead of an error message)', () async {
     when(() => repo.sync()).thenAnswer((_) async => const Left(NetworkFailure()));
     final c = NotesCubit(repo);
     await c.load();
@@ -69,7 +69,7 @@ void main() {
     await c.close();
   });
 
-  test('WS 이벤트가 오면 다시 맞춘다', () async {
+  test('syncs again on a WS event', () async {
     when(() => repo.sync()).thenAnswer((_) async => const Right(cache));
     final c = NotesCubit(repo);
     changes.add(null);
@@ -78,45 +78,45 @@ void main() {
     await c.close();
   });
 
-  test('저장 성공: 새 사본', () async {
-    const updated = NotesCache(rev: 3, items: [Note(id: 'a', title: '우유 2', rev: 4)]);
+  test('save succeeds: new local copy', () async {
+    const updated = NotesCache(rev: 3, items: [Note(id: 'a', title: 'Buy milk 2', rev: 4)]);
     when(() => repo.update(any(), any())).thenAnswer((_) async => const Right(updated));
     final c = NotesCubit(repo);
-    final ok = await c.save(memo, const NoteDraft(kind: NoteKind.memo, title: '우유 2'));
+    final ok = await c.save(memo, const NoteDraft(kind: NoteKind.memo, title: 'Buy milk 2'));
     expect(ok, isTrue);
-    expect(c.state.items.single.title, '우유 2');
+    expect(c.state.items.single.title, 'Buy milk 2');
     expect(c.state.busy, isFalse);
     await c.close();
   });
 
-  test('409 충돌: 실패와 함께 레포가 바꿔 둔 최신 사본을 보여 준다', () async {
-    const latest = NotesCache(rev: 3, items: [Note(id: 'a', title: '말로 바꿈', rev: 7)]);
+  test('409 conflict: fails and shows the latest copy the repo stored', () async {
+    const latest = NotesCache(rev: 3, items: [Note(id: 'a', title: 'Changed by voice', rev: 7)]);
     when(() => repo.update(any(), any())).thenAnswer((_) async {
       when(() => repo.cached()).thenAnswer((_) async => latest);
       return const Left(conflict);
     });
     final c = NotesCubit(repo);
-    final ok = await c.save(memo, const NoteDraft(kind: NoteKind.memo, title: '우유 2'));
+    final ok = await c.save(memo, const NoteDraft(kind: NoteKind.memo, title: 'Buy milk 2'));
     expect(ok, isFalse);
     expect(c.state.failure, conflict);
-    expect(c.state.byId('a')?.title, '말로 바꿈');
+    expect(c.state.byId('a')?.title, 'Changed by voice');
     expect(c.state.byId('a')?.rev, 7);
     await c.close();
   });
 
-  test('새로 만들기는 create, 지우기는 delete (스피커 원본 삭제)', () async {
+  test('new uses create, removing uses delete (deletes the speaker original)', () async {
     when(() => repo.create(any())).thenAnswer((_) async => const Right(cache));
     when(() => repo.delete(any())).thenAnswer((_) async => const Right(NotesCache(rev: 3)));
     final c = NotesCubit(repo);
-    expect(await c.save(null, const NoteDraft(kind: NoteKind.memo, title: '우유')), isTrue);
-    verify(() => repo.create(const NoteDraft(kind: NoteKind.memo, title: '우유'))).called(1);
+    expect(await c.save(null, const NoteDraft(kind: NoteKind.memo, title: 'Buy milk')), isTrue);
+    verify(() => repo.create(const NoteDraft(kind: NoteKind.memo, title: 'Buy milk'))).called(1);
     expect(await c.delete(memo), isTrue);
     verify(() => repo.delete(memo)).called(1);
     expect(c.state.items, isEmpty);
     await c.close();
   });
 
-  test('알림 설정 저장 실패면 되돌린다', () async {
+  test('reverts when saving reminder settings fails', () async {
     when(() => repo.saveSettings(any(), any())).thenAnswer((_) async => const Left(DeviceFailure.timeout()));
     final c = NotesCubit(repo);
     final ok = await c.saveSettings(const NotesSettings(enabled: false));
@@ -126,7 +126,7 @@ void main() {
     await c.close();
   });
 
-  test('닫힌 뒤 끝난 요청은 무시', () async {
+  test('ignores requests that finish after close', () async {
     final done = Completer<Either<Failure, NotesCache>>();
     when(() => repo.sync()).thenAnswer((_) => done.future);
     final c = NotesCubit(repo);

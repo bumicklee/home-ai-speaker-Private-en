@@ -98,7 +98,7 @@ Draw the screens of a phone app that sets up our family's AI speaker as an HTML 
 
 ### P11-02 From design to code · Chapter 11, Section 11.3
 ```text
-Carry the colors, fonts, and sizes from the design canvas "Jarvis 스피커 앱 디자인" (Jarvis speaker app design; docs/Jarvis 스피커 앱 디자인.html) into lib/core/theme/app_theme.dart and lib/core/widgets/app_widgets.dart.
+Carry the colors, fonts, and sizes from the design canvas "Jarvis speaker app design" (docs/jarvis-app-design.html) into lib/core/theme/app_theme.dart and lib/core/widgets/app_widgets.dart.
 - Reference: primary #0B6E6D (5.9:1 contrast against white text), background #F2F4F3, cards white, warning #9A4A07, font IBM Plex Sans KR (google_fonts), tap targets at least 44px.
 - Do not change: color HEX values live only as AppColors constants; never write them directly in screen code. Map them into the Material 3 ColorScheme by role, and build the dark theme with the same structure. Limit the shared widgets to 10: card, section title, list group, list row, switch row, slider row, step bar, notice box, status dot, and failure view, and make feature screens assemble from these only.
 - How to verify: flutter analyze 0, rebuild the home screen (features/home) with these widgets so it displays in both the light and dark themes. Existing tests must still pass.
@@ -204,7 +204,7 @@ How to verify: write model, merge, conflict, reminder chip, and cubit tests; flu
 ### P16-03 Korean teacher mode · Chapter 16, Section 16.3
 **When** You need an OpenAI key (this feature is OpenAI Live only).
 ```text
-Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "Korean teacher" screen in the app design: Korean lessons for an English-speaking learner. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes, explain "en" (when stuck, explain briefly in English; the default) or "ko" (Korean only); during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions (Hangul + romanization + English meaning), pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
+Create firmware/components/assistant/lesson.c and flutter/lib/features/english/ based on the "Korean teacher" screen in the app design: Korean lessons for an English-speaking learner. 5 courses (pron/basic/daily/biz/adv), 3 or 5 minutes, explain "en" (when stuck, explain briefly in English; the default) or "ko" (Korean only); during a lesson, about every 45 seconds send the transcript to the Responses API, extract corrected expressions (Korean in Revised Romanization only, never Hangul, + English meaning), pronunciation, and topics as JSON, send them as a WS lesson event, and when it ends save the full summary to /storage/lesson.json.
 Do not change: a lesson must be the same live_voice session as a normal conversation, and don't change live_voice's external functions. The transcript buffer must not exceed 24KB of PSRAM. The assistant tool start_korean_lesson must open the lesson after the current conversation ends.
 How to verify: POST /api/v1/lesson/start {"course":"basic","minutes":3} → after 3 minutes, GET /api/v1/lesson must have state:"done" and a corrections array. The tests in flutter/test/features/english/ pass.
 ```

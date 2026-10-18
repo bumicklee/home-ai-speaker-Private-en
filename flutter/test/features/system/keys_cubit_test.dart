@@ -35,19 +35,19 @@ void main() {
         )));
   });
 
-  test('mask: 뒤 4자리만', () {
+  test('mask: last 4 characters only', () {
     expect(KeysCubit.mask('sk-abcdefWXYZ'), '••••WXYZ');
     expect(KeysCubit.mask('ab'), '••••ab');
   });
 
-  test('load: 휴대폰 키와 스피커 저장 여부', () async {
+  test('load: phone keys and whether the speaker has them', () async {
     final c = KeysCubit(repo, vault);
     await c.load();
     expect(c.state.onPhone, {SecretKey.openai: 'sk-old-1234'});
     expect(c.state.onSpeaker, {SecretKey.openai: true, SecretKey.gemini: false, SecretKey.telegramBot: false});
   });
 
-  test('Gemini 키: 휴대폰 기억·BLE로 보내기·LAN으로 지우기', () async {
+  test('Gemini key: remember on the phone, send over BLE, delete over LAN', () async {
     const gemini = 'AIzaSyA1234567890abcdefghijklmnopqrstu';
     when(() => vault.geminiKey()).thenAnswer((_) async => 'AIza-old-9876');
     when(() => repo.sendKeyOverBle(SecretKey.gemini, gemini)).thenAnswer((_) async => const Right(unit));
@@ -66,7 +66,7 @@ void main() {
     verify(() => vault.saveGeminiKey(null)).called(1);
   });
 
-  test('load: 스피커에 연결이 안 돼도 휴대폰 키는 보인다', () async {
+  test('load: phone keys show even when the speaker is unreachable', () async {
     when(() => repo.status()).thenAnswer((_) async => const Left(NetworkFailure()));
     final c = KeysCubit(repo, vault);
     await c.load();
@@ -75,7 +75,7 @@ void main() {
     expect(c.state.speakerFailure, const NetworkFailure());
   });
 
-  test('forgetOnPhone: KeyVault에서 지운다 (null 저장 = 삭제)', () async {
+  test('forgetOnPhone: deletes from KeyVault (saving null = delete)', () async {
     final c = KeysCubit(repo, vault);
     await c.load();
     await c.forgetOnPhone(SecretKey.openai);
@@ -84,7 +84,7 @@ void main() {
     expect(c.state.onSpeaker?[SecretKey.openai], isTrue); // the speaker keeps it
   });
 
-  test('sendToSpeaker: BLE로 보내고 휴대폰에도 기억', () async {
+  test('sendToSpeaker: sends over BLE and remembers on the phone', () async {
     when(() => repo.sendKeyOverBle(SecretKey.openai, key)).thenAnswer((_) async => const Right(unit));
     final c = KeysCubit(repo, vault);
     await c.load();
@@ -94,7 +94,7 @@ void main() {
     expect(c.state.sending, isNull);
   });
 
-  test('sendToSpeaker: 텔레그램 토큰은 텔레그램 칸에', () async {
+  test('sendToSpeaker: the Telegram token goes in the Telegram slot', () async {
     when(() => repo.sendKeyOverBle(SecretKey.telegramBot, '123456:tok')).thenAnswer((_) async => const Right(unit));
     final c = KeysCubit(repo, vault);
     await c.load();
@@ -103,7 +103,7 @@ void main() {
     expect(c.state.onSpeaker?[SecretKey.telegramBot], isTrue);
   });
 
-  test('sendToSpeaker: 스피커를 못 찾으면 실패, 휴대폰에 저장하지 않음', () async {
+  test('sendToSpeaker: fails if the speaker is not found, not saved on the phone', () async {
     when(() => repo.sendKeyOverBle(any(), any()))
         .thenAnswer((_) async => const Left(BleFailure(errorKey: ErrorKeys.bleNotFound)));
     final c = KeysCubit(repo, vault);
@@ -114,7 +114,7 @@ void main() {
     expect(c.state.sending, isNull);
   });
 
-  test('deleteOnSpeaker: LAN으로 지우고 저장 여부 갱신', () async {
+  test('deleteOnSpeaker: deletes over LAN and refreshes saved state', () async {
     when(() => repo.deleteSpeakerKey(SecretKey.openai)).thenAnswer((_) async => const Right(unit));
     final c = KeysCubit(repo, vault);
     await c.load();

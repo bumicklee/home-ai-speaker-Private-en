@@ -11,20 +11,20 @@ const remindPresets = [0, 10, 30, 60, 120, 1440];
 
 String _locale(BuildContext context) => Localizations.localeOf(context).toLanguageTag();
 
-/// "오전 9:00" (9:00 AM)
+/// "9:00 AM"
 String clockText(BuildContext context, ClockTime t) =>
     MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay(hour: t.hour, minute: t.minute));
 
-/// Short time for the home subtitle ("3시", "3시 30분")
+/// Short time for the home subtitle ("3 o'clock", "3:30")
 String shortClock(AppLocalizations l, DateTime t) {
   final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
   return t.minute == 0 ? l.notesClockHour(h) : l.notesClockHourMinute(h, t.minute.toString().padLeft(2, '0'));
 }
 
-/// "10월 4일 (일)" (Oct 4 (Sun))
+/// "Sun, Oct 4"
 String dayText(BuildContext context, DateTime d) => DateFormat.MMMEd(_locale(context)).format(d);
 
-/// One reminder ("1시간 전"; for all-day, 0 = "당일 오전 9:00")
+/// One reminder ("1 hr before"; for all-day, 0 = "Same day 9:00 AM")
 String remindLabel(BuildContext context, int minutes, {required bool allDay, required ClockTime allDayTime}) {
   final l = AppLocalizations.of(context);
   if (minutes == 0) return allDay ? l.notesRemindSameDay(clockText(context, allDayTime)) : l.notesRemindOnTime;
@@ -35,7 +35,7 @@ String remindLabel(BuildContext context, int minutes, {required bool allDay, req
   return l.notesRemindMinutes(minutes);
 }
 
-/// Joins reminders earliest first ("하루 전 · 1시간 전"). "알림 없음" if none
+/// Joins reminders earliest first ("1 day before · 1 hr before"). "No reminder" if none
 String remindList(BuildContext context, List<int> remind,
     {required bool allDay, required ClockTime allDayTime, String separator = ' · '}) {
   if (remind.isEmpty) return AppLocalizations.of(context).notesRemindNone;
@@ -43,7 +43,7 @@ String remindList(BuildContext context, List<int> remind,
   return sorted.map((m) => remindLabel(context, m, allDay: allDay, allDayTime: allDayTime)).join(separator);
 }
 
-/// "스피커가 하루 전, 1시간 전에 말로 알려 줘요" (the speaker tells you out loud 1 day and 1 hour before)
+/// "The speaker will tell you 1 day before, 1 hr before"
 String remindSummary(BuildContext context, List<int> remind, {required bool allDay, required ClockTime allDayTime}) {
   final l = AppLocalizations.of(context);
   if (remind.isEmpty) return l.notesRemindNone;
@@ -82,7 +82,7 @@ String groupTitle(BuildContext context, EventGroup g) {
   };
 }
 
-/// Right side of a note row ("오늘", "어제", "10월 1일")
+/// Right side of a note row ("Today", "Yesterday", "Oct 1")
 String memoWhen(BuildContext context, Note n, DateTime now) {
   final l = AppLocalizations.of(context);
   final t = n.updated ?? n.created;

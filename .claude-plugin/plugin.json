@@ -3,7 +3,7 @@
   "displayName": "Home AI Speaker (Book Exercises)",
   "description": "Step-by-step prompts and working rules from the home AI speaker book built with Claude Code: firmware (ESP-IDF), app (Flutter), a working-method skill, and a per-chapter verification agent",
   "version": "0.1.0",
-  "author": { "name": "이범익" },
+  "author": { "name": "Bumick Lee" },
   "skills": ["./.claude/skills/"],
   "agents": ["./.claude/agents/chapter-verifier.md"]
 }

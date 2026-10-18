@@ -8,7 +8,7 @@ static bool is_ascii_space(unsigned char c)
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-/* ASCII punctuation (including space) treated as meaningless. All Hangul jamo and syllables count as "meaningful" */
+/* ASCII punctuation (including space) treated as meaningless. Every non-ASCII (UTF-8) character counts as "meaningful" */
 static bool is_ascii_filler_char(unsigned char c)
 {
     return is_ascii_space(c) || strchr(".,!?~'\"-", (char)c) != NULL;
@@ -30,10 +30,8 @@ static const char *trim(const char *s, size_t *len)
 }
 
 /* Noise phrases (docs/design-voice-saver-mode.md 11.6). Strip trailing ASCII punctuation and surrounding spaces, lowercase
- * ASCII only, then compare (Hangul has no case). Anything longer than 256 bytes is not such a short phrase to begin with */
+ * ASCII only, then compare (non-ASCII bytes are left as is). Anything longer than 256 bytes is not such a short phrase to begin with */
 static const char *const FILLERS[] = {
-    "감사합니다",
-    "시청해 주셔서 감사합니다",
     "thank you",
     "thank you for watching",
     "thanks for watching",
@@ -152,12 +150,9 @@ bool saver_text_selftest(void)
 
     ok &= saver_text_is_noise("");
     ok &= saver_text_is_noise("   ");
-    ok &= saver_text_is_noise("네");          /* 1 character */
-    ok &= saver_text_is_noise("응응");        /* 2 characters */
-    ok &= saver_text_is_noise("감사합니다");
-    ok &= saver_text_is_noise("감사합니다.");
+    ok &= saver_text_is_noise("A");           /* 1 character */
+    ok &= saver_text_is_noise("Hm.");         /* 2 characters */
     ok &= saver_text_is_noise("  Thank you.  ");
-    ok &= saver_text_is_noise("시청해 주셔서 감사합니다");
     ok &= saver_text_is_noise("Thank you for watching.");
     ok &= saver_text_is_noise("Thanks for watching!");
     ok &= saver_text_is_noise("Thank you.");
@@ -165,21 +160,20 @@ bool saver_text_selftest(void)
     ok &= !saver_text_is_noise("Thank you for watching the oven");  /* whole utterance only, never a substring */
     ok &= !saver_text_is_noise("Bye computer");                     /* hang-up phrase, not noise */
     ok &= !saver_text_is_noise("What's the weather tomorrow?");    /* meaningful question */
-    ok &= !saver_text_is_noise("내일 날씨 어때?");      /* meaningful question */
-    ok &= !saver_text_is_noise("고마워요");             /* 3 characters, not in the list */
+    ok &= !saver_text_is_noise("Yes");                              /* 3 characters, not in the list */
     ok &= saver_text_is_noise(NULL);                     /* NULL counts as noise */
 
     split_capture_t c = {0};
-    saver_text_split_sentences("오늘은 맑아요. 내일은 비가 와요! 우산 챙기세요?", capture_cb, &c);
+    saver_text_split_sentences("It's sunny today. It will rain tomorrow! Did you pack an umbrella?", capture_cb, &c);
     ok &= c.count == 3;
-    ok &= !strcmp(c.first, "오늘은 맑아요.");
+    ok &= !strcmp(c.first, "It's sunny today.");
 
     split_capture_t c2 = {0};
     saver_text_split_sentences("  ", capture_cb, &c2);
     ok &= c2.count == 0;      /* empty chunks are skipped */
 
     split_capture_t c3 = {0};
-    saver_text_split_sentences("한 줄에 끝 문장 (마침표 없음)", capture_cb, &c3);
+    saver_text_split_sentences("One line, last sentence (no final period)", capture_cb, &c3);
     ok &= c3.count == 1;      /* the last chunk comes out even without a final period */
 
     return ok;

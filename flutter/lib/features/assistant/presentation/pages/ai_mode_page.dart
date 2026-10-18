@@ -11,7 +11,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../provisioning/domain/entities/provisioning_input.dart';
 import '../bloc/ai_mode_cubit.dart';
 
-/// Assistant > AI · Conversation mode (design "AI · 대화 방식"): ① AI (locked if no key or coming soon) → ② that AI's Live / Saver
+/// Assistant > AI · Conversation mode (design "AI · Conversation mode"): ① AI (locked if no key or coming soon) → ② that AI's Live / Saver
 class AiModePage extends StatelessWidget {
   const AiModePage({super.key});
 

@@ -85,7 +85,7 @@
 | VOI-06 | Ready tone | When the session is ready (`session.started`), play the ready tone. Then you can speak | live_voice | P0 | 1 | Audio before the ready tone is discarded |
 | VOI-07 | Live conversation | Upload microphone PCM in batches of up to 64ms, play the reply audio immediately. Blue level meter while the reply plays | live_voice, audio_core | P0 | 1 | No dropouts in a 10-minute conversation |
 | VOI-08 | Barge-in | If the user speaks while the assistant is talking, the assistant stops and listens (handled server-side; the device supports it with echo cancellation) | audio_core | P1 | 1 | Reacts to 8 or more of 10 interruptions during a reply |
-| VOI-09 | Hang-up phrase | End when the input transcription contains "goodbye computer" / "bye computer", "goodbye alexa" / "bye alexa", "goodbye jarvis" / "bye jarvis", or "end conversation" / "end the conversation" / "stop conversation" (not after "don't", "not" or "never"). The Korean "잘가 컴퓨터" (goodbye, Computer), "잘가 자비스" (goodbye, Jarvis) and "대화 종료" (end conversation) also work. Wait 600ms after the last word | live_voice(hangup) | P0 | 1 | Doesn't react when it's inside a longer word ("굿바이 자비스온") |
+| VOI-09 | Hang-up phrase | End when the input transcription contains "goodbye computer" / "bye computer", "goodbye alexa" / "bye alexa", "goodbye jarvis" / "bye jarvis", or "end conversation" / "end the conversation" / "stop conversation" (not after "don't", "not" or "never"). Wait 600ms after the last word | live_voice(hangup) | P0 | 1 | Doesn't react when it's inside a longer word ("goodbye jarvison") |
 | VOI-10 | Button end | Key2 short press during a conversation → ends immediately | buttons | P0 | 1 | |
 | VOI-11 | No-response timeout | End after 60 seconds with no conversation (while reply audio plays counts as conversation) | live_voice | P0 | 1 | |
 | VOI-12 | Maximum length | One conversation lasts at most 10 minutes | live_voice | P0 | 1 | |
@@ -184,8 +184,8 @@ Preparation: in **each home that uses the speaker, one main account creates a Sp
 |:--|:--|:--|:--|:--|:--|:--|
 | TLG-01 | Bot setup guide | The app guides you to create **a bot just for this speaker** with BotFather, invite it to a group, and turn off privacy mode (after turning it off, the bot must be removed from the group and invited again for it to take effect) | telegram | P1 | 4 | |
 | TLG-02 | Token check and save | The app checks it with `getMe` → BLE window with Key2 3 seconds → saved on the speaker | telegram, ble_prov | P1 | 4 | A wrong token is rejected before saving |
-| TLG-03 | Registering a chat | The app issues a 6-digit code (5 minutes, single use, invalid after 5 wrong tries) → a family member sends `/pair code` in a private chat with the bot, or `/pair@botname code` in a group → the speaker registers it and notifies the app (WS `tg_paired`) | messenger_telegram / telegram | P1 | 4 | After registration, the bot replies "등록되었습니다" (Registered) |
-| TLG-04 | Alias | An alias per chat (for example, "가족방" (family chat), "엄마" (Mom)). Used in voice commands | telegram | P1 | 4 | |
+| TLG-03 | Registering a chat | The app issues a 6-digit code (5 minutes, single use, invalid after 5 wrong tries) → a family member sends `/pair code` in a private chat with the bot, or `/pair@botname code` in a group → the speaker registers it and notifies the app (WS `tg_paired`) | messenger_telegram / telegram | P1 | 4 | After registration, the bot replies "Registered. This speaker will now receive messages from this chat." |
+| TLG-04 | Alias | An alias per chat (for example, "Family", "Mom"). Used in voice commands | telegram | P1 | 4 | |
 | TLG-05 | Unregistering | Delete in the app. Up to 10. If a group becomes a supergroup, it updates to the new chat_id automatically | telegram | P1 | 4 | |
 | TLG-06 | Receiving messages | Received by long polling. Only registered chats are handled, the rest ignored. Keeps the latest 20 (lost when the power is off) | messenger_telegram | P1 | 4 | Notified within 10 seconds of receipt |
 | TLG-07 | Arrival notification | Chime + purple LED dot. No chime during a conversation | messenger_telegram, led_ring | P1 | 4 | |
@@ -248,7 +248,7 @@ Preparation: in **each home that uses the speaker, one main account creates a Sp
 | "Change your voice. What's available?" | `list_voices` → `set_voice` | AST-04 |
 | "Remember that I have a cat" | `remember` | AST-09 |
 | "Calibrate the microphone" | `calibrate_microphone` | AUD-03 |
-| "Goodbye Jarvis" / "End conversation" (or "잘가 자비스" / "대화 종료") | Ended on the device | VOI-09 |
+| "Goodbye Jarvis" / "End conversation" | Ended on the device | VOI-09 |
 
 ## 13. Handling Exceptions
 

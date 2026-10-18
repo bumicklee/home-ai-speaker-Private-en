@@ -9,7 +9,7 @@ import '../bloc/notes_cubit.dart';
 import 'notes_texts.dart';
 import 'notes_widgets.dart';
 
-/// Schedule reminder settings (design "일정 알림"): on/off, default reminders, all-day reminder time. Changes save to the speaker immediately
+/// Schedule reminder settings (design "Event reminders"): on/off, default reminders, all-day reminder time. Changes save to the speaker immediately
 class NotesSettingsPage extends StatelessWidget {
   const NotesSettingsPage({super.key});
 

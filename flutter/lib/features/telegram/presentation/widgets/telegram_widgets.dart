@@ -101,7 +101,7 @@ class TgChatAvatar extends StatelessWidget {
   }
 }
 
-/// "개인 대화 · Kim Mira" (private chat · Kim Mira)
+/// "Private chat · Kim Mira"
 String tgChatSubtitle(AppLocalizations l, TelegramChat chat) {
   final kind = chat.isGroup ? l.tgChatGroup : (chat.type == 'channel' ? l.tgChatChannel : l.tgChatPrivate);
   return chat.title.isEmpty || chat.title == chat.alias ? kind : '$kind · ${chat.title}';

@@ -24,8 +24,8 @@ Map<String, dynamic> station({String codec = 'MP3', String url = 'http://a.examp
     {'name': 'X', 'codec': codec, 'url_resolved': url, 'hls': hls};
 
 void main() {
-  group('묶음', () {
-    test('기본 프리셋: 디자인과 같은 묶음, 모두 정확히 한 번', () {
+  group('groups', () {
+    test('default presets: same groups as the design, each exactly once', () {
       final groups = groupPresets(defaults);
       final all = [for (final (_, idx) in groups) ...idx]..sort();
       expect(all, List.generate(defaults.length, (i) => i));
@@ -36,7 +36,7 @@ void main() {
       expect(groups.map((g) => g.$1), [PresetGroup.music, PresetGroup.news, PresetGroup.talk]);
     });
 
-    test('태그가 없거나 모르는 태그면 기타', () {
+    test('no tags or unknown tags go to Other', () {
       final groups = groupPresets(const [
         RadioPreset(name: 'a', url: 'http://a/x'),
         RadioPreset(name: 'b', url: 'http://b/x', genre: 'jazz'),
@@ -45,15 +45,15 @@ void main() {
       expect([for (final (g, idx) in groups) '${g.name}:${idx.join(',')}'], ['music:1', 'korean:2', 'other:0']);
     });
 
-    test('화면 태그에서 korean·english는 뺀다', () {
+    test('display tags drop korean and english', () {
       expect(defaults[0].displayTags, ['alternative', 'indie', 'eclectic']);
       expect(const RadioPreset(name: 'k', url: 'http://k/x', genre: 'kpop,pop,korean').displayTags, ['kpop', 'pop']);
       expect(defaults[8].displayTags, ['business', 'finance', 'news']);
     });
   });
 
-  group('틀 수 있는 방송 (radio_search.c playable)', () {
-    test('MP3·AAC 직접 스트림만', () {
+  group('playable stations (radio_search.c playable)', () {
+    test('direct MP3/AAC streams only', () {
       expect(isPlayable(station()), isTrue);
       expect(isPlayable(station(url: 'https://a.example/live', codec: 'AAC')), isTrue);
       expect(isPlayable(station(codec: 'AAC+')), isTrue);
@@ -62,13 +62,13 @@ void main() {
       expect(isPlayable(station(codec: '')), isFalse);
     });
 
-    test('HLS는 뺀다 (주소 .m3u8 또는 hls 표시)', () {
+    test('drops HLS (.m3u8 URL or hls flag)', () {
       expect(isPlayable(station(url: 'https://kbs.example/live/playlist.m3u8')), isFalse);
       expect(isPlayable(station(hls: 1)), isFalse);
       expect(isPlayable(station(hls: null)), isTrue);
     });
 
-    test('http(s)가 아니거나 256바이트 넘는 주소는 뺀다', () {
+    test('drops non-http(s) URLs and URLs over 256 bytes', () {
       expect(isPlayable(station(url: 'rtsp://a.example/live')), isFalse);
       expect(isPlayable(station(url: 'http://a.example/${'x' * 239}')), isTrue); // 256 bytes
       expect(isPlayable(station(url: 'http://a.example/${'x' * 240}')), isFalse);
@@ -77,35 +77,35 @@ void main() {
     });
   });
 
-  group('프리셋 검증 (radio_presets.c presets_valid)', () {
-    test('기본 프리셋은 통과', () => expect(validatePresets(defaults), isNull));
+  group('preset validation (radio_presets.c presets_valid)', () {
+    test('default presets pass', () => expect(validatePresets(defaults), isNull));
 
-    test('20개까지', () {
+    test('up to 20', () {
       final p = const RadioPreset(name: 'a', url: 'http://a/x');
       expect(validatePresets(List.filled(20, p)), isNull);
       expect(validatePresets(List.filled(21, p)), PresetError.tooMany);
     });
 
-    test('이름은 1–48바이트 (한글 3바이트)', () {
+    test('name is 1–48 bytes (€ is 3 bytes)', () {
       expect(validatePreset(const RadioPreset(name: '', url: 'http://a/x')), PresetError.nameEmpty);
-      expect(validatePreset(RadioPreset(name: '가' * 16, url: 'http://a/x')), isNull);
-      expect(validatePreset(RadioPreset(name: '가' * 17, url: 'http://a/x')), PresetError.nameTooLong);
+      expect(validatePreset(RadioPreset(name: '€' * 16, url: 'http://a/x')), isNull);
+      expect(validatePreset(RadioPreset(name: '€' * 17, url: 'http://a/x')), PresetError.nameTooLong);
       expect(validatePreset(RadioPreset(name: 'a' * 48, url: 'http://a/x')), isNull);
     });
 
-    test('주소는 http(s), 8–256바이트', () {
+    test('URL is http(s), 8–256 bytes', () {
       expect(validatePreset(const RadioPreset(name: 'a', url: 'ftp://a/x')), PresetError.urlInvalid);
       expect(validatePreset(const RadioPreset(name: 'a', url: 'http://')), PresetError.urlInvalid);
       expect(validatePreset(const RadioPreset(name: 'a', url: 'http://a')), isNull);
       expect(validatePreset(RadioPreset(name: 'a', url: 'http://${'a' * 250}')), PresetError.urlTooLong);
     });
 
-    test('장르는 64바이트까지', () {
+    test('genre up to 64 bytes', () {
       expect(validatePreset(RadioPreset(name: 'a', url: 'http://a/x', genre: 'a' * 64)), isNull);
       expect(validatePreset(RadioPreset(name: 'a', url: 'http://a/x', genre: 'a' * 65)), PresetError.genreTooLong);
     });
 
-    test('본문이 8KB를 넘으면 거절', () {
+    test('rejects a body over 8 KB', () {
       // Even within the limit, JSON escaping (\") can make the body larger
       final big = RadioPreset(name: '"' * 48, url: 'https://${'"' * 248}', genre: '"' * 64);
       expect(validatePreset(big), isNull);
@@ -113,19 +113,19 @@ void main() {
     });
   });
 
-  test('검색 결과 → 프리셋: 이름·장르를 바이트 한도로 자른다', () {
+  test('search result → preset: trims name and genre to the byte limits', () {
     final p = presetFromStation(RadioStation(
-      name: '가' * 20,
+      name: '€' * 20,
       url: 'http://a/x',
       tags: 'Jazz, smooth jazz,${'x' * 50},jazz,blues',
     ));
     expect(utf8Length(p.name), 48);
-    expect(p.name, '가' * 16);
+    expect(p.name, '€' * 16);
     expect(p.genre, 'jazz,smooth jazz');
     expect(validatePreset(p), isNull);
   });
 
-  test('재생 중 프리셋: 번호가 맞으면 번호로, 순서가 바뀌면 이름으로', () {
+  test('playing preset: by number if it matches, by name if the order changed', () {
     RadioNow now(int? preset, String station) =>
         RadioNow(media: MediaNow(source: 'radio', state: 'playing', station: station), preset: preset);
     expect(playingPresetIndex(defaults, now(8, 'Bloomberg Radio')), 8);

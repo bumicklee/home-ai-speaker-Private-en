@@ -42,7 +42,7 @@ class FakeResolver implements DeviceResolver {
 const ep = DeviceEndpoint(deviceId: 'A1B2C3D4E5F6', host: '192.168.0.10', token: 'tok');
 
 void main() {
-  test('토큰을 Bearer로 붙이고 JSON을 돌려준다', () async {
+  test('attaches the token as Bearer and returns JSON', () async {
     final adapter = FakeAdapter((o) => json(200, {'fw': '0.5.0'}));
     final client = DeviceApiClient(ep, dio: Dio()..httpClientAdapter = adapter);
     final status = await client.get<Map<String, dynamic>>('/api/v1/status');
@@ -51,13 +51,13 @@ void main() {
     expect(adapter.seen.single.uri.toString(), 'http://192.168.0.10/api/v1/status');
   });
 
-  test('오류 본문 {"error": code} → DeviceApiException', () async {
+  test('error body {"error": code} → DeviceApiException', () async {
     final client = DeviceApiClient(ep, dio: Dio()..httpClientAdapter = FakeAdapter((o) => json(409, {'error': 'VOICE_ACTIVE'})));
     await expectLater(client.post<void>('/api/v1/system/reboot'),
         throwsA(isA<DeviceApiException>().having((e) => e.status, 'status', 409).having((e) => e.code, 'code', 'VOICE_ACTIVE')));
   });
 
-  test('오류 본문 전체를 data에 담는다 (메모 409 CONFLICT의 note)', () async {
+  test('puts the whole error body in data (the note in a 409 CONFLICT on notes)', () async {
     final client = DeviceApiClient(ep,
         dio: Dio()..httpClientAdapter = FakeAdapter((o) => json(409, {'error': 'CONFLICT', 'note': {'id': 'n_1', 'rev': 9}})));
     await expectLater(
@@ -67,7 +67,7 @@ void main() {
             .having((e) => (e.data?['note'] as Map)['rev'], 'note.rev', 9)));
   });
 
-  test('연결 실패 → mDNS로 새 IP를 찾아 한 번 재시도, 바뀐 주소를 알린다', () async {
+  test('connection failure → finds the new IP via mDNS, retries once, reports the new address', () async {
     final adapter = FakeAdapter((o) {
       if (o.uri.host == '192.168.0.10') {
         throw DioException.connectionError(requestOptions: o, reason: 'refused');
@@ -84,13 +84,13 @@ void main() {
     expect(adapter.seen.map((o) => o.uri.host), ['192.168.0.10', '192.168.0.23']);
   });
 
-  test('새 IP를 못 찾으면 NetworkException', () async {
+  test('NetworkException when no new IP is found', () async {
     final adapter = FakeAdapter((o) => throw DioException.connectionError(requestOptions: o, reason: 'refused'));
     final client = DeviceApiClient(ep, resolver: FakeResolver(null), dio: Dio()..httpClientAdapter = adapter);
     await expectLater(client.get<void>('/x'), throwsA(isA<NetworkException>()));
   });
 
-  test('401은 재시도하지 않는다', () async {
+  test('does not retry on 401', () async {
     final resolver = FakeResolver('192.168.0.23');
     final client = DeviceApiClient(ep, resolver: resolver, dio: Dio()..httpClientAdapter = FakeAdapter((o) => json(401, {})));
     await expectLater(client.get<void>('/x'), throwsA(isA<DeviceApiException>().having((e) => e.status, 's', 401)));

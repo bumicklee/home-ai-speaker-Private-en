@@ -29,7 +29,7 @@ NoteTime day(int d) => NoteTime.date(DateTime(2026, 10, d));
 
 void main() {
   group('groupEvents', () {
-    test('오늘 · 내일 · 이번 주 · 나중 · 지난 일정, 날짜순 (같은 날은 하루 종일 먼저)', () {
+    test('today · tomorrow · this week · later · past, by date (all-day first on the same day)', () {
       final notes = [
         ev('later', at(20, 10)),
         ev('today15', at(4, 15)),
@@ -49,24 +49,24 @@ void main() {
       expect(groups[1].day, DateTime(2026, 10, 5));
       expect(groups[2].items.single.id, 'week');
       expect(groups[3].items.single.id, 'later');
-      expect(groups[4].items.map((n) => n.id), ['past3', 'past1'], reason: '지난 일정은 최근 것부터');
+      expect(groups[4].items.map((n) => n.id), ['past3', 'past1'], reason: 'past events newest first');
     });
 
-    test('빈 묶음은 빼고, 이번 주는 7일 안까지', () {
+    test('drops empty groups; this week covers the next 7 days', () {
       final groups = groupEvents([ev('d10', at(10, 9)), ev('d11', at(11, 9))], now);
       expect(groups.map((g) => g.kind), [EventGroupKind.thisWeek, EventGroupKind.later]);
     });
   });
 
-  test('찾기: 대소문자·띄어쓰기 무시, 제목·내용', () {
-    const n = Note(id: '1', title: '병원 (정형외과)', body: 'Insurance Card');
-    expect(matchesQuery(n, '정형 외과'), isTrue);
+  test('search: ignores case and spaces, matches title and body', () {
+    const n = Note(id: '1', title: 'Doctor (orthopedics)', body: 'Insurance Card');
+    expect(matchesQuery(n, 'Ortho Pedics'), isTrue);
     expect(matchesQuery(n, 'insurancecard'), isTrue);
-    expect(matchesQuery(n, '치과'), isFalse);
+    expect(matchesQuery(n, 'dentist'), isFalse);
     expect(matchesQuery(n, '  '), isTrue);
   });
 
-  test('메모는 최근 수정순, 휴지통은 남은 날', () {
+  test('memos sorted by most recently edited; trash shows days left', () {
     final memos = sortedMemos([
       Note(id: 'old', updated: DateTime(2026, 10, 1)),
       Note(id: 'new', updated: DateTime(2026, 10, 4)),
@@ -80,16 +80,16 @@ void main() {
   group('badgeOf', () {
     const nine = ClockTime.morning;
 
-    test('앞으로 울릴 알림이 있으면 알림 예정', () {
+    test('scheduled when a reminder is still to come', () {
       expect(badgeOf(ev('a', at(4, 15), remind: [60]), now, nine), NoteBadge.scheduled);
     });
 
-    test('알림이 없거나 다 지났으면 표시 없음', () {
+    test('no badge when there are no reminders or all have passed', () {
       expect(badgeOf(ev('a', at(4, 15), remind: []), now, nine), NoteBadge.none);
       expect(badgeOf(ev('a', at(4, 13, 30), remind: [60]), now, nine), NoteBadge.none);
     });
 
-    test('최근 알림 결과: 확인됨·대답 없음·보냄·놓침', () {
+    test('recent reminder result: acked, no answer, sent, missed', () {
       final recent = now.subtract(const Duration(minutes: 30));
       for (final (status, badge) in [
         (AlertStatus.acked, NoteBadge.acked),
@@ -102,7 +102,7 @@ void main() {
       }
     });
 
-    test('오래된 결과보다 다음 알림 예정이 먼저', () {
+    test('the next scheduled reminder wins over an old result', () {
       final n = ev('a', at(5, 15),
           remind: [1440 * 2, 60],
           reminded: [1440 * 2],
@@ -110,13 +110,13 @@ void main() {
       expect(badgeOf(n, now, nine), NoteBadge.scheduled);
     });
 
-    test('놓친 알림만 남으면 놓침, "나중에 다시"가 남았으면 알림 예정', () {
+    test('missed when only missed reminders remain; scheduled while a snooze is pending', () {
       expect(badgeOf(ev('a', at(4, 12), remind: [60], missed: [60]), now, nine), NoteBadge.missed);
       expect(badgeOf(ev('a', at(4, 12), remind: [], snoozeAt: now.add(const Duration(minutes: 5))), now, nine),
           NoteBadge.scheduled);
     });
 
-    test('하루 종일 일정은 알림 시각(기본 9시) 기준', () {
+    test('all-day events use the reminder time (9:00 by default)', () {
       // All day tomorrow: 0 = tomorrow 9:00 (upcoming), 1440 = today 9:00 (past)
       expect(ev('a', day(5), remind: [0]).pendingReminders(now, nine), [0]);
       expect(ev('a', day(5), remind: [1440]).pendingReminders(now, nine), isEmpty);
@@ -124,32 +124,32 @@ void main() {
     });
   });
 
-  group('toggleRemind (알림 칩)', () {
-    test('넣고 빼기, 이른 알림부터 정렬', () {
+  group('toggleRemind (reminder chips)', () {
+    test('adds and removes, sorted earliest reminder first', () {
       expect(toggleRemind([60], 1440), [1440, 60]);
       expect(toggleRemind([1440, 60], 60), [1440]);
     });
 
-    test('최대 3개: 넘으면 그대로', () {
+    test('up to 3: unchanged when full', () {
       final full = toggleRemind(toggleRemind([60], 10), 30);
       expect(full, [60, 30, 10]);
       expect(toggleRemind(full, 120), full);
-      expect(toggleRemind(full, 30), [60, 10], reason: '가득 차도 빼기는 된다');
+      expect(toggleRemind(full, 30), [60, 10], reason: 'removing still works when full');
     });
 
-    test('범위 밖(0–10080)은 넣지 않는다', () {
+    test('does not add values outside 0–10080', () {
       expect(toggleRemind([], 10081), isEmpty);
       expect(toggleRemind([], -1), isEmpty);
     });
   });
 
-  test('홈 요약: 오늘 일정 수와 다음 일정', () {
-    final notes = [ev('아침', at(4, 9)), ev('병원', at(4, 15)), ev('생일', day(4)), ev('내일', at(5, 9))];
+  test("home summary: today's event count and the next event", () {
+    final notes = [ev('breakfast', at(4, 9)), ev('doctor', at(4, 15)), ev('birthday', day(4)), ev('tomorrow', at(5, 9))];
     final s = todaySummary(notes, now);
     expect(s.count, 3);
-    expect(s.next?.id, '병원');
-    final done = todaySummary([ev('아침', at(4, 9))], now);
-    expect(done.next?.id, '아침', reason: '다 지났으면 오늘 첫 일정');
+    expect(s.next?.id, 'doctor');
+    final done = todaySummary([ev('breakfast', at(4, 9))], now);
+    expect(done.next?.id, 'breakfast', reason: "if all have passed, today's first event");
     expect(todaySummary(const [], now).next, isNull);
   });
 }

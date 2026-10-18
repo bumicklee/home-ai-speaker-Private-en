@@ -15,23 +15,23 @@ List<int> entry(String ssid, int rssi, int security) {
 }
 
 void main() {
-  test('한글 SSID(UTF-8), RSSI, 보안 방식', () {
-    final n = WifiNetwork.parse(entry('우리집 와이파이', -48, 6));
-    expect(n.ssid, '우리집 와이파이');
+  test('non-ASCII SSID (UTF-8), RSSI, security type', () {
+    final n = WifiNetwork.parse(entry('Café Wi-Fi €', -48, 6));
+    expect(n.ssid, 'Café Wi-Fi €');
     expect(n.rssi, -48);
     expect(n.security, WifiSecurity.wpa2Wpa3);
     expect(n.bars, 4);
   });
 
-  test('32바이트를 꽉 채운 SSID', () {
+  test('SSID filling all 32 bytes', () {
     expect(WifiNetwork.parse(entry('A' * 32, -70, 3)).ssid, 'A' * 32);
   });
 
-  test('모르는 보안 값은 other', () {
+  test('unknown security value is other', () {
     expect(WifiNetwork.parse(entry('x', -90, 42)).security, WifiSecurity.other);
   });
 
-  test('개수 → 항목들, 신호 센 순으로 정렬', () {
+  test('count → entries, sorted strongest signal first', () {
     final c = WifiScanCollector();
     expect(c.add([2]), isNull);
     expect(c.add(entry('weak', -80, 3)), isNull);
@@ -40,11 +40,11 @@ void main() {
     expect(list.first.security.needsPassword, isFalse);
   });
 
-  test('0개면 바로 빈 목록', () {
+  test('zero count gives an empty list right away', () {
     expect(WifiScanCollector().add([0]), isEmpty);
   });
 
-  test('0xFF = 기기 스캔 실패', () {
+  test('0xFF = device scan failed', () {
     expect(() => WifiScanCollector().add([BleProtocol.scanFailed]), throwsA(isA<BleException>()));
   });
 }

@@ -1,5 +1,5 @@
 /// Phone reverse-geocoding result → neighborhood name to store on the speaker (design document Section 3.0).
-/// In Korea, keep only `province city/county neighborhood` and drop lot numbers, building names and road names (e.g. "서울 강남구 역삼동").
+/// In Korea, keep only `province city/county neighborhood` and drop lot numbers, building names and road names (e.g. "Seoul Gangnam-gu Yeoksam-dong", written in Korean).
 library;
 
 import '../entities/assistant_settings.dart';
@@ -33,7 +33,7 @@ class PlaceFormatter {
   static final _sido = RegExp(r'^[가-힣]+(특별시|광역시|특별자치시|특별자치도|도)$');
   static final _sigungu = RegExp(r'^[가-힣]+(시|군|구)$');
 
-  /// 동/읍/면 neighborhoods, numbered 동 (역삼1동), and 가 (을지로3가)
+  /// -dong/-eup/-myeon neighborhoods, numbered -dong (Yeoksam 1-dong), and -ga (Euljiro 3-ga)
   static final _dong = RegExp(r'^[가-힣]+(\d*동|읍|면|\d+가)$');
 
   /// Empty string if it can't build one
@@ -59,7 +59,7 @@ class PlaceFormatter {
       if (sido == null && _sido.hasMatch(w)) {
         sido = w;
       } else if (_sigungu.hasMatch(w) && w != sido && sigungu.length < 2 && !sigungu.contains(w)) {
-        sigungu.add(w); // there can be two city/district levels, as in 수원시 영통구
+        sigungu.add(w); // there can be two city/district levels, as in Suwon-si Yeongtong-gu
       } else if (dong == null && _dong.hasMatch(w)) {
         dong = w;
       }
@@ -67,7 +67,8 @@ class PlaceFormatter {
     return [if (sido != null) _shortSido(sido), ...sigungu, ?dong].join(' ');
   }
 
-  /// 서울특별시 → 서울, 부산광역시 → 부산, 세종특별자치시 → 세종, 제주특별자치도 → 제주도. 경기도 stays as is
+  /// Drops the "special city", "metropolitan city" and "special self-governing city" suffixes (Seoul, Busan, Sejong);
+  /// a "special self-governing province" becomes a plain province (Jeju-do). Gyeonggi-do stays as is
   static String _shortSido(String s) {
     for (final suffix in ['특별자치시', '특별시', '광역시']) {
       if (s.endsWith(suffix)) return s.substring(0, s.length - suffix.length);

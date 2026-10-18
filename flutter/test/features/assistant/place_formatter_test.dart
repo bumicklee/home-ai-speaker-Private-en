@@ -2,8 +2,8 @@ import 'package:aispeaker/features/assistant/domain/services/place_formatter.dar
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('한국 주소 → 시/도 구/군 동', () {
-    test('iOS 형식 (subLocality=구, name=동 번지)', () {
+  group('Korean address → province, district, neighborhood (Korean-specific logic, Korean geocoder output)', () {
+    test('iOS layout (subLocality = district, name = neighborhood + lot number)', () {
       const p = PlaceParts(
         isoCountryCode: 'KR',
         administrativeArea: '서울특별시',
@@ -14,7 +14,7 @@ void main() {
       expect(PlaceFormatter.format(p), '서울 강남구 역삼동');
     });
 
-    test('Android 형식 (locality=구, subLocality=동, 도로명·건물명은 버린다)', () {
+    test('Android layout (locality = district, subLocality = neighborhood; road and building names are dropped)', () {
       const p = PlaceParts(
         isoCountryCode: 'KR',
         administrativeArea: '서울특별시',
@@ -26,7 +26,7 @@ void main() {
       expect(PlaceFormatter.format(p), '서울 강남구 역삼1동');
     });
 
-    test('도 + 시 + 구 + 동', () {
+    test('province + city + district + neighborhood', () {
       const p = PlaceParts(
         isoCountryCode: 'KR',
         administrativeArea: '경기도',
@@ -38,7 +38,7 @@ void main() {
       expect(PlaceFormatter.format(p), '경기도 수원시 영통구 매탄동');
     });
 
-    test('광역시·특별자치도 줄임, 읍·면', () {
+    test('shortens metropolitan cities and special self-governing provinces; -eup and -myeon', () {
       expect(
         PlaceFormatter.format(const PlaceParts(
             isoCountryCode: 'KR', administrativeArea: '부산광역시', locality: '해운대구', subLocality: '우동')),
@@ -51,18 +51,18 @@ void main() {
       );
     });
 
-    test('을지로3가처럼 숫자+가인 동', () {
+    test('a neighborhood ending in number + -ga (Euljiro 3-ga)', () {
       const p = PlaceParts(isoCountryCode: 'KR', administrativeArea: '서울특별시', subLocality: '중구', name: '을지로3가 12');
       expect(PlaceFormatter.format(p), '서울 중구 을지로3가');
     });
 
-    test('나라 코드가 없어도 시/도 이름으로 한국을 알아본다', () {
+    test('recognizes Korea by the province name even without a country code', () {
       const p = PlaceParts(administrativeArea: '서울특별시', locality: '마포구', subLocality: '서교동');
       expect(PlaceFormatter.format(p), '서울 마포구 서교동');
     });
   });
 
-  test('해외는 동네, 도시, 주, 나라 (번지 없이)', () {
+  test('outside Korea: neighborhood, city, state, country (no street number)', () {
     const p = PlaceParts(
       isoCountryCode: 'US',
       country: 'United States',
@@ -75,7 +75,7 @@ void main() {
     expect(PlaceFormatter.format(p), 'Mission District, San Francisco, California, United States');
   });
 
-  test('96바이트를 넘으면 뒤를 버린다', () {
+  test('drops the end when over 96 bytes', () {
     final p = PlaceParts(
       isoCountryCode: 'US',
       subLocality: 'A' * 40,
@@ -87,20 +87,20 @@ void main() {
     expect(s, '${'A' * 40}, ${'B' * 40}');
   });
 
-  group('시간대 후보', () {
-    test('펌웨어 표에 있으면 그대로', () {
+  group('time zone candidates', () {
+    test('kept as is when in the firmware table', () {
       final t = TimezoneSuggestion.of('America/Los_Angeles');
       expect(t.supported, isTrue);
       expect(t.phone, 'America/Los_Angeles');
     });
 
-    test('표에 없으면 Asia/Seoul·UTC (아시아면 Asia/Seoul 먼저)', () {
+    test('not in the table: Asia/Seoul and UTC (Asia/Seoul first in Asia)', () {
       expect(TimezoneSuggestion.of('Asia/Ho_Chi_Minh').fallbacks, ['Asia/Seoul', 'UTC']);
       expect(TimezoneSuggestion.of('Europe/Paris').fallbacks, ['UTC', 'Asia/Seoul']);
       expect(TimezoneSuggestion.of('Europe/Paris').supported, isFalse);
     });
 
-    test('못 읽으면 UTC 먼저', () {
+    test('UTC first when it cannot be read', () {
       final t = TimezoneSuggestion.of(null);
       expect(t.supported, isFalse);
       expect(t.fallbacks.first, 'UTC');

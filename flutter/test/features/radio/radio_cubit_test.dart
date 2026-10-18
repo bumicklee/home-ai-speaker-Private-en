@@ -43,7 +43,7 @@ void main() {
 
   RadioCubit build() => RadioCubit(repo, events);
 
-  test('프리셋과 지금 재생을 불러온다', () async {
+  test('loads presets and what is playing now', () async {
     when(() => repo.now()).thenAnswer((_) async => const Right(playing));
     final c = build();
     await c.load();
@@ -53,7 +53,7 @@ void main() {
     await c.close();
   });
 
-  test('media_state 이벤트로 머리 카드가 바뀐다', () async {
+  test('media_state event updates the header card', () async {
     final c = build();
     await c.load();
     expect(c.state.now.media.isActive, isFalse);
@@ -69,7 +69,7 @@ void main() {
     await c.close();
   });
 
-  test('프리셋 재생은 번호로 보낸다', () async {
+  test('preset playback sends the preset number', () async {
     when(() => repo.playPreset(1)).thenAnswer((_) async => const Right(unit));
     final c = build();
     await c.load();
@@ -79,15 +79,15 @@ void main() {
     await c.close();
   });
 
-  test('검색 결과 지금 틀기는 주소와 이름(48바이트까지)으로', () async {
+  test('playing a search result sends the URL and name (up to 48 bytes)', () async {
     when(() => repo.playUrl(any(), any())).thenAnswer((_) async => const Right(unit));
     final c = build();
-    await c.playStation(RadioStation(name: '가' * 20, url: 'http://a.example/live'));
-    verify(() => repo.playUrl('http://a.example/live', '가' * 16)).called(1);
+    await c.playStation(RadioStation(name: '€' * 20, url: 'http://a.example/live'));
+    verify(() => repo.playUrl('http://a.example/live', '€' * 16)).called(1);
     await c.close();
   });
 
-  test('재생 중이면 일시정지, 멈춰 있으면 다시 재생', () async {
+  test('pauses while playing, resumes when stopped', () async {
     when(() => repo.now()).thenAnswer((_) async => const Right(playing));
     final c = build();
     await c.load();
@@ -101,7 +101,7 @@ void main() {
     await c.close();
   });
 
-  test('409 NOT_PLAYING이면 실패를 알리고 지금 상태를 다시 받는다', () async {
+  test('409 NOT_PLAYING reports failure and re-fetches the current state', () async {
     when(() => repo.media('next')).thenAnswer((_) async => Left(DeviceFailure.fromStatus(409, 'NOT_PLAYING')));
     final c = build();
     await c.load();
@@ -111,8 +111,8 @@ void main() {
     await c.close();
   });
 
-  test('편집 저장은 목록 전체를 PUT하고 기기가 돌려준 목록을 쓴다', () async {
-    final edited = [presets[1].copyWith(name: '케이팝'), presets[0]];
+  test('saving edits PUTs the whole list and uses the list the device returns', () async {
+    final edited = [presets[1].copyWith(name: 'K-pop'), presets[0]];
     when(() => repo.savePresets(any())).thenAnswer((i) async => Right(i.positionalArguments[0] as List<RadioPreset>));
     final c = build();
     await c.load();
@@ -122,7 +122,7 @@ void main() {
     await c.close();
   });
 
-  test('펌웨어 규칙에 맞지 않으면 보내지 않는다', () async {
+  test('does not send presets that break firmware rules', () async {
     final c = build();
     await c.load();
     expect(await c.savePresets([...presets, const RadioPreset(name: 'x', url: 'rtsp://a/b')]), isFalse);
@@ -133,7 +133,7 @@ void main() {
     await c.close();
   });
 
-  test('추가는 맨 뒤에, 같은 주소는 거절', () async {
+  test('adds to the end, rejects a duplicate URL', () async {
     const added = RadioPreset(name: 'BBC', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', genre: 'news');
     when(() => repo.savePresets(any())).thenAnswer((i) async => Right(i.positionalArguments[0] as List<RadioPreset>));
     final c = build();
@@ -145,7 +145,7 @@ void main() {
     await c.close();
   });
 
-  test('저장 실패(400)는 failure로', () async {
+  test('save failure (400) becomes failure', () async {
     when(() => repo.savePresets(any())).thenAnswer((_) async => Left(DeviceFailure.fromStatus(400, 'INVALID_ARG')));
     final c = build();
     await c.load();
@@ -155,8 +155,8 @@ void main() {
     await c.close();
   });
 
-  group('방송 찾기', () {
-    test('이름·장르로 찾고 결과를 보인다', () async {
+  group('station search', () {
+    test('searches by name or genre and shows results', () async {
       const result = [RadioStation(name: 'Jazz FM', url: 'http://jazz.example/live', codec: 'MP3')];
       when(() => repo.search(any(), byTag: any(named: 'byTag'))).thenAnswer((_) async => const Right(result));
       final c = RadioSearchCubit(repo);
@@ -170,7 +170,7 @@ void main() {
       await c.close();
     });
 
-    test('실패하면 결과 없이 failure', () async {
+    test('failure leaves no results and sets failure', () async {
       when(() => repo.search(any(), byTag: any(named: 'byTag')))
           .thenAnswer((_) async => const Left(NetworkFailure(message: 'x')));
       final c = RadioSearchCubit(repo);

@@ -16,8 +16,8 @@ class MockRepo extends Mock implements TelegramRepository {}
 class MockVault extends Mock implements KeyVault {}
 
 const token = '7712345678:AAHabcdefghijklmnopqrstuvwxyz012345';
-const mom = TelegramChat(chatId: 1, alias: '엄마', title: 'Kim Mira');
-const family = TelegramChat(chatId: -100, alias: '가족방', title: '우리 가족', type: 'group');
+const mom = TelegramChat(chatId: 1, alias: 'Mom', title: 'Kim Mira');
+const family = TelegramChat(chatId: -100, alias: 'Family', title: 'Our Family', type: 'group');
 const overview = TelegramOverview(state: 'ok', bot: 'jarvis_home_bot', unread: 2, chats: [mom, family]);
 const options = TelegramOptions(autoRead: false, quietStart: 22, quietEnd: 7);
 const code = PairingCode(code: '482913', expiresIn: Duration(minutes: 5), bot: 'jarvis_home_bot');
@@ -50,7 +50,7 @@ void main() {
   });
 
   group('TelegramCubit', () {
-    test('load: 대화방·상태·옵션', () async {
+    test('load: chats, state, options', () async {
       final c = TelegramCubit(repo);
       await c.load();
       expect(c.state.loading, isFalse);
@@ -60,7 +60,7 @@ void main() {
       await c.close();
     });
 
-    test('토큰이 없으면 연결 화면', () async {
+    test('no token → connect screen', () async {
       when(() => repo.overview())
           .thenAnswer((_) async => const Right(TelegramOverview(state: 'off', hasToken: false)));
       final c = TelegramCubit(repo);
@@ -69,7 +69,7 @@ void main() {
       await c.close();
     });
 
-    test('불러오기 실패', () async {
+    test('load failure', () async {
       when(() => repo.overview()).thenAnswer((_) async => const Left(NetworkFailure()));
       final c = TelegramCubit(repo);
       await c.load();
@@ -78,28 +78,28 @@ void main() {
       await c.close();
     });
 
-    test('별칭 바꾸기: 바로 반영', () async {
-      when(() => repo.rename(1, '어머니')).thenAnswer((_) async => const Right(unit));
+    test('rename alias: applied immediately', () async {
+      when(() => repo.rename(1, 'Mother')).thenAnswer((_) async => const Right(unit));
       final c = TelegramCubit(repo);
       await c.load();
-      expect(await c.rename(1, '어머니'), isTrue);
-      expect(c.state.overview!.chats.first.alias, '어머니');
+      expect(await c.rename(1, 'Mother'), isTrue);
+      expect(c.state.overview!.chats.first.alias, 'Mother');
       expect(c.state.actionFailure, isNull);
       await c.close();
     });
 
-    test('별칭 바꾸기 실패: 되돌리고 알린다', () async {
+    test('rename alias failure: reverts and notifies', () async {
       const invalid = DeviceFailure(errorKey: ErrorKeys.deviceInvalidArg, status: 400, code: 'INVALID_ARG');
       when(() => repo.rename(any(), any())).thenAnswer((_) async => const Left(invalid));
       final c = TelegramCubit(repo);
       await c.load();
       expect(await c.rename(1, 'x'), isFalse);
-      expect(c.state.overview!.chats.first.alias, '엄마');
+      expect(c.state.overview!.chats.first.alias, 'Mom');
       expect(c.state.actionFailure, invalid);
       await c.close();
     });
 
-    test('삭제', () async {
+    test('delete', () async {
       when(() => repo.remove(-100)).thenAnswer((_) async => const Right(unit));
       final c = TelegramCubit(repo);
       await c.load();
@@ -108,7 +108,7 @@ void main() {
       await c.close();
     });
 
-    test('옵션 저장: 스피커가 돌려준 값으로, 실패하면 되돌린다', () async {
+    test('saving options: uses the values the speaker returns, reverts on failure', () async {
       when(() => repo.saveOptions(any()))
           .thenAnswer((_) async => const Right(TelegramOptions(autoRead: true, quietStart: 22, quietEnd: 7)));
       final c = TelegramCubit(repo);
@@ -124,7 +124,7 @@ void main() {
       await c.close();
     });
 
-    test('이벤트: tg_status·tg_message 반영, tg_paired면 다시 불러온다', () async {
+    test('events: applies tg_status and tg_message, reloads on tg_paired', () async {
       final c = TelegramCubit(repo);
       await c.load();
       status.add('conflict');
@@ -141,7 +141,7 @@ void main() {
   });
 
   group('TelegramConnectCubit', () {
-    test('init: 기억해 둔 토큰으로 채운다', () async {
+    test('init: fills in the remembered token', () async {
       when(() => vault.telegramToken()).thenAnswer((_) async => token);
       final c = TelegramConnectCubit(repo, vault);
       await c.init();
@@ -149,7 +149,7 @@ void main() {
       await c.close();
     });
 
-    test('토큰 확인 성공: 봇 이름, 휴대폰에 기억', () async {
+    test('token check succeeds: bot name, remembered on the phone', () async {
       when(() => repo.checkToken(token)).thenAnswer((_) async => const Right('jarvis_home_bot'));
       final c = TelegramConnectCubit(repo, vault)..tokenChanged(' $token ');
       await c.checkToken();
@@ -159,7 +159,7 @@ void main() {
       await c.close();
     });
 
-    test('토큰이 틀림: 기억하지 않고 저장도 막는다', () async {
+    test('wrong token: not remembered and saving is blocked', () async {
       when(() => repo.checkToken(any())).thenAnswer((_) async => const Right(null));
       final c = TelegramConnectCubit(repo, vault)..tokenChanged('123:bad');
       await c.checkToken();
@@ -170,7 +170,7 @@ void main() {
       await c.close();
     });
 
-    test('Telegram에 닿지 못함', () async {
+    test('cannot reach Telegram', () async {
       when(() => repo.checkToken(any())).thenAnswer((_) async => const Left(NetworkFailure()));
       final c = TelegramConnectCubit(repo, vault)..tokenChanged(token);
       await c.checkToken();
@@ -178,7 +178,7 @@ void main() {
       await c.close();
     });
 
-    test('저장 → 코드 → tg_paired면 등록 완료', () async {
+    test('save → code → tg_paired completes registration', () async {
       when(() => repo.checkToken(token)).thenAnswer((_) async => const Right('jarvis_home_bot'));
       when(() => repo.saveTokenToSpeaker(token)).thenAnswer((_) async => const Right(unit));
       when(() => repo.startPairing()).thenAnswer((_) async => const Right(code));
@@ -191,14 +191,14 @@ void main() {
       expect(c.state.remaining, const Duration(minutes: 5));
       expect(c.state.bot, 'jarvis_home_bot');
 
-      paired.add(const PairedChat(chatId: -100, title: '우리 가족', type: 'group'));
+      paired.add(const PairedChat(chatId: -100, title: 'Our Family', type: 'group'));
       await pump();
       expect(c.state.pairing, Pairing.paired);
-      expect(c.state.pairedChat?.title, '우리 가족');
+      expect(c.state.pairedChat?.title, 'Our Family');
       await c.close();
     });
 
-    test('BLE 저장 실패: 코드를 받지 않는다', () async {
+    test('BLE save failure: no code is requested', () async {
       const ble = BleFailure(errorKey: ErrorKeys.bleNotFound);
       when(() => repo.checkToken(token)).thenAnswer((_) async => const Right('b'));
       when(() => repo.saveTokenToSpeaker(token)).thenAnswer((_) async => const Left(ble));
@@ -211,7 +211,7 @@ void main() {
       await c.close();
     });
 
-    test('토큰 바꾸기 모드: 저장만 하고 코드는 받지 않는다', () async {
+    test('replace-token mode: only saves, no code is requested', () async {
       when(() => repo.checkToken(token)).thenAnswer((_) async => const Right('b'));
       when(() => repo.saveTokenToSpeaker(token)).thenAnswer((_) async => const Right(unit));
       final c = TelegramConnectCubit(repo, vault)..tokenChanged(token);
@@ -222,7 +222,7 @@ void main() {
       await c.close();
     });
 
-    test('409: 스피커에 토큰이 없음', () async {
+    test('409: no token on the speaker', () async {
       when(() => repo.startPairing()).thenAnswer((_) async => const Left(
           DeviceFailure(errorKey: ErrorKeys.deviceBusy, status: 409, code: 'NO_TOKEN')));
       final c = TelegramConnectCubit(repo, vault);
@@ -231,7 +231,7 @@ void main() {
       await c.close();
     });
 
-    test('코드 남은 시간이 줄고, 다 되면 만료. 만료 뒤 tg_paired는 무시', () async {
+    test('code time counts down and expires; tg_paired after expiry is ignored', () async {
       var now = DateTime(2026, 10, 3, 12);
       when(() => repo.startPairing()).thenAnswer((_) async => const Right(code));
       final c = TelegramConnectCubit(repo, vault, clock: () => now);

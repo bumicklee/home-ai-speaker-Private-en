@@ -51,7 +51,7 @@ DeviceInfo info({
 
 const geminiKey = 'AIzaSyA1234567890abcdefghijklmnopqrstu';
 
-const input = ProvisioningInput(openAiKey: 'sk-proj-abcdefghijklmnopqrstuvwx', phoneName: '엄마 폰');
+const input = ProvisioningInput(openAiKey: 'sk-proj-abcdefghijklmnopqrstuvwx', phoneName: "Mom's phone");
 const found = Device(id: mac, name: 'JARVIS_EB1650', host: '192.168.0.156');
 
 void main() {
@@ -85,7 +85,7 @@ void main() {
     when(() => repo.save(any(), any())).thenAnswer((_) async => const Right(unit));
   });
 
-  test('init: 기억해 둔 키와 기본 휴대폰 이름을 채운다', () async {
+  test('init: fills in the remembered key and the default phone name', () async {
     when(() => vault.openAiKey()).thenAnswer((_) async => 'sk-saved');
     when(() => vault.telegramToken()).thenAnswer((_) async => '1:tg');
     final c = ProvisioningCubit(repo, vault);
@@ -93,7 +93,7 @@ void main() {
     expect(c.state.input, const ProvisioningInput(openAiKey: 'sk-saved', telegramToken: '1:tg', phoneName: 'Galaxy'));
   });
 
-  test('새 스피커: 키 → 찾기 → Wi-Fi → 등록 → 완료, 키는 휴대폰에 기억', () async {
+  test('new speaker: key → find → Wi-Fi → register → done, key remembered on the phone', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info()));
     when(() => repo.scanWifi()).thenAnswer((_) async =>
         const Right([WifiNetwork(ssid: 'HomeWiFi', rssi: -50, security: WifiSecurity.wpa2)]));
@@ -118,21 +118,21 @@ void main() {
     await c.close();
   });
 
-  test('이미 Wi-Fi·키가 있는 스피커(휴대폰 추가): Wi-Fi 유지, 키 비우면 보내지 않음', () async {
+  test('speaker already has Wi-Fi and key (adding a phone): keeps Wi-Fi, empty key is not sent', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(provisioned: true, wifi: true, key: true)));
     final c = ProvisioningCubit(repo, vault);
-    await c.submitKeys(const ProvisioningInput(existingKey: true, phoneName: '아빠 폰'), remember: true);
+    await c.submitKeys(const ProvisioningInput(existingKey: true, phoneName: "Dad's phone"), remember: true);
     await c.selectSpeaker(speaker);
     expect(c.state.step, ProvStep.wifiChoice);
     await c.keepWifi();
     expect(c.state.step, ProvStep.done);
     expect(c.state.wifiChanged, isFalse);
     verifyNever(() => repo.setSecret(any(), any()));
-    verify(() => repo.pair('아빠 폰')).called(1);
+    verify(() => repo.pair("Dad's phone")).called(1);
     await c.close();
   });
 
-  test('고른 AI 키도 "이미 있음"도 없으면 스피커를 찾지 않는다', () async {
+  test('does not look for a speaker without a key for the chosen AI or "already set"', () async {
     final c = ProvisioningCubit(repo, vault);
     expect(const ProvisioningInput(phoneName: 'p').canSearch, isFalse);
     expect(await c.submitKeys(const ProvisioningInput(phoneName: 'p'), remember: true), isFalse);
@@ -145,7 +145,7 @@ void main() {
     await c.close();
   });
 
-  test('"이미 있음"인데 스피커에 그 AI 키가 없으면 연결을 끊고 1단계로 (안내와 함께)', () async {
+  test('"already set" but the speaker lacks that AI key: disconnects and returns to step 1 (with a notice)', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(gemini: true)));
     final c = ProvisioningCubit(repo, vault);
     await c.submitKeys(const ProvisioningInput(existingKey: true, phoneName: 'p'), remember: false);
@@ -163,7 +163,7 @@ void main() {
     await c.close();
   });
 
-  test('"이미 있음" + 스피커에 그 AI 키가 있으면 키를 보내지 않고 진행, 고른 AI·방식은 보낸다', () async {
+  test('"already set" and the speaker has that AI key: skips sending the key, still sends the chosen AI and mode', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(provisioned: true, wifi: true, gemini: true)));
     final c = ProvisioningCubit(repo, vault);
     await c.submitKeys(
@@ -178,7 +178,7 @@ void main() {
     await c.close();
   });
 
-  test('Gemini 키를 넣으면 gemini_key로 보내고, 두 키 모두 기억한다', () async {
+  test('a Gemini key is sent as gemini_key and both keys are remembered', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(provisioned: true, wifi: true)));
     final c = ProvisioningCubit(repo, vault);
     await c.submitKeys(
@@ -196,7 +196,7 @@ void main() {
     await c.close();
   });
 
-  test('settings.set이 NO_API_KEY면 1단계로 (완료 단계로 가지 않음)', () async {
+  test('settings.set NO_API_KEY returns to step 1 (does not reach the done step)', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(provisioned: true, wifi: true, key: true)));
     when(() => repo.setSettings(any(), any())).thenAnswer((_) async => const Left(
         BleFailure(errorKey: ErrorKeys.deviceNoApiKey, code: BleCmdError.noApiKey)));
@@ -210,7 +210,7 @@ void main() {
     await c.close();
   });
 
-  test('이 스피커가 아직 못 하는 AI(1단계 펌웨어의 Gemini)면 연결을 끊고 1단계로 (준비 중 안내)', () async {
+  test('AI this speaker cannot run yet (Gemini on step-1 firmware): disconnects and returns to step 1 (not-ready notice)', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(gemini: true, ai: stage1)));
     final c = ProvisioningCubit(repo, vault);
     await c.submitKeys(
@@ -229,7 +229,7 @@ void main() {
     await c.close();
   });
 
-  test('옛 펌웨어(device.info에 ai 없음): openai.live만 → 절약을 골랐어도 실시간으로 보낸다', () async {
+  test('old firmware (no ai in device.info): openai.live only → sends real-time even if saver was chosen', () async {
     final j = {
       'protocol_version': 1,
       'mac': mac,
@@ -250,7 +250,7 @@ void main() {
     await c.close();
   });
 
-  test('device.info.ai 해석', () {
+  test('parsing device.info.ai', () {
     final i = DeviceInfo.fromJson({
       'ai': {
         'provider': 'openai',
@@ -261,7 +261,7 @@ void main() {
     expect(i.ai, stage1);
   });
 
-  test('init: Gemini 키만 기억해 뒀으면 Gemini를 먼저 고른다', () async {
+  test('init: picks Gemini first if only a Gemini key is remembered', () async {
     when(() => vault.geminiKey()).thenAnswer((_) async => geminiKey);
     final c = ProvisioningCubit(repo, vault);
     await c.init();
@@ -271,14 +271,14 @@ void main() {
     await c.close();
   });
 
-  test('키 형식', () {
+  test('key format', () {
     expect(ProvisioningInput.geminiKeyPattern.hasMatch(geminiKey), isTrue);
     expect(ProvisioningInput.geminiKeyPattern.hasMatch('AIza-short'), isFalse);
     expect(ProvisioningInput.geminiKeyPattern.hasMatch(input.openAiKey), isFalse);
     expect(ProvisioningInput.keyPattern(AiProvider.openai).hasMatch(input.openAiKey), isTrue);
   });
 
-  test('비밀번호가 틀리면 Wi-Fi 목록으로 돌아와 이유를 보인다', () async {
+  test('wrong password returns to the Wi-Fi list and shows the reason', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info()));
     when(() => repo.scanWifi()).thenAnswer((_) async => const Right(<WifiNetwork>[]));
     when(() => repo.provisionWifi('HomeWiFi', 'bad')).thenAnswer((_) async => const Right(WifiProvStatus.authFailed));
@@ -292,14 +292,14 @@ void main() {
     await c.close();
   });
 
-  test('휴대폰 칸이 가득 차면 고른 휴대폰을 지우고 등록 (키는 다시 보내지 않음)', () async {
+  test('phone slots full: removes the chosen phone, then registers (key is not resent)', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => Right(info(provisioned: true, wifi: true, key: true)));
     when(() => repo.pair(any())).thenAnswer((_) async => const Left(BleFailure(
           errorKey: ErrorKeys.blePhonesFull,
           code: BleCmdError.phonesFull,
           data: {
             'phones': [
-              {'phone_id': 'old-1', 'name': '옛 폰'},
+              {'phone_id': 'old-1', 'name': 'Old phone'},
             ],
           },
         )));
@@ -309,7 +309,7 @@ void main() {
     await c.selectSpeaker(speaker);
     await c.keepWifi();
     expect(c.state.step, ProvStep.phonesFull);
-    expect(c.state.phones, const [RegisteredPhone(phoneId: 'old-1', name: '옛 폰')]);
+    expect(c.state.phones, const [RegisteredPhone(phoneId: 'old-1', name: 'Old phone')]);
     await c.evictAndPair('old-1');
     expect(c.state.step, ProvStep.done);
     verify(() => repo.setSecret(SecretKey.openai, any())).called(1);
@@ -317,7 +317,7 @@ void main() {
     await c.close();
   });
 
-  test('연결 실패 → failed, 다시 시도하면 같은 스피커로', () async {
+  test('connection failure → failed, retry uses the same speaker', () async {
     when(() => repo.connect(speaker)).thenAnswer((_) async => const Left(BleFailure(errorKey: ErrorKeys.bleConnect)));
     final c = ProvisioningCubit(repo, vault);
     await c.submitKeys(input, remember: true);

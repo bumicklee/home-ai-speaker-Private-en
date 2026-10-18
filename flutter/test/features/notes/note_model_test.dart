@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 Map<String, dynamic> eventJson({int rev = 42}) => {
       'id': 'n_7f3a9c21',
       'kind': 'event',
-      'title': '병원 (정형외과)',
-      'body': '보험증 챙기기',
+      'title': 'Doctor (orthopedics)',
+      'body': 'Bring insurance card',
       'start': '2026-10-05T15:00',
       'end': null,
       'remind': [1440, 60],
@@ -25,7 +25,7 @@ Map<String, dynamic> eventJson({int rev = 42}) => {
 
 void main() {
   group('NoteModel', () {
-    test('일정 JSON과 알림 필드를 읽는다', () {
+    test('reads event JSON and reminder fields', () {
       final n = NoteModel.fromJson(eventJson());
       expect(n.isEvent, isTrue);
       expect(n.start, NoteTime.at(DateTime(2026, 10, 5, 15)));
@@ -39,14 +39,14 @@ void main() {
       expect(n.state, NoteState.active);
     });
 
-    test('하루 종일 일정 (날짜만) — 시간대 변환 없이 현지 날짜 그대로', () {
-      final n = NoteModel.fromJson({'id': 'n_1', 'kind': 'event', 'title': '손주 생일', 'start': '2026-10-05', 'rev': 1});
+    test('all-day event (date only) keeps the local date with no time zone conversion', () {
+      final n = NoteModel.fromJson({'id': 'n_1', 'kind': 'event', 'title': "Grandson's birthday", 'start': '2026-10-05', 'rev': 1});
       expect(n.isAllDay, isTrue);
       expect(n.start!.at, DateTime(2026, 10, 5));
       expect(n.start!.format(), '2026-10-05');
     });
 
-    test('지운 기록(gone)은 id·rev·state만 와도 읽힌다', () {
+    test('a deleted record (gone) reads with only id, rev and state', () {
       final n = NoteModel.fromJson({'id': 'n_1', 'rev': 50, 'state': 'gone'});
       expect(n.isGone, isTrue);
       expect(n.rev, 50);
@@ -55,7 +55,7 @@ void main() {
       expect(n.alert, isNull);
     });
 
-    test('모르는 값·깨진 값은 기본값', () {
+    test('unknown or broken values fall back to defaults', () {
       final n = NoteModel.fromJson({
         'id': 'n_2',
         'kind': 'todo',
@@ -71,39 +71,39 @@ void main() {
       expect(n.state, NoteState.active);
     });
 
-    test('사본 파일로 쓰고 다시 읽으면 같다', () {
+    test('writing to the copy file and reading back gives the same note', () {
       final n = NoteModel.fromJson(eventJson());
       expect(NoteModel.fromJson(NoteModel.toJson(n)), n);
     });
 
-    test('만들기 본문: remind가 null이면 빼서 스피커 기본 알림을 쓰게 한다', () {
-      final d = NoteDraft(kind: NoteKind.event, title: '병원', start: NoteTime.at(DateTime(2026, 10, 5, 15)));
-      expect(NoteModel.createJson(d), {'kind': 'event', 'title': '병원', 'body': '', 'start': '2026-10-05T15:00', 'end': null});
-      final withRemind = NoteDraft(kind: NoteKind.event, title: '병원', start: NoteTime.date(DateTime(2026, 10, 5)), remind: const [0]);
+    test('create body: omits a null remind so the speaker uses its default reminders', () {
+      final d = NoteDraft(kind: NoteKind.event, title: 'Doctor', start: NoteTime.at(DateTime(2026, 10, 5, 15)));
+      expect(NoteModel.createJson(d), {'kind': 'event', 'title': 'Doctor', 'body': '', 'start': '2026-10-05T15:00', 'end': null});
+      final withRemind = NoteDraft(kind: NoteKind.event, title: 'Doctor', start: NoteTime.date(DateTime(2026, 10, 5)), remind: const [0]);
       expect(NoteModel.createJson(withRemind)['remind'], [0]);
       expect(NoteModel.createJson(withRemind)['start'], '2026-10-05');
-      expect(NoteModel.createJson(const NoteDraft(kind: NoteKind.memo, title: '우유')).containsKey('start'), isFalse);
+      expect(NoteModel.createJson(const NoteDraft(kind: NoteKind.memo, title: 'Milk')).containsKey('start'), isFalse);
     });
 
-    test('고치기 본문에 base_rev, 메모로 바꾸면 시각·알림을 비운다', () {
-      final d = NoteDraft(kind: NoteKind.event, title: '병원', start: NoteTime.at(DateTime(2026, 10, 5, 16)), remind: const [60]);
+    test('update body carries base_rev; switching to a memo clears time and reminders', () {
+      final d = NoteDraft(kind: NoteKind.event, title: 'Doctor', start: NoteTime.at(DateTime(2026, 10, 5, 16)), remind: const [60]);
       expect(NoteModel.updateJson(d, 42), {
         'base_rev': 42,
         'kind': 'event',
-        'title': '병원',
+        'title': 'Doctor',
         'body': '',
         'start': '2026-10-05T16:00',
         'end': null,
         'remind': [60],
       });
-      final memo = NoteModel.updateJson(const NoteDraft(kind: NoteKind.memo, title: '우유'), 7);
+      final memo = NoteModel.updateJson(const NoteDraft(kind: NoteKind.memo, title: 'Milk'), 7);
       expect(memo['start'], isNull);
       expect(memo['remind'], isEmpty);
     });
   });
 
   group('NotesSettingsModel', () {
-    test('읽기 + 빠진 값은 기본값 (1시간 전, 하루 종일 당일 9시)', () {
+    test('reads, with defaults for missing values (1 hour before; all-day at 9 on the day)', () {
       final s = NotesSettingsModel.fromJson({
         'enabled': false,
         'default_remind': [1440, 60],
@@ -115,7 +115,7 @@ void main() {
       expect(NotesSettingsModel.fromJson({'all_day_time': '25:00'}).allDayTime, ClockTime.morning);
     });
 
-    test('저장은 바뀐 키만 보낸다', () {
+    test('saving sends only the changed keys', () {
       const a = NotesSettings();
       expect(NotesSettingsModel.diff(a, a.copyWith(allDayTime: const ClockTime(7, 0))), {'all_day_time': '07:00'});
       expect(NotesSettingsModel.diff(a, a.copyWith(defaultRemind: [10, 0])), {'default_remind': [10, 0]});
@@ -123,7 +123,7 @@ void main() {
     });
   });
 
-  test('새 오류 코드 → 키', () {
+  test('new error codes map to keys', () {
     expect(ErrorKeys.fromDeviceStatus(409, 'FULL'), ErrorKeys.deviceNotesFull);
     expect(ErrorKeys.fromDeviceStatus(409, 'CONFLICT'), ErrorKeys.deviceConflict);
     expect(ErrorKeys.fromDeviceStatus(404, 'NOT_FOUND'), ErrorKeys.deviceNotFound);
